@@ -1461,9 +1461,11 @@ async def _merge_file_with_ai_async(
                     error="core.simple_client not available",
                 )
 
+            from phase_config import DEFAULT_HAIKU_MODEL
+
             client = create_simple_client(
                 agent_type="merge_resolver",
-                model="claude-haiku-4-5-20251001",
+                model=DEFAULT_HAIKU_MODEL,
                 system_prompt=AI_MERGE_SYSTEM_PROMPT,
                 max_thinking_tokens=1024,  # Low thinking for speed
             )

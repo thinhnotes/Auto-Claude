@@ -261,6 +261,9 @@ Output ONLY the name (2-3 words), nothing else. Examples: "npm build", "git logs
   private createGenerationScript(prompt: string): string {
     // Escape the prompt for Python string - use JSON.stringify for safe escaping
     const escapedPrompt = JSON.stringify(prompt);
+    // Get model from env var or use default
+    const haikuModel = process.env.ANTHROPIC_DEFAULT_HAIKU_MODEL || 'claude-haiku-4-5-20251001';
+    const escapedModel = JSON.stringify(haikuModel);
 
     return `
 import asyncio
@@ -275,7 +278,7 @@ async def generate_name():
         # Create a minimal client for simple text generation (no tools needed)
         client = ClaudeSDKClient(
             options=ClaudeAgentOptions(
-                model="claude-haiku-4-5",
+                model=${escapedModel},
                 system_prompt="You generate very short, concise terminal names (2-3 words MAX). Output ONLY the name, nothing else. No quotes, no explanation, no preamble. Keep it as short as possible while being descriptive.",
                 max_turns=1,
             )

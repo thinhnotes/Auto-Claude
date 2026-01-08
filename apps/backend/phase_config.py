@@ -11,11 +11,16 @@ import os
 from pathlib import Path
 from typing import Literal, TypedDict
 
+# Default model IDs (can be overridden via ANTHROPIC_DEFAULT_*_MODEL env vars)
+DEFAULT_OPUS_MODEL = os.environ.get("ANTHROPIC_DEFAULT_OPUS_MODEL", "claude-opus-4-5-20251101")
+DEFAULT_SONNET_MODEL = os.environ.get("ANTHROPIC_DEFAULT_SONNET_MODEL", "claude-sonnet-4-5-20250929")
+DEFAULT_HAIKU_MODEL = os.environ.get("ANTHROPIC_DEFAULT_HAIKU_MODEL", "claude-haiku-4-5-20251001")
+
 # Model shorthand to full model ID mapping
 MODEL_ID_MAP: dict[str, str] = {
-    "opus": "claude-opus-4-5-20251101",
-    "sonnet": "claude-sonnet-4-5-20250929",
-    "haiku": "claude-haiku-4-5-20251001",
+    "opus": DEFAULT_OPUS_MODEL,
+    "sonnet": DEFAULT_SONNET_MODEL,
+    "haiku": DEFAULT_HAIKU_MODEL,
 }
 
 # Thinking level to budget tokens mapping (None = no extended thinking)
@@ -95,9 +100,10 @@ def resolve_model_id(model: str) -> str:
     Resolve a model shorthand (haiku, sonnet, opus) to a full model ID.
     If the model is already a full ID, return it unchanged.
 
-    Priority:
-    1. Environment variable override (from API Profile)
-    2. Hardcoded MODEL_ID_MAP
+    Note: MODEL_ID_MAP already uses environment variables at module load time,
+    so the priority is:
+    1. ANTHROPIC_DEFAULT_*_MODEL env vars (applied to MODEL_ID_MAP)
+    2. MODEL_ID_MAP mapping
     3. Pass through unchanged (assume full model ID)
 
     Args:
@@ -106,20 +112,8 @@ def resolve_model_id(model: str) -> str:
     Returns:
         Full Claude model ID
     """
-    # Check for environment variable override (from API Profile custom model mappings)
+    # MODEL_ID_MAP already includes env var overrides from module initialization
     if model in MODEL_ID_MAP:
-        env_var_map = {
-            "haiku": "ANTHROPIC_DEFAULT_HAIKU_MODEL",
-            "sonnet": "ANTHROPIC_DEFAULT_SONNET_MODEL",
-            "opus": "ANTHROPIC_DEFAULT_OPUS_MODEL",
-        }
-        env_var = env_var_map.get(model)
-        if env_var:
-            env_value = os.environ.get(env_var)
-            if env_value:
-                return env_value
-
-        # Fall back to hardcoded mapping
         return MODEL_ID_MAP[model]
 
     # Already a full model ID or unknown shorthand

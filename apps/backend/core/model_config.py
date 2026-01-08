@@ -12,7 +12,10 @@ import os
 logger = logging.getLogger(__name__)
 
 # Default model for utility operations (commit messages, merge resolution)
-DEFAULT_UTILITY_MODEL = "claude-haiku-4-5-20251001"
+# Can be overridden via UTILITY_MODEL_ID or ANTHROPIC_DEFAULT_HAIKU_MODEL env vars
+DEFAULT_UTILITY_MODEL = os.environ.get(
+    "ANTHROPIC_DEFAULT_HAIKU_MODEL", "claude-haiku-4-5-20251001"
+)
 
 
 def get_utility_model_config(

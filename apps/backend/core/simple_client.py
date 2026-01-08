@@ -21,6 +21,7 @@ Example usage:
     client = create_simple_client(agent_type="insights", cwd=project_dir)
 """
 
+import os
 from pathlib import Path
 
 from agents.tools_pkg import get_agent_config, get_default_thinking_level
@@ -28,10 +29,15 @@ from claude_agent_sdk import ClaudeAgentOptions, ClaudeSDKClient
 from core.auth import get_sdk_env_vars, require_auth_token
 from phase_config import get_thinking_budget
 
+# Default utility model - can be overridden via ANTHROPIC_DEFAULT_HAIKU_MODEL env var
+DEFAULT_HAIKU_MODEL = os.environ.get(
+    "ANTHROPIC_DEFAULT_HAIKU_MODEL", "claude-haiku-4-5-20251001"
+)
+
 
 def create_simple_client(
     agent_type: str = "merge_resolver",
-    model: str = "claude-haiku-4-5-20251001",
+    model: str | None = None,
     system_prompt: str | None = None,
     cwd: Path | None = None,
     max_turns: int = 1,
@@ -79,6 +85,9 @@ def create_simple_client(
     # Get tools from config (no MCP tools for simple clients)
     allowed_tools = list(config.get("tools", []))
 
+    # Use default model if not provided
+    actual_model = model if model is not None else DEFAULT_HAIKU_MODEL
+
     # Determine thinking budget using the single source of truth (phase_config.py)
     if max_thinking_tokens is None:
         thinking_level = get_default_thinking_level(agent_type)
@@ -86,7 +95,7 @@ def create_simple_client(
 
     return ClaudeSDKClient(
         options=ClaudeAgentOptions(
-            model=model,
+            model=actual_model,
             system_prompt=system_prompt,
             allowed_tools=allowed_tools,
             max_turns=max_turns,

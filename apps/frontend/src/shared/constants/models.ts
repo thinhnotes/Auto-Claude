@@ -15,11 +15,16 @@ export const AVAILABLE_MODELS = [
   { value: 'haiku', label: 'Claude Haiku 4.5' }
 ] as const;
 
+// Default model IDs (can be overridden via ANTHROPIC_DEFAULT_*_MODEL env vars)
+const DEFAULT_OPUS_MODEL = process.env.ANTHROPIC_DEFAULT_OPUS_MODEL || 'claude-opus-4-5-20251101';
+const DEFAULT_SONNET_MODEL = process.env.ANTHROPIC_DEFAULT_SONNET_MODEL || 'claude-sonnet-4-5-20250929';
+const DEFAULT_HAIKU_MODEL = process.env.ANTHROPIC_DEFAULT_HAIKU_MODEL || 'claude-haiku-4-5-20251001';
+
 // Maps model shorthand to actual Claude model IDs
 export const MODEL_ID_MAP: Record<string, string> = {
-  opus: 'claude-opus-4-5-20251101',
-  sonnet: 'claude-sonnet-4-5-20250929',
-  haiku: 'claude-haiku-4-5-20251001'
+  opus: DEFAULT_OPUS_MODEL,
+  sonnet: DEFAULT_SONNET_MODEL,
+  haiku: DEFAULT_HAIKU_MODEL
 } as const;
 
 // Maps thinking levels to budget tokens (null = no extended thinking)
