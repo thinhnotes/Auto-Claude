@@ -16,9 +16,17 @@ export const AVAILABLE_MODELS = [
 ] as const;
 
 // Default model IDs (can be overridden via ANTHROPIC_DEFAULT_*_MODEL env vars)
-const DEFAULT_OPUS_MODEL = process.env.ANTHROPIC_DEFAULT_OPUS_MODEL || 'claude-opus-4-5-20251101';
-const DEFAULT_SONNET_MODEL = process.env.ANTHROPIC_DEFAULT_SONNET_MODEL || 'claude-sonnet-4-5-20250929';
-const DEFAULT_HAIKU_MODEL = process.env.ANTHROPIC_DEFAULT_HAIKU_MODEL || 'claude-haiku-4-5-20251001';
+// In renderer process, process.env is not available, so we use fallback values
+const getEnvVar = (key: string, fallback: string): string => {
+  if (typeof process !== 'undefined' && process.env && process.env[key]) {
+    return process.env[key] as string;
+  }
+  return fallback;
+};
+
+const DEFAULT_OPUS_MODEL = getEnvVar('ANTHROPIC_DEFAULT_OPUS_MODEL', 'claude-opus-4-5-20251101');
+const DEFAULT_SONNET_MODEL = getEnvVar('ANTHROPIC_DEFAULT_SONNET_MODEL', 'claude-sonnet-4-5-20250929');
+const DEFAULT_HAIKU_MODEL = getEnvVar('ANTHROPIC_DEFAULT_HAIKU_MODEL', 'claude-haiku-4-5-20251001');
 
 // Maps model shorthand to actual Claude model IDs
 export const MODEL_ID_MAP: Record<string, string> = {

@@ -5,6 +5,7 @@ import {
   initializeProject
 } from '../../../stores/project-store';
 import { checkGitHubConnection as checkGitHubConnectionGlobal } from '../../../stores/github';
+import { useSettingsStore } from '../../../stores/settings-store';
 import type {
   Project,
   ProjectSettings as ProjectSettingsType,
@@ -12,7 +13,8 @@ import type {
   ProjectEnvConfig,
   LinearSyncStatus,
   GitHubSyncStatus,
-  GitLabSyncStatus
+  GitLabSyncStatus,
+  AzureDevOpsSyncStatus
 } from '../../../../shared/types';
 
 export interface UseProjectSettingsReturn {
@@ -60,6 +62,10 @@ export interface UseProjectSettingsReturn {
   setShowGitLabToken: React.Dispatch<React.SetStateAction<boolean>>;
   gitLabConnectionStatus: GitLabSyncStatus | null;
   isCheckingGitLab: boolean;
+
+  // Azure DevOps state
+  azureDevOpsConnectionStatus: AzureDevOpsSyncStatus | null;
+  isCheckingAzureDevOps: boolean;
 
   // Claude auth state
   isCheckingClaudeAuth: boolean;
@@ -118,6 +124,10 @@ export function useProjectSettings(
   const [showGitLabToken, setShowGitLabToken] = useState(false);
   const [gitLabConnectionStatus, setGitLabConnectionStatus] = useState<GitLabSyncStatus | null>(null);
   const [isCheckingGitLab, setIsCheckingGitLab] = useState(false);
+
+  // Azure DevOps state
+  const [azureDevOpsConnectionStatus, setAzureDevOpsConnectionStatus] = useState<AzureDevOpsSyncStatus | null>(null);
+  const [isCheckingAzureDevOps, setIsCheckingAzureDevOps] = useState(false);
 
   // Claude auth state
   const [isCheckingClaudeAuth, setIsCheckingClaudeAuth] = useState(false);
@@ -272,6 +282,32 @@ export function useProjectSettings(
     }
   }, [envConfig?.gitlabEnabled, envConfig?.gitlabToken, envConfig?.gitlabProject, project.id]);
 
+  // Check Azure DevOps connection when org/project/PAT changes
+  useEffect(() => {
+    const checkAzureDevOpsConnection = async () => {
+      if (!envConfig?.azureDevOpsEnabled || !envConfig.azureDevOpsOrganizationUrl || !envConfig.azureDevOpsProject) {
+        setAzureDevOpsConnectionStatus(null);
+        return;
+      }
+
+      setIsCheckingAzureDevOps(true);
+      try {
+        const status = await window.electronAPI.azureDevOps?.checkConnection(project.id);
+        if (status?.success && status.data) {
+          setAzureDevOpsConnectionStatus(status.data);
+        }
+      } catch {
+        setAzureDevOpsConnectionStatus({ connected: false, error: 'Failed to check connection' });
+      } finally {
+        setIsCheckingAzureDevOps(false);
+      }
+    };
+
+    if (envConfig?.azureDevOpsEnabled && envConfig.azureDevOpsOrganizationUrl && envConfig.azureDevOpsProject) {
+      checkAzureDevOpsConnection();
+    }
+  }, [envConfig?.azureDevOpsEnabled, envConfig?.azureDevOpsOrganizationUrl, envConfig?.azureDevOpsProject, envConfig?.azureDevOpsPersonalAccessToken, project.id]);
+
   const toggleSection = (section: string) => {
     setExpandedSections(prev => ({ ...prev, [section]: !prev[section] }));
   };
@@ -360,6 +396,8 @@ export function useProjectSettings(
     }
   };
 
+  const triggerEnvConfigRefresh = useSettingsStore((state) => state.triggerEnvConfigRefresh);
+
   const updateEnvConfig = async (updates: Partial<ProjectEnvConfig>) => {
     if (envConfig) {
       const newConfig = { ...envConfig, ...updates };
@@ -369,6 +407,9 @@ export function useProjectSettings(
         const result = await window.electronAPI.updateProjectEnv(project.id, newConfig);
         if (!result.success) {
           console.error('[useProjectSettings] Failed to auto-save env config:', result.error);
+        } else {
+          // Trigger sidebar refresh after successful save
+          triggerEnvConfigRefresh();
         }
       } catch (err) {
         console.error('[useProjectSettings] Error auto-saving env config:', err);
@@ -411,6 +452,8 @@ export function useProjectSettings(
     setShowGitLabToken,
     gitLabConnectionStatus,
     isCheckingGitLab,
+    azureDevOpsConnectionStatus,
+    isCheckingAzureDevOps,
     isCheckingClaudeAuth,
     claudeAuthStatus,
     setClaudeAuthStatus,

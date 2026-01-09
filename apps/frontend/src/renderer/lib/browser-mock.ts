@@ -229,6 +229,17 @@ const browserMockAPI: ElectronAPI = {
     onAnalyzePreviewError: () => () => {}
   },
 
+  // Azure DevOps API
+  azureDevOps: {
+    getConfig: async () => ({ success: true, data: { enabled: false } }),
+    getIterations: async () => ({ success: false, error: 'Browser mock' }),
+    getCurrentIteration: async () => ({ success: false, error: 'Browser mock' }),
+    getWorkItemsForIteration: async () => ({ success: false, error: 'Browser mock' }),
+    getWorkItem: async () => ({ success: false, error: 'Browser mock' }),
+    getAreas: async () => ({ success: false, error: 'Browser mock' }),
+    checkConnection: async () => ({ success: true, data: { connected: false } })
+  },
+
   // Claude Code Operations
   checkClaudeCodeVersion: async () => ({
     success: true,
