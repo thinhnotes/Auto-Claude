@@ -13,7 +13,7 @@ from typing import Literal, TypedDict
 
 # Default model IDs (can be overridden via ANTHROPIC_DEFAULT_*_MODEL env vars)
 DEFAULT_OPUS_MODEL = os.environ.get("ANTHROPIC_DEFAULT_OPUS_MODEL", "claude-opus-4-5-20251101")
-DEFAULT_SONNET_MODEL = os.environ.get("ANTHROPIC_DEFAULT_SONNET_MODEL", "claude-sonnet-4-5-20250929")
+DEFAULT_SONNET_MODEL = os.environ.get("ANTHROPIC_DEFAULT_SONNET_MODEL", "claude-sonnet-4-20250514")
 DEFAULT_HAIKU_MODEL = os.environ.get("ANTHROPIC_DEFAULT_HAIKU_MODEL", "claude-haiku-4-5-20251001")
 
 # Model shorthand to full model ID mapping
