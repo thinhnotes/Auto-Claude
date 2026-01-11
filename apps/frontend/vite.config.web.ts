@@ -2,6 +2,9 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import { resolve } from 'path';
 
+// Get custom domain from environment variable
+const customDomain = process.env.VITE_CUSTOM_DOMAIN || 'notesvnn.click';
+
 export default defineConfig({
   root: resolve(__dirname, 'src/renderer'),
   base: './',
@@ -38,6 +41,7 @@ export default defineConfig({
   server: {
     port: 5173,
     host: '0.0.0.0',
+    allowedHosts: [`autoclaude.${customDomain}`, `.${customDomain}`],
     watch: {
       ignored: [
         '**/node_modules/**',
