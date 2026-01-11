@@ -29,8 +29,9 @@ from claude_agent_sdk import ClaudeAgentOptions, ClaudeSDKClient
 from core.auth import get_sdk_env_vars, require_auth_token
 from phase_config import get_thinking_budget
 
-# Default utility model - can be overridden via ANTHROPIC_DEFAULT_HAIKU_MODEL env var
-DEFAULT_HAIKU_MODEL = os.environ.get(
+# Default utility model - can be overridden via AUTO_BUILD_MODEL or ANTHROPIC_DEFAULT_HAIKU_MODEL env var
+_AUTO_BUILD_MODEL = os.environ.get("AUTO_BUILD_MODEL")
+DEFAULT_HAIKU_MODEL = _AUTO_BUILD_MODEL or os.environ.get(
     "ANTHROPIC_DEFAULT_HAIKU_MODEL", "claude-haiku-4-5-20251001"
 )
 

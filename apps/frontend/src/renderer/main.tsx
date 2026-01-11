@@ -14,10 +14,13 @@ initSentryRenderer().catch((err) => {
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { App } from './App';
+import { AppAPIProvider } from './platform/context';
 import './styles/globals.css';
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
-    <App />
+    <AppAPIProvider>
+      <App />
+    </AppAPIProvider>
   </React.StrictMode>
 );

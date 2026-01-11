@@ -291,15 +291,55 @@ export async function createTask(
 /**
  * Start a task
  */
-export function startTask(taskId: string, options?: { parallel?: boolean; workers?: number }): void {
-  window.electronAPI.startTask(taskId, options);
+export async function startTask(taskId: string, options?: { parallel?: boolean; workers?: number }): Promise<void> {
+  const store = useTaskStore.getState();
+  
+  // Optimistically update status to in_progress
+  store.updateTaskStatus(taskId, 'in_progress');
+  
+  try {
+    // startTask returns void in Electron (fire and forget IPC)
+    // In web mode, it may return a result but we wrap it safely
+    const maybeResult = window.electronAPI.startTask(taskId, options) as unknown;
+    
+    // If it returns a promise (web mode), await it
+    if (maybeResult && typeof maybeResult === 'object' && 'then' in maybeResult) {
+      const result = await (maybeResult as Promise<{ success?: boolean; error?: string }>);
+      if (result && result.success === false) {
+        console.error('[startTask] Failed to start task:', result.error);
+        store.updateTaskStatus(taskId, 'backlog');
+      }
+    }
+  } catch (error) {
+    console.error('[startTask] Error starting task:', error);
+    store.updateTaskStatus(taskId, 'backlog');
+  }
 }
 
 /**
  * Stop a task
  */
-export function stopTask(taskId: string): void {
-  window.electronAPI.stopTask(taskId);
+export async function stopTask(taskId: string): Promise<void> {
+  const store = useTaskStore.getState();
+  
+  try {
+    // stopTask returns void in Electron (fire and forget IPC)
+    // In web mode, it may return a result but we wrap it safely
+    const maybeResult = window.electronAPI.stopTask(taskId) as unknown;
+    
+    // If it returns a promise (web mode), await it
+    if (maybeResult && typeof maybeResult === 'object' && 'then' in maybeResult) {
+      const result = await (maybeResult as Promise<{ success?: boolean }>);
+      if (result && result.success) {
+        store.updateTaskStatus(taskId, 'backlog');
+      }
+    } else {
+      // Electron mode - assume success
+      store.updateTaskStatus(taskId, 'backlog');
+    }
+  } catch (error) {
+    console.error('[stopTask] Error stopping task:', error);
+  }
 }
 
 /**
