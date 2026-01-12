@@ -269,7 +269,7 @@ function PhaseLogSection({ phase, phaseLog, isExpanded, onToggle, isTaskStuck, p
         </button>
       </CollapsibleTrigger>
       <CollapsibleContent>
-        <div className="mt-1 ml-6 border-l-2 border-border pl-4 py-2 space-y-1 max-h-64 overflow-y-auto">
+        <div className="mt-1 ml-6 border-l-2 border-border pl-4 py-2 space-y-1 max-h-[500px] overflow-y-auto scrollbar-thin scrollbar-thumb-border scrollbar-track-transparent">
           {!hasEntries ? (
             <p className="text-xs text-muted-foreground italic">No logs yet</p>
           ) : (

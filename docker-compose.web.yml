@@ -1,0 +1,40 @@
+services:
+  # Backend API (FastAPI)
+  backend:
+    build:
+      context: ./apps/backend
+      dockerfile: Dockerfile
+    container_name: auto-claude-backend
+    ports:
+      - "8000:8000"
+    environment:
+      - PYTHONUNBUFFERED=1
+    env_file:
+      - .env.docker
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import httpx; httpx.get('http://localhost:8000/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+
+  # Frontend Web (Nginx serving static files)
+  frontend:
+    build:
+      context: ./apps/frontend
+      dockerfile: Dockerfile.web
+      args:
+        - VITE_CUSTOM_DOMAIN=${VITE_CUSTOM_DOMAIN:-notesvnn.click}
+    container_name: auto-claude-web
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s

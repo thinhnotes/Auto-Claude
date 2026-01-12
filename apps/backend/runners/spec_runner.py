@@ -336,6 +336,7 @@ Examples:
                 "--project-dir",
                 str(orchestrator.project_dir),
                 "--auto-continue",  # Non-interactive mode for chained execution
+                "--force",  # Bypass approval check since spec was already approved
             ]
 
             # Pass base branch if specified (for worktree creation)
