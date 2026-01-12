@@ -2,12 +2,14 @@ FROM python:3.12-slim
 
 WORKDIR /app
 
-# Install system dependencies and Claude CLI
+# Install system dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
     git \
     curl \
-    && rm -rf /var/lib/apt/lists/* \
-    && curl -fsSL https://claude.ai/install.sh | sh \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Claude CLI
+RUN curl -fsSL https://claude.ai/install.sh | bash \
     && ln -sf /root/.claude/local/bin/claude /usr/local/bin/claude
 
 # Copy requirements first for better caching
