@@ -5,7 +5,7 @@ import { resolve } from 'path';
 // Get custom domain from environment variable
 const customDomain = process.env.VITE_CUSTOM_DOMAIN || 'notesvnn.click';
 // Get backend API URL from environment variable
-const apiUrl = process.env.VITE_API_URL || '/api';
+const apiUrl = process.env.VITE_API_URL || '';
 
 export default defineConfig({
   root: resolve(__dirname, 'src/renderer'),
