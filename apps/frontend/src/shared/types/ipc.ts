@@ -178,11 +178,11 @@ export interface ElectronAPI {
   unarchiveTasks: (projectId: string, taskIds: string[]) => Promise<IPCResult<boolean>>;
 
   // Event listeners
-  onTaskProgress: (callback: (taskId: string, plan: ImplementationPlan) => void) => () => void;
-  onTaskError: (callback: (taskId: string, error: string) => void) => () => void;
-  onTaskLog: (callback: (taskId: string, log: string) => void) => () => void;
-  onTaskStatusChange: (callback: (taskId: string, status: TaskStatus) => void) => () => void;
-  onTaskExecutionProgress: (callback: (taskId: string, progress: ExecutionProgress) => void) => () => void;
+  onTaskProgress: (callback: (taskId: string, plan: ImplementationPlan, projectId?: string) => void) => () => void;
+  onTaskError: (callback: (taskId: string, error: string, projectId?: string) => void) => () => void;
+  onTaskLog: (callback: (taskId: string, log: string, projectId?: string) => void) => () => void;
+  onTaskStatusChange: (callback: (taskId: string, status: TaskStatus, projectId?: string) => void) => () => void;
+  onTaskExecutionProgress: (callback: (taskId: string, progress: ExecutionProgress, projectId?: string) => void) => () => void;
 
   // Terminal operations
   createTerminal: (options: TerminalCreateOptions) => Promise<IPCResult>;
@@ -693,6 +693,10 @@ export interface ElectronAPI {
   onTaskLogsStream: (
     callback: (specId: string, chunk: TaskLogStreamChunk) => void
   ) => () => void;
+
+  // Task progress polling (for subtasks auto-refresh, primarily used in web mode)
+  watchTaskProgress?: (projectId: string, specId: string) => Promise<IPCResult>;
+  unwatchTaskProgress?: (specId: string) => Promise<IPCResult>;
 
   // File explorer operations
   listDirectory: (dirPath: string) => Promise<IPCResult<FileNode[]>>;

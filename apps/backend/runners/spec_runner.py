@@ -14,9 +14,14 @@ Complexity Assessment:
 
 Complexity Tiers:
 - SIMPLE (1-2 files): Discovery → Quick Spec → Validate (3 phases)
-- STANDARD (3-10 files): Discovery → Requirements → Context → Spec → Plan → Validate (6 phases)
-- STANDARD + Research: Same as above but with research phase for external dependencies (7 phases)
-- COMPLEX (10+ files/integrations): Full 8-phase pipeline with research and self-critique
+- STANDARD (3-10 files): Discovery → Requirements → Context → Spec → Validate (5 phases)
+- STANDARD + Research: Same as above but with research phase for external dependencies (6 phases)
+- COMPLEX (10+ files/integrations): Full 7-phase pipeline with research and self-critique
+
+NOTE: Implementation planning ("planning" phase) is NOT done during spec creation.
+It is deferred to task start (run.py) where the planner agent creates the
+implementation_plan.json with subtasks. This ensures planning logs are visible
+during task execution.
 
 The AI considers:
 - Number of files/services involved

@@ -245,19 +245,37 @@ async def refresh_project_index(project_id: str) -> dict:
         # Find Python executable
         python_path = sys.executable
         
-        # Find project analyzer script
-        analyzer_path = _PARENT_DIR / "context" / "project_analyzer.py"
+        # Find project analyzer script (analyzer.py creates project_index.json)
+        analyzer_path = _PARENT_DIR / "analyzer.py"
         
         if not analyzer_path.exists():
-            return {"success": False, "error": "Project analyzer not found"}
+            # Fallback to analysis module
+            analyzer_path = _PARENT_DIR / "analysis" / "analyzer.py"
         
-        # Run analyzer
+        if not analyzer_path.exists():
+            return {"success": False, "error": f"Project analyzer not found at {_PARENT_DIR}"}
+        
+        # Ensure .auto-claude directory exists
+        auto_claude_dir = project_path / ".auto-claude"
+        auto_claude_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Output path for project index
+        output_path = auto_claude_dir / "project_index.json"
+        
+        # Run analyzer (uses --project-dir, --index, and --output flags)
         result = subprocess.run(
-            [python_path, str(analyzer_path), "--project-dir", str(project_path)],
+            [
+                python_path, 
+                str(analyzer_path), 
+                "--project-dir", str(project_path), 
+                "--index", 
+                "--output", str(output_path),
+                "--quiet"
+            ],
             capture_output=True,
             text=True,
             timeout=120,
-            cwd=str(project_path),
+            cwd=str(_PARENT_DIR),  # Run from backend dir for imports
         )
         
         if result.returncode != 0:

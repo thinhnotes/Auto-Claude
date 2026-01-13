@@ -16,7 +16,10 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Optional
 
+from typing import AsyncGenerator
+
 from fastapi import APIRouter, BackgroundTasks, HTTPException
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
 # Ensure parent directory is in path for imports
@@ -30,6 +33,7 @@ from progress import count_subtasks
 from workspace import get_existing_build_worktree
 
 from .projects import load_projects
+from ..utils.plan_helpers import get_all_subtasks, load_plan_from_spec, load_task_logs_from_spec
 
 router = APIRouter()
 logger = logging.getLogger("auto-claude-api")
@@ -209,24 +213,8 @@ async def list_tasks(project_id: str) -> dict:
                 del running_tasks[task_id]
                 _save_running_tasks()
 
-        # Load subtasks and plan from implementation_plan.json
-        subtasks = []
-        plan = None
-        plan_file = spec["path"] / "implementation_plan.json"
-        if plan_file.exists():
-            try:
-                plan = json.loads(plan_file.read_text())
-                for phase in plan.get("phases", []):
-                    for subtask in phase.get("subtasks", []):
-                        subtasks.append({
-                            "id": subtask.get("id", ""),
-                            "title": subtask.get("description", subtask.get("title", "")),
-                            "description": subtask.get("description", ""),
-                            "status": subtask.get("status", "pending"),
-                            "files": subtask.get("files", []),
-                        })
-            except Exception as e:
-                logger.error(f"Error loading subtasks: {e}")
+        # Load subtasks and plan from implementation_plan.json (checks both main and worktree)
+        plan, subtasks = load_plan_from_spec(spec["path"], project_path, spec["folder"])
 
         # Calculate status based on subtask states (matching Electron app logic)
         # Frontend uses: 'backlog' | 'in_progress' | 'ai_review' | 'human_review' | 'done'
@@ -462,23 +450,28 @@ async def get_task(task_id: str) -> TaskResponse:
 @router.get("/projects/{project_id}/tasks/{spec_id}/plan")
 async def get_task_plan(project_id: str, spec_id: str) -> dict[str, Any]:
     """Get the implementation plan (subtasks) for a task."""
+    logger.info(f"📋 [get_task_plan] project_id={project_id}, spec_id={spec_id}")
+    
     project_path = get_project_path(project_id)
+    logger.info(f"📋 [get_task_plan] project_path={project_path}")
+    
     spec_dir = find_spec(project_path, spec_id)
+    logger.info(f"📋 [get_task_plan] spec_dir={spec_dir}")
     
     if not spec_dir:
+        logger.warning(f"📋 [get_task_plan] Task not found: {spec_id}")
         raise HTTPException(status_code=404, detail="Task not found")
     
-    plan_file = spec_dir / "implementation_plan.json"
+    # Load plan from spec (checks both main and worktree)
+    plan, subtasks = load_plan_from_spec(spec_dir, project_path, spec_id)
+    logger.info(f"📋 [get_task_plan] plan loaded: {plan is not None}, subtasks count: {len(subtasks)}")
     
-    if not plan_file.exists():
+    if not plan:
+        logger.info(f"📋 [get_task_plan] No plan found for {spec_id}")
         return {"success": True, "data": None}
     
-    try:
-        plan = json.loads(plan_file.read_text())
-        return {"success": True, "data": plan}
-    except Exception as e:
-        logger.error(f"Error reading implementation plan: {e}")
-        return {"success": False, "error": str(e)}
+    logger.info(f"📋 [get_task_plan] Returning plan with {len(plan.get('phases', []))} phases")
+    return {"success": True, "data": plan}
 
 
 @router.post("/tasks/{task_id}/start")
@@ -521,6 +514,7 @@ async def start_task(task_id: str, request: TaskStartRequest) -> dict[str, Any]:
         folder,
         "--project-dir",
         str(project_path),
+        "--force",  # Bypass approval check - user starting task from UI is approval
     ]
 
     if request.auto_continue:
@@ -708,17 +702,21 @@ async def get_task_logs_detailed(project_id: str, spec_id: str) -> dict[str, Any
     """Get detailed phase-based logs for a task (for task detail panel).
     
     Returns logs structured by phase (planning, coding, validation) for the UI.
+    Reads from task_logs.json which has proper phase tracking from the TaskLogger.
     """
+    logger.info(f"📋 [get_task_logs_detailed] project_id={project_id}, spec_id={spec_id}")
+    
     project_path = get_project_path(project_id)
     spec_dir = find_spec(project_path, spec_id)
     
     if not spec_dir:
+        logger.warning(f"📋 [get_task_logs_detailed] Task not found: {spec_id}")
         raise HTTPException(status_code=404, detail="Task not found")
     
     now = datetime.utcnow().isoformat()
     
-    # Build phase logs structure
-    phases = {
+    # Default phase structure
+    default_phases = {
         "planning": {
             "phase": "planning",
             "status": "pending",
@@ -742,85 +740,213 @@ async def get_task_logs_detailed(project_id: str, spec_id: str) -> dict[str, Any
         }
     }
     
-    # Read build.log and parse into phases
-    build_log = spec_dir / "build.log"
-    if build_log.exists():
-        try:
-            content = build_log.read_text()
-            lines = content.split("\n")
-            
-            current_phase = "planning"
-            for i, line in enumerate(lines):
-                if not line.strip():
-                    continue
-                    
-                # Detect phase transitions from log content
-                line_lower = line.lower()
-                if "planning" in line_lower or "planner" in line_lower:
-                    current_phase = "planning"
-                    if phases["planning"]["status"] == "pending":
-                        phases["planning"]["status"] = "active"
-                        phases["planning"]["started_at"] = now
-                elif "coding" in line_lower or "coder" in line_lower or "implement" in line_lower:
-                    current_phase = "coding"
-                    if phases["planning"]["status"] == "active":
-                        phases["planning"]["status"] = "completed"
-                        phases["planning"]["completed_at"] = now
-                    if phases["coding"]["status"] == "pending":
-                        phases["coding"]["status"] = "active"
-                        phases["coding"]["started_at"] = now
-                elif "qa" in line_lower or "validation" in line_lower or "review" in line_lower:
-                    current_phase = "validation"
-                    if phases["coding"]["status"] == "active":
-                        phases["coding"]["status"] = "completed"
-                        phases["coding"]["completed_at"] = now
-                    if phases["validation"]["status"] == "pending":
-                        phases["validation"]["status"] = "active"
-                        phases["validation"]["started_at"] = now
-                
-                # Add entry to current phase
-                entry = {
-                    "type": "text",
-                    "content": line,
-                    "timestamp": now,
-                }
-                phases[current_phase]["entries"].append(entry)
-                
-        except Exception as e:
-            logger.error(f"Error reading build log: {e}")
+    # Load task_logs.json from spec (checks both main and worktree)
+    phases = default_phases.copy()
+    created_at = now
+    updated_at = now
     
-    # Check implementation plan for more accurate status
+    task_logs = load_task_logs_from_spec(spec_dir, project_path, spec_id)
+    if task_logs:
+        # Use the phases from task_logs.json directly
+        if "phases" in task_logs:
+            phases = task_logs["phases"]
+        created_at = task_logs.get("created_at", now)
+        updated_at = task_logs.get("updated_at", now)
+    
+    # Ensure only one phase is marked as "active" at a time
+    # Priority: validation > coding > planning
+    active_phases = [p for p, data in phases.items() if data.get("status") == "active"]
+    if len(active_phases) > 1:
+        # Keep only the most advanced phase as active
+        priority = ["validation", "coding", "planning"]
+        for phase in priority:
+            if phase in active_phases:
+                # Mark all others as completed if they were active
+                for other in active_phases:
+                    if other != phase and phases[other]["status"] == "active":
+                        # Earlier phases should be completed, not active
+                        phases[other]["status"] = "completed"
+                        if not phases[other].get("completed_at"):
+                            phases[other]["completed_at"] = now
+                break
+    
+    # Check if task is currently running
+    task_id = get_task_id(project_id, spec_id)
+    is_running = task_id in running_tasks and _is_process_running(running_tasks[task_id]["pid"])
+    
+    # If task is running but all phases are pending, mark planning as active
+    if is_running:
+        all_pending = all(phases[p]["status"] == "pending" for p in ["planning", "coding", "validation"])
+        if all_pending:
+            # Task just started, planning phase should be active
+            phases["planning"]["status"] = "active"
+            phases["planning"]["started_at"] = running_tasks[task_id].get("started_at", now)
+    
+    # Fallback: Check implementation plan for planning status
     plan_file = spec_dir / "implementation_plan.json"
-    if plan_file.exists():
+    if plan_file.exists() and phases["planning"]["status"] == "pending":
         try:
             plan = json.loads(plan_file.read_text())
             if plan.get("phases"):
+                # Plan exists, so planning phase is completed
                 phases["planning"]["status"] = "completed"
                 phases["planning"]["completed_at"] = now
         except Exception:
             pass
     
-    # Check QA report for validation status
+    # Fallback: Check QA report for validation status
     qa_report = spec_dir / "qa_report.md"
-    if qa_report.exists():
+    if qa_report.exists() and phases["validation"]["status"] != "completed":
         phases["validation"]["status"] = "completed"
         phases["validation"]["completed_at"] = now
-        try:
-            content = qa_report.read_text()
-            phases["validation"]["entries"].append({
-                "type": "text",
-                "content": content[:2000],  # Limit size
-                "timestamp": now,
-            })
-        except Exception:
-            pass
     
     return {
         "success": True,
         "data": {
             "spec_id": spec_id,
-            "created_at": now,
-            "updated_at": now,
+            "created_at": created_at,
+            "updated_at": updated_at,
             "phases": phases
         }
     }
+
+
+@router.get("/tasks/{task_id}/logs/stream")
+async def stream_task_logs(task_id: str) -> StreamingResponse:
+    """Stream task logs in real-time using Server-Sent Events (SSE).
+    
+    This endpoint:
+    1. Tails the build.log file in real-time
+    2. Also watches task_logs.json for phase changes
+    3. Streams updates via SSE until the task completes
+    """
+    _cleanup_finished_tasks()
+    
+    project_id, folder = parse_task_id(task_id)
+    project_path = get_project_path(project_id)
+    spec_dir = find_spec(project_path, folder)
+    
+    if not spec_dir:
+        async def error_stream():
+            yield f"data: {json.dumps({'type': 'error', 'error': 'Task not found'})}\n\n"
+        return StreamingResponse(error_stream(), media_type="text/event-stream")
+    
+    async def stream_logs() -> AsyncGenerator[str, None]:
+        """Stream logs via SSE."""
+        build_log = spec_dir / "build.log"
+        task_logs_file = spec_dir / "task_logs.json"
+        
+        # Also check worktree for logs
+        worktree_spec_dir = get_existing_build_worktree(project_path, folder)
+        worktree_build_log = None
+        worktree_task_logs = None
+        if worktree_spec_dir:
+            worktree_build_log = worktree_spec_dir / ".auto-claude" / "specs" / folder / "build.log"
+            worktree_task_logs = worktree_spec_dir / ".auto-claude" / "specs" / folder / "task_logs.json"
+        
+        last_build_pos = 0
+        last_task_logs_mtime = 0
+        last_worktree_build_pos = 0
+        last_worktree_task_logs_mtime = 0
+        
+        # Send initial connection message
+        yield f"data: {json.dumps({'type': 'connected', 'task_id': task_id})}\n\n"
+        
+        # Check if task is running
+        is_running = task_id in running_tasks and _is_process_running(running_tasks[task_id]["pid"])
+        yield f"data: {json.dumps({'type': 'status', 'is_running': is_running})}\n\n"
+        
+        # Send initial phase status
+        if task_logs_file.exists():
+            try:
+                task_logs = json.loads(task_logs_file.read_text())
+                yield f"data: {json.dumps({'type': 'phases', 'phases': task_logs.get('phases', {})})}\n\n"
+                last_task_logs_mtime = task_logs_file.stat().st_mtime
+            except Exception:
+                pass
+        
+        # Stream until task completes or client disconnects
+        while True:
+            try:
+                # Check if task is still running
+                is_running = task_id in running_tasks and _is_process_running(running_tasks[task_id]["pid"])
+                
+                # Read new content from build.log (main spec dir)
+                if build_log.exists():
+                    try:
+                        with open(build_log, "r") as f:
+                            f.seek(last_build_pos)
+                            new_content = f.read()
+                            if new_content:
+                                last_build_pos = f.tell()
+                                for line in new_content.strip().split("\n"):
+                                    if line.strip():
+                                        yield f"data: {json.dumps({'type': 'log', 'content': line, 'source': 'main'})}\n\n"
+                    except Exception:
+                        pass
+                
+                # Read new content from worktree build.log
+                if worktree_build_log and worktree_build_log.exists():
+                    try:
+                        with open(worktree_build_log, "r") as f:
+                            f.seek(last_worktree_build_pos)
+                            new_content = f.read()
+                            if new_content:
+                                last_worktree_build_pos = f.tell()
+                                for line in new_content.strip().split("\n"):
+                                    if line.strip():
+                                        yield f"data: {json.dumps({'type': 'log', 'content': line, 'source': 'worktree'})}\n\n"
+                    except Exception:
+                        pass
+                
+                # Check for task_logs.json changes (phase updates)
+                if task_logs_file.exists():
+                    try:
+                        current_mtime = task_logs_file.stat().st_mtime
+                        if current_mtime > last_task_logs_mtime:
+                            last_task_logs_mtime = current_mtime
+                            task_logs = json.loads(task_logs_file.read_text())
+                            yield f"data: {json.dumps({'type': 'phases', 'phases': task_logs.get('phases', {})})}\n\n"
+                    except Exception:
+                        pass
+                
+                # Check worktree task_logs.json
+                if worktree_task_logs and worktree_task_logs.exists():
+                    try:
+                        current_mtime = worktree_task_logs.stat().st_mtime
+                        if current_mtime > last_worktree_task_logs_mtime:
+                            last_worktree_task_logs_mtime = current_mtime
+                            task_logs = json.loads(worktree_task_logs.read_text())
+                            yield f"data: {json.dumps({'type': 'phases', 'phases': task_logs.get('phases', {}), 'source': 'worktree'})}\n\n"
+                    except Exception:
+                        pass
+                
+                # If task finished, send final status and exit
+                if not is_running:
+                    yield f"data: {json.dumps({'type': 'status', 'is_running': False, 'finished': True})}\n\n"
+                    break
+                
+                # Small delay between polls
+                await asyncio.sleep(0.5)
+                
+            except asyncio.CancelledError:
+                # Client disconnected
+                break
+            except Exception as e:
+                yield f"data: {json.dumps({'type': 'error', 'error': str(e)})}\n\n"
+                break
+        
+        yield f"data: {json.dumps({'type': 'done'})}\n\n"
+    
+    return StreamingResponse(
+        stream_logs(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",  # Disable nginx buffering
+            "Access-Control-Allow-Origin": "*",  # CORS for SSE
+            "Access-Control-Allow-Methods": "GET, OPTIONS",
+            "Access-Control-Allow-Headers": "*",
+        }
+    )

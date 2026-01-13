@@ -103,6 +103,14 @@ function unsupportedVoid(operation: string): (...args: unknown[]) => void {
   };
 }
 
+// Track poll intervals for task logs (changed from EventSource to interval-based polling)
+const taskLogEventSources: Map<string, ReturnType<typeof setInterval>> = new Map();
+const taskLogCallbacks: Set<(specId: string, logs: any) => void> = new Set();
+
+// Track poll intervals for task progress (subtasks)
+const taskProgressPolls: Map<string, ReturnType<typeof setInterval>> = new Map();
+const taskProgressCallbacks: Set<(taskId: string, plan: any, projectId?: string) => void> = new Set();
+
 /**
  * Create the Web API adapter
  *
@@ -225,6 +233,51 @@ export function createWebAdapter(): AppAPI {
       });
     },
 
+    // Watch for task progress updates (subtasks) - polls every 2 seconds
+    watchTaskProgress: async (projectId: string, specId: string) => {
+      const taskId = `${projectId}:${specId}`;
+      
+      // Close existing poll if any
+      if (taskProgressPolls.has(taskId)) {
+        const existing = taskProgressPolls.get(taskId);
+        if (existing) {
+          clearInterval(existing);
+        }
+        taskProgressPolls.delete(taskId);
+      }
+      
+      // Poll every 2 seconds for subtask updates
+      const pollInterval = setInterval(async () => {
+        try {
+          const result = await apiRequest(`/api/projects/${projectId}/tasks/${specId}/plan`);
+          if (result.success && result.data) {
+            taskProgressCallbacks.forEach(callback => {
+              callback(taskId, result.data, projectId);
+            });
+          }
+        } catch (e) {
+          console.error('[TaskProgress Poll] Error:', e);
+        }
+      }, 2000);
+      
+      taskProgressPolls.set(taskId, pollInterval);
+      return { success: true };
+    },
+
+    unwatchTaskProgress: async (specId: string) => {
+      // Find and close the poll interval for this spec
+      for (const [taskId, interval] of Array.from(taskProgressPolls.entries())) {
+        if (taskId.endsWith(`:${specId}`)) {
+          if (interval) {
+            clearInterval(interval);
+          }
+          taskProgressPolls.delete(taskId);
+          break;
+        }
+      }
+      return { success: true };
+    },
+
     // ===================
     // Workspace Management (Web mode - full support via backend API)
     // ===================
@@ -267,9 +320,14 @@ export function createWebAdapter(): AppAPI {
     unarchiveTasks: unsupported('unarchiveTasks'),
 
     // ===================
-    // Event Listeners (all stubbed for web)
+    // Event Listeners (Web Mode - with polling for progress)
     // ===================
-    onTaskProgress: unsupportedEvent('onTaskProgress'),
+    onTaskProgress: (callback: (taskId: string, plan: any, projectId?: string) => void) => {
+      taskProgressCallbacks.add(callback);
+      return () => {
+        taskProgressCallbacks.delete(callback);
+      };
+    },
     onTaskError: unsupportedEvent('onTaskError'),
     onTaskLog: unsupportedEvent('onTaskLog'),
     onTaskStatusChange: unsupportedEvent('onTaskStatusChange'),
@@ -526,7 +584,34 @@ export function createWebAdapter(): AppAPI {
       const path = window.prompt('Enter project folder path:', '/home');
       return path || null;
     },
-    createProjectFolder: unsupported('createProjectFolder'),
+    createProjectFolder: async (
+      location: string,
+      name: string,
+      initGit: boolean
+    ): Promise<IPCResult<import('../../shared/types').CreateProjectFolderResult>> => {
+      const response = await apiRequest<{
+        path: string;
+        name: string;
+        gitInitialized: boolean;
+      }>('/api/projects/create-folder', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ location, name, initGit }),
+      });
+      
+      if (!response.success || !response.data) {
+        return { success: false, error: response.error || 'Failed to create project folder' };
+      }
+      
+      return {
+        success: true,
+        data: {
+          path: response.data.path,
+          name: response.data.name,
+          gitInitialized: response.data.gitInitialized,
+        },
+      };
+    },
     getDefaultProjectLocation: async () => null,
 
     // ===================
@@ -821,16 +906,55 @@ export function createWebAdapter(): AppAPI {
     getTaskLogs: async (projectId: string, specId: string) => {
       return apiRequest(`/api/projects/${projectId}/tasks/${specId}/logs`);
     },
-    watchTaskLogs: async () => {
-      // Web mode: polling instead of watching
+    watchTaskLogs: async (projectId: string, specId: string) => {
+      // Web mode: Use polling instead of SSE for better compatibility
+      const taskId = `${projectId}:${specId}`;
+      
+      // Close existing poll interval if any
+      if (taskLogEventSources.has(taskId)) {
+        const existing = taskLogEventSources.get(taskId);
+        if (existing) {
+          clearInterval(existing);
+        }
+        taskLogEventSources.delete(taskId);
+      }
+      
+      // Poll every 2 seconds for log updates
+      const pollInterval = setInterval(async () => {
+        try {
+          const result = await apiRequest(`/api/projects/${projectId}/tasks/${specId}/logs`);
+          if (result.success && result.data) {
+            taskLogCallbacks.forEach(callback => {
+              callback(specId, result.data);
+            });
+          }
+        } catch (e) {
+          console.error('[TaskLog Poll] Error:', e);
+        }
+      }, 2000);
+      
+      taskLogEventSources.set(taskId, pollInterval);
       return { success: true };
     },
-    unwatchTaskLogs: async () => {
+    unwatchTaskLogs: async (specId: string) => {
+      // Find and close the poll interval for this spec
+      for (const [taskId, interval] of Array.from(taskLogEventSources.entries())) {
+        if (taskId.endsWith(`:${specId}`)) {
+          if (interval) {
+            clearInterval(interval);
+          }
+          taskLogEventSources.delete(taskId);
+          break;
+        }
+      }
       return { success: true };
     },
-    onTaskLogsChanged: () => {
-      // Web mode: no real-time updates, use polling
-      return () => {};
+    onTaskLogsChanged: (callback: (specId: string, logs: any) => void) => {
+      // Register callback for log updates
+      taskLogCallbacks.add(callback);
+      return () => {
+        taskLogCallbacks.delete(callback);
+      };
     },
     onTaskLogsStream: unsupportedEvent('onTaskLogsStream'),
 

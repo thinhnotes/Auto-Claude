@@ -156,13 +156,15 @@ See [RELEASE.md](RELEASE.md) for detailed release process documentation.
 
 ### Core Pipeline
 
-**Spec Creation (spec_runner.py)** - Dynamic 3-8 phase pipeline based on task complexity:
+**Spec Creation (spec_runner.py)** - Dynamic 3-7 phase pipeline based on task complexity:
 - SIMPLE (3 phases): Discovery → Quick Spec → Validate
-- STANDARD (6-7 phases): Discovery → Requirements → [Research] → Context → Spec → Plan → Validate
-- COMPLEX (8 phases): Full pipeline with Research and Self-Critique phases
+- STANDARD (5-6 phases): Discovery → Requirements → [Research] → Context → Spec → Validate
+- COMPLEX (7 phases): Full pipeline with Research and Self-Critique phases
+
+NOTE: Implementation planning is NOT done during spec creation. It is deferred to task start.
 
 **Implementation (run.py → agent.py)** - Multi-session build:
-1. Planner Agent creates subtask-based implementation plan
+1. Planner Agent creates subtask-based implementation plan (implementation_plan.json)
 2. Coder Agent implements subtasks (can spawn subagents for parallel work)
 3. QA Reviewer validates acceptance criteria (can perform E2E testing via Electron MCP for frontend changes)
 4. QA Fixer resolves issues in a loop (with E2E testing to verify fixes)
