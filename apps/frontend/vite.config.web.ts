@@ -4,6 +4,8 @@ import { resolve } from 'path';
 
 // Get custom domain from environment variable
 const customDomain = process.env.VITE_CUSTOM_DOMAIN || 'notesvnn.click';
+// Get backend API URL from environment variable
+const apiUrl = process.env.VITE_API_URL || 'http://127.0.0.1:8000';
 
 export default defineConfig({
   root: resolve(__dirname, 'src/renderer'),
@@ -11,6 +13,7 @@ export default defineConfig({
   plugins: [react()],
   define: {
     VITE_PLATFORM: JSON.stringify('web'),
+    'import.meta.env.VITE_API_URL': JSON.stringify(apiUrl),
   },
   resolve: {
     alias: {

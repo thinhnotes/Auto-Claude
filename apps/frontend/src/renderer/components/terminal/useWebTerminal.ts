@@ -40,13 +40,26 @@ function isWebMode(): boolean {
 }
 
 /**
- * Get the API base URL for WebSocket connections
+ * Get the API base URL from runtime or build-time environment
  */
-function getWsBaseUrl(): string {
+function getApiBaseUrl(): string {
+  // Runtime config (Docker) takes precedence
+  const runtimeUrl = (window as any).__ENV__?.VITE_API_URL;
+  if (runtimeUrl && !runtimeUrl.startsWith('__')) {
+    return runtimeUrl;
+  }
+  // Fallback to build-time env
   // @ts-expect-error - VITE_API_URL is defined in vite.config.ts env
   const envUrl = import.meta.env?.VITE_API_URL as string;
-  const httpUrl = envUrl || 'http://127.0.0.1:8000';
-  return httpUrl.replace('http', 'ws');
+  // Use empty string for relative /api calls (nginx proxy)
+  return envUrl || '';
+}
+
+/**
+ * Get the WebSocket base URL for terminal connections
+ */
+function getWsBaseUrl(): string {
+  return getApiBaseUrl().replace('http', 'ws');
 }
 
 export function useWebTerminal({
@@ -73,7 +86,7 @@ export function useWebTerminal({
     
     try {
       // Create terminal on backend
-      const response = await fetch('http://127.0.0.1:8000/api/terminals', {
+      const response = await fetch(`${getApiBaseUrl()}/api/terminals`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -190,7 +203,7 @@ export function useWebTerminal({
     
     if (backendTerminalIdRef.current) {
       try {
-        await fetch(`http://127.0.0.1:8000/api/terminals/${backendTerminalIdRef.current}`, {
+        await fetch(`${getApiBaseUrl()}/api/terminals/${backendTerminalIdRef.current}`, {
           method: 'DELETE',
         });
       } catch (error) {

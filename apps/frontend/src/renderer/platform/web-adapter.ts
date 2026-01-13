@@ -19,13 +19,19 @@ import type {
 } from '../../shared/types';
 
 /**
- * Get the API base URL from environment variable
+ * Get the API base URL from runtime or build-time environment
  */
 function getApiBaseUrl(): string {
+  // Runtime config (Docker) takes precedence
+  const runtimeUrl = (window as any).__ENV__?.VITE_API_URL;
+  if (runtimeUrl && !runtimeUrl.startsWith('__')) {
+    return runtimeUrl;
+  }
+  // Fallback to build-time env
   // @ts-expect-error - VITE_API_URL is defined in vite.config.ts env
   const envUrl = import.meta.env?.VITE_API_URL as string;
-  // Use 127.0.0.1 instead of localhost to avoid IPv6 resolution issues
-  return envUrl || 'http://127.0.0.1:8000';
+  // Use empty string for relative /api calls (nginx proxy)
+  return envUrl || '';
 }
 
 /**
