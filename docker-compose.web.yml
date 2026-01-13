@@ -30,7 +30,6 @@ services:
     ports:
       - "3000:80"
     environment:
-      - VITE_API_URL=${VITE_API_URL:-/api}
       - VITE_CUSTOM_DOMAIN=${VITE_CUSTOM_DOMAIN:-notesvnn.click}
     depends_on:
       - backend
