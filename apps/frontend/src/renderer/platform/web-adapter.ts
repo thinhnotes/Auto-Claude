@@ -497,7 +497,7 @@ export function createWebAdapter(): AppAPI {
     onTerminalPendingResume: unsupportedEvent('onTerminalPendingResume'),
 
     // ===================
-    // Claude Profile Management
+    // Claude Profile Management (partial web support)
     // ===================
     getClaudeProfiles: async () =>
       apiRequest('/api/profiles'),
@@ -508,9 +508,18 @@ export function createWebAdapter(): AppAPI {
         body: JSON.stringify(profile),
       }),
 
-    deleteClaudeProfile: unsupported('deleteClaudeProfile'),
-    renameClaudeProfile: unsupported('renameClaudeProfile'),
-    setActiveClaudeProfile: unsupported('setActiveClaudeProfile'),
+    deleteClaudeProfile: async (profileId: string) =>
+      apiRequest(`/api/profiles/${profileId}`, { method: 'DELETE' }),
+    renameClaudeProfile: async (profileId: string, newName: string) =>
+      apiRequest(`/api/profiles/${profileId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ name: newName }),
+      }),
+    setActiveClaudeProfile: async (profileId: string) =>
+      apiRequest('/api/profiles/active', {
+        method: 'PUT',
+        body: JSON.stringify({ profileId }),
+      }),
     switchClaudeProfile: unsupported('switchClaudeProfile'),
     initializeClaudeProfile: unsupported('initializeClaudeProfile'),
     setClaudeProfileToken: unsupported('setClaudeProfileToken'),
@@ -617,32 +626,114 @@ export function createWebAdapter(): AppAPI {
     // ===================
     // Memory Infrastructure
     // ===================
-    getMemoryInfrastructureStatus: unsupported('getMemoryInfrastructureStatus'),
-    listMemoryDatabases: unsupported('listMemoryDatabases'),
-    testMemoryConnection: unsupported('testMemoryConnection'),
-    validateLLMApiKey: unsupported('validateLLMApiKey'),
-    testGraphitiConnection: unsupported('testGraphitiConnection'),
+    getMemoryInfrastructureStatus: async (projectId: string) => {
+      const result = await apiRequest(`/api/projects/${projectId}/context`);
+      if (result.success && result.data) {
+        const memoryStatus = (result.data as any).memoryStatus || {};
+        return {
+          success: true,
+          data: {
+            ladybugAvailable: memoryStatus.available ?? false,
+            graphitiReady: memoryStatus.available ?? false,
+            llmProvider: memoryStatus.llmProvider || 'anthropic',
+            embeddingProvider: memoryStatus.embeddingProvider || null,
+            embeddingModel: memoryStatus.embeddingModel || null,
+            missingConfig: memoryStatus.missingConfig || [],
+          },
+        };
+      }
+      return { success: false, error: result.error };
+    },
+    listMemoryDatabases: async (projectId: string) => {
+      const result = await apiRequest(`/api/projects/${projectId}/context`);
+      if (result.success && result.data) {
+        const memoryStatus = (result.data as any).memoryStatus || {};
+        const databases = memoryStatus.dbPath ? [{
+          name: memoryStatus.database || 'default',
+          path: memoryStatus.dbPath,
+          size: 0,
+        }] : [];
+        return { success: true, data: databases };
+      }
+      return { success: true, data: [] };
+    },
+    testMemoryConnection: async (projectId: string) => {
+      const result = await apiRequest(`/api/projects/${projectId}/context`);
+      if (result.success && result.data) {
+        const memoryStatus = (result.data as any).memoryStatus || {};
+        return {
+          success: true,
+          data: {
+            connected: memoryStatus.available ?? false,
+            message: memoryStatus.available ? 'Memory system connected' : 'Memory system not available',
+          },
+        };
+      }
+      return { success: false, error: result.error };
+    },
+    validateLLMApiKey: async (provider: string, apiKey: string) => {
+      // Use the existing test-connection endpoint
+      const result = await apiRequest('/api/test-connection', {
+        method: 'POST',
+        body: JSON.stringify({
+          baseUrl: provider === 'openai' ? 'https://api.openai.com' : 'https://api.anthropic.com',
+          apiKey,
+        }),
+      });
+      return result;
+    },
+    testGraphitiConnection: async (projectId: string) => {
+      const result = await apiRequest(`/api/projects/${projectId}/context`);
+      if (result.success && result.data) {
+        const memoryStatus = (result.data as any).memoryStatus || {};
+        return {
+          success: true,
+          data: {
+            connected: memoryStatus.available ?? false,
+            version: '1.0.0',
+            message: memoryStatus.available ? 'Graphiti connected' : 'Graphiti not configured',
+          },
+        };
+      }
+      return { success: false, error: result.error };
+    },
 
     // ===================
     // Ollama
     // ===================
     onDownloadProgress: unsupportedEvent('onDownloadProgress'),
-    checkOllamaStatus: unsupported('checkOllamaStatus'),
-    checkOllamaInstalled: unsupported('checkOllamaInstalled'),
-    installOllama: unsupported('installOllama'),
-    listOllamaModels: unsupported('listOllamaModels'),
-    listOllamaEmbeddingModels: unsupported('listOllamaEmbeddingModels'),
-    pullOllamaModel: unsupported('pullOllamaModel'),
+    checkOllamaStatus: async (baseUrl?: string) =>
+      apiRequest(`/api/ollama/status${baseUrl ? `?baseUrl=${encodeURIComponent(baseUrl)}` : ''}`),
+    checkOllamaInstalled: async () =>
+      apiRequest('/api/ollama/installed'),
+    installOllama: async () =>
+      apiRequest('/api/ollama/install', { method: 'POST' }),
+    listOllamaModels: async (baseUrl?: string) =>
+      apiRequest(`/api/ollama/models${baseUrl ? `?baseUrl=${encodeURIComponent(baseUrl)}` : ''}`),
+    listOllamaEmbeddingModels: async (baseUrl?: string) =>
+      apiRequest(`/api/ollama/embedding-models${baseUrl ? `?baseUrl=${encodeURIComponent(baseUrl)}` : ''}`),
+    pullOllamaModel: async (modelName: string, baseUrl?: string) =>
+      apiRequest('/api/ollama/pull', {
+        method: 'POST',
+        body: JSON.stringify({ modelName, baseUrl }),
+      }),
 
     // ===================
     // Git Operations
     // ===================
     getGitBranches: async (projectPath: string) =>
       apiRequest(`/api/git/branches?path=${encodeURIComponent(projectPath)}`),
-    getCurrentGitBranch: unsupported('getCurrentGitBranch'),
-    detectMainBranch: unsupported('detectMainBranch'),
-    checkGitStatus: unsupported('checkGitStatus'),
-    initializeGit: unsupported('initializeGit'),
+    getCurrentGitBranch: async (projectPath: string) =>
+      apiRequest(`/api/git/current-branch?path=${encodeURIComponent(projectPath)}`),
+    detectMainBranch: async (projectPath: string) =>
+      apiRequest(`/api/git/detect-main-branch?path=${encodeURIComponent(projectPath)}`),
+    checkGitStatus: async (projectPath: string) =>
+      apiRequest(`/api/git/status?path=${encodeURIComponent(projectPath)}`),
+    initializeGit: async (projectPath: string) =>
+      apiRequest('/api/git/init', {
+        method: 'POST',
+        body: JSON.stringify({ path: projectPath }),
+      }),
 
     // ===================
     // Linear Integration
@@ -714,9 +805,15 @@ export function createWebAdapter(): AppAPI {
     // ===================
     // Source Environment
     // ===================
-    getSourceEnv: unsupported('getSourceEnv'),
-    updateSourceEnv: unsupported('updateSourceEnv'),
-    checkSourceToken: unsupported('checkSourceToken'),
+    getSourceEnv: async () =>
+      apiRequest('/api/source-env'),
+    updateSourceEnv: async (config: { claudeOAuthToken?: string }) =>
+      apiRequest('/api/source-env', {
+        method: 'PATCH',
+        body: JSON.stringify(config),
+      }),
+    checkSourceToken: async () =>
+      apiRequest('/api/source-env/check-token'),
 
     // ===================
     // Changelog
@@ -881,7 +978,11 @@ export function createWebAdapter(): AppAPI {
     },
     clearInsightsSession: async (projectId: string) =>
       apiRequest(`/api/projects/${projectId}/insights/session`, { method: 'DELETE' }),
-    createTaskFromInsights: unsupported('createTaskFromInsights'),
+    createTaskFromInsights: async (projectId: string, title: string, description: string, metadata?: TaskMetadata) =>
+      apiRequest(`/api/projects/${projectId}/tasks`, {
+        method: 'POST',
+        body: JSON.stringify({ title, description, metadata }),
+      }),
     listInsightsSessions: async (projectId: string) =>
       apiRequest(`/api/projects/${projectId}/insights/sessions`),
     newInsightsSession: async (projectId: string) =>
@@ -895,7 +996,11 @@ export function createWebAdapter(): AppAPI {
         method: 'PATCH',
         body: JSON.stringify({ title }),
       }),
-    updateInsightsModelConfig: unsupported('updateInsightsModelConfig'),
+    updateInsightsModelConfig: async (projectId: string, sessionId: string, modelConfig: Record<string, unknown>) =>
+      apiRequest(`/api/projects/${projectId}/insights/session/${sessionId}/config`, {
+        method: 'PATCH',
+        body: JSON.stringify(modelConfig),
+      }),
     onInsightsStreamChunk: unsupportedEvent('onInsightsStreamChunk'),
     onInsightsStatus: unsupportedEvent('onInsightsStatus'),
     onInsightsError: unsupportedEvent('onInsightsError'),
@@ -1224,7 +1329,29 @@ export function createWebAdapter(): AppAPI {
         body: JSON.stringify({ baseUrl, apiKey }),
       }),
 
-    discoverModels: unsupported('discoverModels'),
+    discoverModels: async (baseUrl: string, apiKey: string) => {
+      // Try to discover models from the API endpoint
+      try {
+        const response = await fetch(`${baseUrl}/v1/models`, {
+          headers: {
+            'Authorization': `Bearer ${apiKey}`,
+            'x-api-key': apiKey,
+          },
+        });
+        if (response.ok) {
+          const data = await response.json();
+          const models = (data.data || []).map((m: any) => ({
+            id: m.id,
+            name: m.id,
+            created: m.created,
+          }));
+          return { success: true, data: { models } };
+        }
+        return { success: false, error: `API returned ${response.status}` };
+      } catch (error) {
+        return { success: false, error: error instanceof Error ? error.message : 'Failed to discover models' };
+      }
+    },
 
     // Folder browsing for web mode
     browseFolders: async (path?: string) =>

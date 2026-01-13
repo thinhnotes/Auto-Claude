@@ -47,7 +47,7 @@ logger = logging.getLogger("auto-claude-api")
 if str(_BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(_BACKEND_DIR))
 
-from .routers import projects_router, settings_router, tasks_router, profiles_router, worktrees_router, insights_router, claude_cli_router, terminals_router, context_router
+from .routers import projects_router, settings_router, tasks_router, profiles_router, worktrees_router, insights_router, claude_cli_router, terminals_router, context_router, git_router, source_env_router, ollama_router
 
 
 class ConnectionManager:
@@ -143,6 +143,9 @@ app.include_router(insights_router, prefix="/api", tags=["insights"])
 app.include_router(claude_cli_router, prefix="/api", tags=["claude-cli"])
 app.include_router(terminals_router, prefix="/api", tags=["terminals"])
 app.include_router(context_router, prefix="/api", tags=["context"])
+app.include_router(git_router, prefix="/api", tags=["git"])
+app.include_router(source_env_router, prefix="/api", tags=["source-env"])
+app.include_router(ollama_router, prefix="/api", tags=["ollama"])
 
 
 @app.get("/api/health")

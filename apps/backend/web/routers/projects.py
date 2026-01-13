@@ -159,6 +159,122 @@ async def add_project(project: ProjectCreate) -> ProjectResponse:
     )
 
 
+class CreateFolderRequest(BaseModel):
+    """Request model for creating a project folder."""
+    
+    location: str = Field(..., description="Parent directory path")
+    name: str = Field(..., min_length=1, description="Folder name")
+    initGit: bool = Field(default=True, description="Initialize git repository")
+
+
+@router.post("/create-folder")
+async def create_project_folder(request: CreateFolderRequest) -> dict:
+    """Create a new project folder and optionally initialize git.
+    
+    Creates:
+    - The project folder at location/name
+    - Optionally initializes a git repository
+    - Creates an initial commit if git is initialized
+    
+    Returns the path to the created folder.
+    """
+    import subprocess
+    
+    location = Path(request.location)
+    
+    # Validate location exists
+    if not location.exists():
+        return {
+            "success": False,
+            "error": f"Location does not exist: {request.location}"
+        }
+    
+    if not location.is_dir():
+        return {
+            "success": False,
+            "error": f"Location is not a directory: {request.location}"
+        }
+    
+    # Create project folder
+    project_path = location / request.name
+    
+    if project_path.exists():
+        return {
+            "success": False,
+            "error": f"Folder already exists: {project_path}"
+        }
+    
+    try:
+        # Create the folder
+        project_path.mkdir(parents=True, exist_ok=False)
+        
+        git_initialized = False
+        
+        if request.initGit:
+            # Initialize git repository
+            result = subprocess.run(
+                ["git", "init"],
+                cwd=project_path,
+                capture_output=True,
+                text=True,
+                timeout=30
+            )
+            
+            if result.returncode == 0:
+                # Create a .gitkeep file so we have something to commit
+                gitkeep = project_path / ".gitkeep"
+                gitkeep.touch()
+                
+                # Stage and commit
+                subprocess.run(
+                    ["git", "add", "."],
+                    cwd=project_path,
+                    capture_output=True,
+                    timeout=30
+                )
+                
+                subprocess.run(
+                    ["git", "commit", "-m", "Initial commit"],
+                    cwd=project_path,
+                    capture_output=True,
+                    timeout=30
+                )
+                
+                git_initialized = True
+        
+        return {
+            "success": True,
+            "data": {
+                "path": str(project_path),
+                "name": request.name,
+                "gitInitialized": git_initialized
+            }
+        }
+    
+    except PermissionError:
+        return {
+            "success": False,
+            "error": f"Permission denied: Cannot create folder at {project_path}"
+        }
+    except subprocess.TimeoutExpired:
+        return {
+            "success": False,
+            "error": "Git initialization timed out"
+        }
+    except Exception as e:
+        # Clean up if folder was created but something failed
+        if project_path.exists():
+            try:
+                import shutil
+                shutil.rmtree(project_path)
+            except Exception:
+                pass
+        return {
+            "success": False,
+            "error": str(e)
+        }
+
+
 @router.get("/{project_id}", response_model=ProjectResponse)
 async def get_project(project_id: str) -> ProjectResponse:
     """Get details of a specific project."""

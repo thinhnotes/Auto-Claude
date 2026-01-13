@@ -13,6 +13,9 @@ FastAPI routers for different API endpoints.
 - claude_cli: Claude Code CLI detection and management
 - terminals: WebSocket-based terminal (PTY) support
 - context: Project context (index and memory) endpoints
+- git: Git operations (branches, status, etc.)
+- source_env: Source environment configuration
+- ollama: Ollama model management
 """
 
 from .projects import router as projects_router
@@ -24,6 +27,9 @@ from .insights import router as insights_router
 from .claude_cli import router as claude_cli_router
 from .terminals import router as terminals_router
 from .context import router as context_router
+from .git import router as git_router
+from .source_env import router as source_env_router
+from .ollama import router as ollama_router
 
 __all__ = [
     "projects_router",
@@ -35,4 +41,7 @@ __all__ = [
     "claude_cli_router",
     "terminals_router",
     "context_router",
+    "git_router",
+    "source_env_router",
+    "ollama_router",
 ]
