@@ -28,13 +28,12 @@ COPY . .
 
 # Create entrypoint script to setup git safe directory at runtime
 RUN echo '#!/bin/bash\n\
+# Ensure HOME is writable\n\
+mkdir -p "$HOME" 2>/dev/null || true\n\
 # Mark all directories as safe for git\n\
-git config --global --add safe.directory "*"\n\
-# Copy git config to user home if running as non-root\n\
-if [ ! -f "$HOME/.gitconfig" ]; then\n\
-    mkdir -p "$HOME"\n\
-    cp /root/.gitconfig "$HOME/.gitconfig" 2>/dev/null || true\n\
-fi\n\
+git config --global --add safe.directory "*" 2>/dev/null || true\n\
+git config --global user.email "auto-claude@local" 2>/dev/null || true\n\
+git config --global user.name "Auto Claude" 2>/dev/null || true\n\
 exec "$@"' > /entrypoint.sh && chmod +x /entrypoint.sh
 
 # Expose port 8000

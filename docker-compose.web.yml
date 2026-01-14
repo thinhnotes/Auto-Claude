@@ -13,7 +13,8 @@ services:
     user: "0:0"
     environment:
       - PYTHONUNBUFFERED=1
-      - HOME=/root
+      # Use /tmp as HOME since /root may not be writable
+      - HOME=/tmp
       # Git config for worktree operations
       - GIT_DISCOVERY_ACROSS_FILESYSTEM=1
     env_file:
