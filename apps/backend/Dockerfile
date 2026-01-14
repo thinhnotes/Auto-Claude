@@ -8,6 +8,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
+# Configure git to allow any directory as safe
+# This prevents "dubious ownership" errors when running as different users
+# or when the container user doesn't match the file owner
+# Using --system config so it applies to all users, not just root
+RUN git config --system --add safe.directory '*'
+
 # Install Claude CLI
 # Make claude accessible to non-root users running the container
 RUN curl -fsSL https://claude.ai/install.sh | bash \
