@@ -7,12 +7,15 @@ services:
     container_name: auto-claude-backend
     ports:
       - "8000:8000"
+    # Run as host user to ensure write permissions to mounted volumes
+    user: "${UID:-1000}:${GID:-1000}"
     environment:
       - PYTHONUNBUFFERED=1
+      - HOME=/home/code
     env_file:
       - .env.docker
     volumes:
-      - ./code:/home/code
+      - ./code:/home/code:rw
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "python", "-c", "import httpx; httpx.get('http://localhost:8000/health')"]
