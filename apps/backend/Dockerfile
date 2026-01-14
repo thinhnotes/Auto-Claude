@@ -32,6 +32,7 @@ RUN echo '#!/bin/bash\n\
 git config --global --add safe.directory "*"\n\
 # Copy git config to user home if running as non-root\n\
 if [ ! -f "$HOME/.gitconfig" ]; then\n\
+    mkdir -p "$HOME"\n\
     cp /root/.gitconfig "$HOME/.gitconfig" 2>/dev/null || true\n\
 fi\n\
 exec "$@"' > /entrypoint.sh && chmod +x /entrypoint.sh
@@ -41,5 +42,5 @@ EXPOSE 8000
 
 ENTRYPOINT ["/entrypoint.sh"]
 
-# Run uvicorn
+# Run uvicorn from /app directory
 CMD ["uvicorn", "web.main:app", "--host", "0.0.0.0", "--port", "8000"]

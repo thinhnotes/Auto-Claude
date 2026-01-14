@@ -20,9 +20,6 @@ services:
     volumes:
       # Mount the code directory with full read-write access
       - ./code:/home/code:rw
-      # Ensure git can access the mounted directory
-      - /tmp:/tmp:rw
-    working_dir: /home/code
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "python", "-c", "import httpx; httpx.get('http://localhost:8000/health')"]
