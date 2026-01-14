@@ -14,10 +14,25 @@ the nested format.
 
 import json
 import logging
+import os
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Optional
 
+from .logging_utils import (
+    dump_diagnostic_info,
+    log_file_operation,
+    log_path_check,
+    log_plan_state,
+    log_worktree_info,
+)
+
 logger = logging.getLogger("auto-claude-api")
+
+
+def _get_log_level() -> str:
+    """Get the configured log level from environment."""
+    return os.environ.get("AUTO_CLAUDE_LOG_LEVEL", "INFO").upper()
 
 
 def get_all_subtasks(plan: dict) -> list[dict]:
@@ -154,64 +169,144 @@ def load_plan_from_spec(
     # Import here to avoid circular imports
     from workspace import get_existing_build_worktree
     
-    logger.debug(f"📂 [load_plan_from_spec] spec_path={spec_path}, project_path={project_path}, spec_folder={spec_folder}")
+    func_name = "load_plan_from_spec"
+    timestamp = datetime.utcnow().isoformat()
+    
+    # Always log at INFO level for key operations (helps with Docker debugging)
+    logger.info(
+        f"📂 [{func_name}] START at {timestamp}\n"
+        f"   spec_path={spec_path}\n"
+        f"   project_path={project_path}\n"
+        f"   spec_folder={spec_folder}"
+    )
     
     plan = None
     subtasks = []
     
+    # Check spec_path validity
+    log_path_check(func_name, spec_path, spec_path.exists() if spec_path else False, "spec_path")
+    
+    if spec_path and spec_path.exists():
+        try:
+            contents = list(spec_path.iterdir()) if spec_path.is_dir() else []
+            logger.info(f"📂 [{func_name}] spec_path contents: {[f.name for f in contents]}")
+        except Exception as e:
+            logger.error(f"📂 [{func_name}] Error listing spec_path: {e}")
+    
     # First, check for worktree (has most up-to-date data when build is running)
-    worktree_path = get_existing_build_worktree(project_path, spec_folder)
-    logger.debug(f"📂 [load_plan_from_spec] worktree_path={worktree_path}")
+    try:
+        worktree_path = get_existing_build_worktree(project_path, spec_folder)
+        log_worktree_info(func_name, project_path, spec_folder, worktree_path)
+    except Exception as e:
+        logger.error(f"📂 [{func_name}] Error getting worktree: {e}")
+        worktree_path = None
     
     worktree_plan_file = None
     if worktree_path:
         worktree_spec_dir = worktree_path / ".auto-claude" / "specs" / spec_folder
         worktree_plan_file = worktree_spec_dir / "implementation_plan.json"
-        logger.debug(f"📂 [load_plan_from_spec] worktree_plan_file={worktree_plan_file}, exists={worktree_plan_file.exists() if worktree_plan_file else False}")
+        log_path_check(func_name, worktree_spec_dir, worktree_spec_dir.exists(), "worktree_spec_dir")
+        log_path_check(func_name, worktree_plan_file, worktree_plan_file.exists(), "worktree_plan_file")
+        
+        # Log worktree spec dir contents
+        if worktree_spec_dir.exists():
+            try:
+                wt_contents = list(worktree_spec_dir.iterdir())
+                logger.info(f"📂 [{func_name}] worktree_spec_dir contents: {[f.name for f in wt_contents]}")
+            except Exception as e:
+                logger.error(f"📂 [{func_name}] Error listing worktree_spec_dir: {e}")
     
     # Check main project spec directory
     main_plan_file = spec_path / "implementation_plan.json"
-    logger.debug(f"📂 [load_plan_from_spec] main_plan_file={main_plan_file}, exists={main_plan_file.exists()}")
+    log_path_check(func_name, main_plan_file, main_plan_file.exists(), "main_plan_file")
     
     # Determine which plan file to use (prefer worktree if it exists and is newer)
     plan_file = None
+    source = None
+    
     if worktree_plan_file and worktree_plan_file.exists():
         if main_plan_file.exists():
             # Use the newer one
             wt_mtime = worktree_plan_file.stat().st_mtime
             main_mtime = main_plan_file.stat().st_mtime
+            wt_time_str = datetime.fromtimestamp(wt_mtime).isoformat()
+            main_time_str = datetime.fromtimestamp(main_mtime).isoformat()
+            logger.info(
+                f"📂 [{func_name}] Comparing plan mtimes:\n"
+                f"   worktree: {wt_time_str} ({wt_mtime})\n"
+                f"   main: {main_time_str} ({main_mtime})"
+            )
             if wt_mtime > main_mtime:
                 plan_file = worktree_plan_file
-                logger.info(f"📂 [load_plan_from_spec] Using worktree plan (newer)")
+                source = "worktree (newer)"
             else:
                 plan_file = main_plan_file
-                logger.info(f"📂 [load_plan_from_spec] Using main plan (newer)")
+                source = "main (newer)"
         else:
             plan_file = worktree_plan_file
-            logger.info(f"📂 [load_plan_from_spec] Using worktree plan (main doesn't exist)")
+            source = "worktree (main doesn't exist)"
     elif main_plan_file.exists():
         plan_file = main_plan_file
-        logger.info(f"📂 [load_plan_from_spec] Using main plan (no worktree)")
+        source = "main (no worktree)"
     else:
-        logger.warning(f"📂 [load_plan_from_spec] No plan file found!")
+        # No plan file found - dump diagnostic info for debugging
+        logger.warning(
+            f"📂 [{func_name}] ⚠️ NO PLAN FILE FOUND!\n"
+            f"   spec_folder: {spec_folder}\n"
+            f"   main_plan_file: {main_plan_file} (exists={main_plan_file.exists()})\n"
+            f"   worktree_plan_file: {worktree_plan_file} (exists={worktree_plan_file.exists() if worktree_plan_file else 'N/A'})\n"
+            f"   worktree_path: {worktree_path}"
+        )
+        # Dump full diagnostic info
+        dump_diagnostic_info(func_name, project_path, spec_folder, spec_path)
+    
+    if source:
+        logger.info(f"📂 [{func_name}] Selected plan source: {source}")
     
     if plan_file and plan_file.exists():
         try:
-            logger.info(f"📂 [load_plan_from_spec] Reading plan from: {plan_file}")
-            plan = json.loads(plan_file.read_text())
+            logger.info(f"📂 [{func_name}] Reading plan from: {plan_file}")
+            plan_content = plan_file.read_text()
+            logger.info(f"📂 [{func_name}] Plan file size: {len(plan_content)} bytes")
+            plan = json.loads(plan_content)
+            
+            # Log plan structure for debugging
+            logger.info(
+                f"📂 [{func_name}] Plan structure:\n"
+                f"   phases: {len(plan.get('phases', []))}\n"
+                f"   status: {plan.get('status', 'N/A')}\n"
+                f"   has_qa_signoff: {'qa_signoff' in plan}"
+            )
+            
             # Use helper function that handles both nested and flat formats
             all_subtasks = get_all_subtasks(plan)
-            logger.info(f"📂 [load_plan_from_spec] Found {len(all_subtasks)} subtasks")
+            logger.info(f"📂 [{func_name}] Found {len(all_subtasks)} subtasks")
+            
+            # Log subtask summary
+            status_counts = {}
             for subtask in all_subtasks:
+                status = subtask.get("status", "pending")
+                status_counts[status] = status_counts.get(status, 0) + 1
                 subtasks.append({
                     "id": subtask.get("id", ""),
                     "title": subtask.get("description", subtask.get("title", "")),
                     "description": subtask.get("description", ""),
-                    "status": subtask.get("status", "pending"),
+                    "status": status,
                     "files": subtask.get("files", subtask.get("files_to_modify", [])),
                 })
+            
+            logger.info(f"📂 [{func_name}] Subtask status counts: {status_counts}")
+            log_file_operation("read", plan_file, True, f"{len(all_subtasks)} subtasks")
+            
+        except json.JSONDecodeError as e:
+            logger.error(f"📂 [{func_name}] JSON parse error in plan file: {e}")
+            log_file_operation("read", plan_file, False, f"JSON error: {e}")
         except Exception as e:
-            logger.error(f"📂 [load_plan_from_spec] Error reading plan: {e}")
+            logger.error(f"📂 [{func_name}] Error reading plan: {e}", exc_info=True)
+            log_file_operation("read", plan_file, False, str(e))
+    
+    log_plan_state(func_name, spec_folder, plan is not None, len(subtasks), source)
+    logger.info(f"📂 [{func_name}] END - returning plan={plan is not None}, subtasks={len(subtasks)}")
     
     return plan, subtasks
 
@@ -235,48 +330,81 @@ def load_task_logs_from_spec(
     # Import here to avoid circular imports
     from workspace import get_existing_build_worktree
     
-    logger.debug(f"📝 [load_task_logs_from_spec] spec_path={spec_path}, spec_folder={spec_folder}")
+    func_name = "load_task_logs_from_spec"
+    timestamp = datetime.utcnow().isoformat()
+    
+    logger.info(
+        f"📝 [{func_name}] START at {timestamp}\n"
+        f"   spec_path={spec_path}\n"
+        f"   project_path={project_path}\n"
+        f"   spec_folder={spec_folder}"
+    )
     
     # First, check for worktree (has most up-to-date data when build is running)
-    worktree_path = get_existing_build_worktree(project_path, spec_folder)
-    logger.debug(f"📝 [load_task_logs_from_spec] worktree_path={worktree_path}")
+    try:
+        worktree_path = get_existing_build_worktree(project_path, spec_folder)
+        log_worktree_info(func_name, project_path, spec_folder, worktree_path)
+    except Exception as e:
+        logger.error(f"📝 [{func_name}] Error getting worktree: {e}")
+        worktree_path = None
     
     worktree_logs_file = None
     if worktree_path:
         worktree_spec_dir = worktree_path / ".auto-claude" / "specs" / spec_folder
         worktree_logs_file = worktree_spec_dir / "task_logs.json"
-        logger.debug(f"📝 [load_task_logs_from_spec] worktree_logs_file={worktree_logs_file}, exists={worktree_logs_file.exists() if worktree_logs_file else False}")
+        log_path_check(func_name, worktree_logs_file, worktree_logs_file.exists(), "worktree_logs_file")
     
     # Check main project spec directory
     main_logs_file = spec_path / "task_logs.json"
-    logger.debug(f"📝 [load_task_logs_from_spec] main_logs_file={main_logs_file}, exists={main_logs_file.exists()}")
+    log_path_check(func_name, main_logs_file, main_logs_file.exists(), "main_logs_file")
     
     # Determine which file to use (prefer worktree if it exists and is newer)
     logs_file = None
+    source = None
+    
     if worktree_logs_file and worktree_logs_file.exists():
         if main_logs_file.exists():
             # Use the newer one
-            if worktree_logs_file.stat().st_mtime > main_logs_file.stat().st_mtime:
+            wt_mtime = worktree_logs_file.stat().st_mtime
+            main_mtime = main_logs_file.stat().st_mtime
+            if wt_mtime > main_mtime:
                 logs_file = worktree_logs_file
-                logger.info(f"📝 [load_task_logs_from_spec] Using worktree logs (newer)")
+                source = "worktree (newer)"
             else:
                 logs_file = main_logs_file
-                logger.info(f"📝 [load_task_logs_from_spec] Using main logs (newer)")
+                source = "main (newer)"
         else:
             logs_file = worktree_logs_file
-            logger.info(f"📝 [load_task_logs_from_spec] Using worktree logs (main doesn't exist)")
+            source = "worktree (main doesn't exist)"
     elif main_logs_file.exists():
         logs_file = main_logs_file
-        logger.info(f"📝 [load_task_logs_from_spec] Using main logs (no worktree)")
+        source = "main (no worktree)"
     else:
-        logger.debug(f"📝 [load_task_logs_from_spec] No task_logs.json found")
+        logger.info(f"📝 [{func_name}] No task_logs.json found")
+    
+    if source:
+        logger.info(f"📝 [{func_name}] Selected logs source: {source}")
     
     if logs_file and logs_file.exists():
         try:
-            logger.info(f"📝 [load_task_logs_from_spec] Reading logs from: {logs_file}")
-            return json.loads(logs_file.read_text())
+            logger.info(f"📝 [{func_name}] Reading logs from: {logs_file}")
+            content = logs_file.read_text()
+            logs = json.loads(content)
+            
+            # Log phases summary
+            phases = logs.get("phases", {})
+            phases_summary = {p: phases[p].get("status", "unknown") for p in phases}
+            logger.info(f"📝 [{func_name}] Phases: {phases_summary}")
+            log_file_operation("read", logs_file, True, f"phases: {list(phases.keys())}")
+            
+            return logs
+        except json.JSONDecodeError as e:
+            logger.error(f"📝 [{func_name}] JSON parse error: {e}")
+            log_file_operation("read", logs_file, False, f"JSON error: {e}")
         except Exception as e:
-            logger.error(f"📝 [load_task_logs_from_spec] Error reading logs: {e}")
+            logger.error(f"📝 [{func_name}] Error reading logs: {e}", exc_info=True)
+            log_file_operation("read", logs_file, False, str(e))
     
+    logger.info(f"📝 [{func_name}] END - returning None")
     return None
 

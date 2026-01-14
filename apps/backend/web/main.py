@@ -83,6 +83,14 @@ async def lifespan(app: FastAPI):
     logger.info("🚀 Auto Claude Web API starting...")
     logger.info("📡 API available at http://localhost:8000")
     logger.info("📖 API docs at http://localhost:8000/docs")
+    
+    # Log environment info for debugging
+    from .utils.logging_utils import log_environment_info
+    try:
+        log_environment_info()
+    except Exception as e:
+        logger.warning(f"Could not log environment info: {e}")
+    
     app.state.connection_manager = manager
 
     yield

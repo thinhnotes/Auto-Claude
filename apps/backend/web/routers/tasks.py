@@ -34,6 +34,12 @@ from workspace import get_existing_build_worktree
 
 from .projects import load_projects
 from ..utils.plan_helpers import get_all_subtasks, load_plan_from_spec, load_task_logs_from_spec
+from ..utils.logging_utils import (
+    dump_diagnostic_info,
+    log_task_lifecycle,
+    log_path_check,
+    log_file_operation,
+)
 
 router = APIRouter()
 logger = logging.getLogger("auto-claude-api")
@@ -162,15 +168,23 @@ def parse_task_id(task_id: str) -> tuple[str, str]:
 @router.get("/projects/{project_id}/tasks")
 async def list_tasks(project_id: str) -> dict:
     """List all tasks (specs) for a project."""
+    func_name = "list_tasks"
+    timestamp = datetime.utcnow().isoformat()
+    
+    logger.info(f"📋 [{func_name}] START at {timestamp} for project_id={project_id}")
+    
     project_path = get_project_path(project_id)
+    log_path_check(func_name, project_path, project_path.exists(), "project_path")
 
     if not project_path.exists():
+        logger.info(f"📋 [{func_name}] Project path does not exist, returning empty list")
         return {"success": True, "data": []}
 
     try:
         specs = list_specs(project_path)
+        logger.info(f"📋 [{func_name}] Found {len(specs)} specs")
     except Exception as e:
-        logger.error(f"Error listing specs: {e}")
+        logger.error(f"📋 [{func_name}] Error listing specs: {e}", exc_info=True)
         # No specs directory or other error
         return {"success": True, "data": []}
 
@@ -178,6 +192,8 @@ async def list_tasks(project_id: str) -> dict:
     for spec in specs:
         task_id = get_task_id(project_id, spec["folder"])
         spec_file = spec["path"] / "spec.md"
+        
+        logger.debug(f"📋 [{func_name}] Processing spec: {spec['folder']}")
         
         # Read description from spec.md
         description = ""
@@ -210,11 +226,18 @@ async def list_tasks(project_id: str) -> dict:
             is_running = _is_process_running(running_tasks[task_id]["pid"])
             if not is_running:
                 # Clean up stale entry
+                logger.info(f"📋 [{func_name}] Cleaning stale task entry: {task_id}")
                 del running_tasks[task_id]
                 _save_running_tasks()
 
         # Load subtasks and plan from implementation_plan.json (checks both main and worktree)
+        logger.info(f"📋 [{func_name}] Loading plan for spec: {spec['folder']}")
         plan, subtasks = load_plan_from_spec(spec["path"], project_path, spec["folder"])
+        
+        logger.info(
+            f"📋 [{func_name}] Spec {spec['folder']}: "
+            f"plan_found={plan is not None}, subtasks={len(subtasks)}, is_running={is_running}"
+        )
 
         # Calculate status based on subtask states (matching Electron app logic)
         # Frontend uses: 'backlog' | 'in_progress' | 'ai_review' | 'human_review' | 'done'
@@ -484,25 +507,65 @@ async def start_task(task_id: str, request: TaskStartRequest) -> dict[str, Any]:
     
     Logs are written to the spec directory for later retrieval.
     """
+    func_name = "start_task"
+    timestamp = datetime.utcnow().isoformat()
+    
+    logger.info(
+        f"🚀 [{func_name}] START at {timestamp}\n"
+        f"   task_id: {task_id}\n"
+        f"   request: auto_continue={request.auto_continue}, skip_qa={request.skip_qa}, model={request.model}"
+    )
+    
+    log_task_lifecycle("start", task_id, {
+        "auto_continue": request.auto_continue,
+        "skip_qa": request.skip_qa,
+        "model": request.model,
+    })
+    
     _cleanup_finished_tasks()  # Clean up any finished tasks first
     
     project_id, folder = parse_task_id(task_id)
+    logger.info(f"🚀 [{func_name}] Parsed task_id: project_id={project_id}, folder={folder}")
+    
     project_path = get_project_path(project_id)
+    logger.info(f"🚀 [{func_name}] project_path={project_path}")
+    log_path_check(func_name, project_path, project_path.exists(), "project_path")
 
     spec_dir = find_spec(project_path, folder)
+    logger.info(f"🚀 [{func_name}] spec_dir={spec_dir}")
+    
     if not spec_dir:
+        logger.error(f"🚀 [{func_name}] Task not found: {folder}")
+        log_task_lifecycle("error", task_id, {"error": "Task not found"})
         raise HTTPException(status_code=404, detail="Task not found")
+    
+    log_path_check(func_name, spec_dir, spec_dir.exists(), "spec_dir")
+    
+    # List spec_dir contents for debugging
+    if spec_dir.exists():
+        try:
+            contents = list(spec_dir.iterdir())
+            logger.info(f"🚀 [{func_name}] spec_dir contents: {[f.name for f in contents]}")
+        except Exception as e:
+            logger.error(f"🚀 [{func_name}] Error listing spec_dir: {e}")
 
     # Check if already running (by PID check, not just dict presence)
     if task_id in running_tasks:
-        if _is_process_running(running_tasks[task_id]["pid"]):
-            return {"status": "already_running", "task_id": task_id, "pid": running_tasks[task_id]["pid"]}
+        pid = running_tasks[task_id]["pid"]
+        if _is_process_running(pid):
+            logger.info(f"🚀 [{func_name}] Task already running with PID {pid}")
+            log_task_lifecycle("status", task_id, {"status": "already_running", "pid": pid})
+            return {"status": "already_running", "task_id": task_id, "pid": pid}
         else:
             # Process finished, clean up stale entry
+            logger.info(f"🚀 [{func_name}] Cleaning up stale task entry (PID {pid} not running)")
             del running_tasks[task_id]
 
     backend_dir = Path(__file__).parent.parent.parent
     run_script = backend_dir / "run.py"
+    
+    logger.info(f"🚀 [{func_name}] backend_dir={backend_dir}")
+    log_path_check(func_name, run_script, run_script.exists(), "run_script")
 
     # Create log file in spec directory
     log_file = spec_dir / "build.log"
@@ -524,28 +587,44 @@ async def start_task(task_id: str, request: TaskStartRequest) -> dict[str, Any]:
     if request.model:
         cmd.extend(["--model", request.model])
 
-    logger.info(f"🚀 Starting background task: {task_id}")
-    logger.info(f"   Command: {' '.join(cmd)}")
-    logger.info(f"   Log file: {log_file}")
+    logger.info(
+        f"🚀 [{func_name}] Starting background task:\n"
+        f"   Command: {' '.join(cmd)}\n"
+        f"   Log file: {log_file}\n"
+        f"   Working directory: {project_path}"
+    )
+
+    # Dump diagnostic info before starting
+    dump_diagnostic_info(func_name, project_path, folder, spec_dir)
 
     # Start as detached background process
     # - start_new_session=True: Creates new process group (survives parent death)
     # - stdout/stderr to file: Logs persist for later retrieval
-    with open(log_file, "a") as log_handle:
-        log_handle.write(f"\n{'='*60}\n")
-        log_handle.write(f"Task started at: {datetime.utcnow().isoformat()}\n")
-        log_handle.write(f"Command: {' '.join(cmd)}\n")
-        log_handle.write(f"{'='*60}\n\n")
-        log_handle.flush()
+    try:
+        with open(log_file, "a") as log_handle:
+            log_handle.write(f"\n{'='*60}\n")
+            log_handle.write(f"Task started at: {datetime.utcnow().isoformat()}\n")
+            log_handle.write(f"Command: {' '.join(cmd)}\n")
+            log_handle.write(f"Project path: {project_path}\n")
+            log_handle.write(f"Spec dir: {spec_dir}\n")
+            log_handle.write(f"{'='*60}\n\n")
+            log_handle.flush()
+            
+            process = subprocess.Popen(
+                cmd,
+                stdout=log_handle,
+                stderr=subprocess.STDOUT,
+                start_new_session=True,  # Detach from parent process group
+                cwd=str(project_path),
+                env={**os.environ, "PYTHONUNBUFFERED": "1"},  # Ensure real-time logging
+            )
         
-        process = subprocess.Popen(
-            cmd,
-            stdout=log_handle,
-            stderr=subprocess.STDOUT,
-            start_new_session=True,  # Detach from parent process group
-            cwd=str(project_path),
-            env={**os.environ, "PYTHONUNBUFFERED": "1"},  # Ensure real-time logging
-        )
+        log_file_operation("write", log_file, True, f"task started, PID={process.pid}")
+        
+    except Exception as e:
+        logger.error(f"🚀 [{func_name}] Error starting process: {e}", exc_info=True)
+        log_task_lifecycle("error", task_id, {"error": str(e)})
+        raise HTTPException(status_code=500, detail=f"Failed to start task: {e}")
 
     # Track the running task
     running_tasks[task_id] = {
@@ -557,7 +636,12 @@ async def start_task(task_id: str, request: TaskStartRequest) -> dict[str, Any]:
     }
     _save_running_tasks()
 
-    logger.info(f"✅ Task {task_id} started with PID {process.pid}")
+    logger.info(f"✅ [{func_name}] Task {task_id} started with PID {process.pid}")
+    log_task_lifecycle("start", task_id, {
+        "pid": process.pid,
+        "log_file": str(log_file),
+        "status": "started",
+    })
 
     return {
         "status": "started", 
@@ -571,23 +655,32 @@ async def start_task(task_id: str, request: TaskStartRequest) -> dict[str, Any]:
 @router.post("/tasks/{task_id}/stop")
 async def stop_task(task_id: str) -> dict[str, Any]:
     """Stop a running background task."""
+    func_name = "stop_task"
+    logger.info(f"🛑 [{func_name}] Stopping task: {task_id}")
+    log_task_lifecycle("stop", task_id, {"action": "stop_requested"})
+    
     _cleanup_finished_tasks()
     
     if task_id not in running_tasks:
+        logger.info(f"🛑 [{func_name}] Task not in running_tasks: {task_id}")
+        log_task_lifecycle("status", task_id, {"status": "not_running"})
         return {"status": "not_running", "task_id": task_id}
 
     task_info = running_tasks[task_id]
     pid = task_info["pid"]
     
     if not _is_process_running(pid):
+        logger.info(f"🛑 [{func_name}] Task already finished (PID {pid})")
         del running_tasks[task_id]
         _save_running_tasks()
+        log_task_lifecycle("complete", task_id, {"status": "already_finished"})
         return {"status": "already_finished", "task_id": task_id}
 
     try:
         # Send SIGTERM to the process group (kills all child processes too)
         os.killpg(os.getpgid(pid), signal.SIGTERM)
-        logger.info(f"🛑 Sent SIGTERM to task {task_id} (PID {pid})")
+        logger.info(f"🛑 [{func_name}] Sent SIGTERM to task {task_id} (PID {pid})")
+        log_task_lifecycle("stop", task_id, {"signal": "SIGTERM", "pid": pid})
         
         # Wait a bit for graceful shutdown
         await asyncio.sleep(2)
@@ -595,24 +688,53 @@ async def stop_task(task_id: str) -> dict[str, Any]:
         # Force kill if still running
         if _is_process_running(pid):
             os.killpg(os.getpgid(pid), signal.SIGKILL)
-            logger.info(f"💀 Force killed task {task_id} (PID {pid})")
+            logger.info(f"💀 [{func_name}] Force killed task {task_id} (PID {pid})")
+            log_task_lifecycle("stop", task_id, {"signal": "SIGKILL", "pid": pid})
     except (OSError, ProcessLookupError) as e:
-        logger.warning(f"Error stopping task {task_id}: {e}")
+        logger.warning(f"🛑 [{func_name}] Error stopping task {task_id}: {e}")
+        log_task_lifecycle("error", task_id, {"error": str(e)})
 
     del running_tasks[task_id]
     _save_running_tasks()
     
+    logger.info(f"🛑 [{func_name}] Task stopped: {task_id}")
+    log_task_lifecycle("stop", task_id, {"status": "stopped"})
     return {"status": "stopped", "task_id": task_id}
 
 
 @router.get("/tasks/{task_id}/status")
 async def get_task_status(task_id: str) -> dict[str, Any]:
     """Get the running status of a task."""
+    func_name = "get_task_status"
+    logger.debug(f"📊 [{func_name}] Getting status for: {task_id}")
+    
     _cleanup_finished_tasks()
     
     if task_id in running_tasks:
         task_info = running_tasks[task_id]
         is_running = _is_process_running(task_info["pid"])
+        
+        # Dump diagnostic info for debugging if task is running
+        if is_running:
+            project_id, folder = parse_task_id(task_id)
+            try:
+                project_path = get_project_path(project_id)
+                spec_dir = find_spec(project_path, folder)
+                if spec_dir:
+                    # Log current plan state for debugging
+                    plan, subtasks = load_plan_from_spec(spec_dir, project_path, folder)
+                    logger.info(
+                        f"📊 [{func_name}] Task {task_id}: "
+                        f"running=True, plan_found={plan is not None}, subtasks={len(subtasks)}"
+                    )
+            except Exception as e:
+                logger.debug(f"📊 [{func_name}] Error getting plan state: {e}")
+        
+        log_task_lifecycle("poll", task_id, {
+            "is_running": is_running,
+            "pid": task_info["pid"],
+        })
+        
         return {
             "task_id": task_id,
             "is_running": is_running,
@@ -621,6 +743,7 @@ async def get_task_status(task_id: str) -> dict[str, Any]:
             "log_file": task_info["log_file"],
         }
     
+    log_task_lifecycle("poll", task_id, {"is_running": False})
     return {
         "task_id": task_id,
         "is_running": False,
