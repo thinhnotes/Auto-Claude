@@ -7,6 +7,8 @@ Detailed documentation for Auto Claude setup and usage.
 | Guide | Description |
 |-------|-------------|
 | **[CLI-USAGE.md](CLI-USAGE.md)** | Terminal-only usage for power users, headless servers, and CI/CD |
+| **[docker-troubleshooting.md](docker-troubleshooting.md)** | Docker permission issues, git visibility problems, and user mapping |
+| **[linux.md](linux.md)** | Linux installation guide (Flatpak, AppImage, Debian packages) |
 
 ## Quick Links
 
