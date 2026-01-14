@@ -318,6 +318,7 @@ async def list_tasks(project_id: str) -> dict:
             "updatedAt": updated_at,
             "isRunning": is_running,
             "reviewReason": review_reason,
+            "specsPath": str(spec["path"]),  # Full path to specs directory for Files tab
         })
 
     logger.info(f"📋 Returning {len(tasks)} tasks for project {project_id}")
@@ -1073,3 +1074,97 @@ async def stream_task_logs(task_id: str) -> StreamingResponse:
             "Access-Control-Allow-Headers": "*",
         }
     )
+
+
+class FileNode(BaseModel):
+    """Response model for a file/directory node."""
+    
+    name: str
+    path: str
+    isDirectory: bool
+
+
+@router.get("/projects/{project_id}/tasks/{spec_id}/files")
+async def list_spec_files(project_id: str, spec_id: str) -> dict:
+    """List files in a spec directory.
+    
+    Returns a list of files in the spec directory for the Files tab.
+    Only includes .md and .json files.
+    """
+    logger.info(f"📁 [list_spec_files] project_id={project_id}, spec_id={spec_id}")
+    
+    project_path = get_project_path(project_id)
+    spec_dir = find_spec(project_path, spec_id)
+    
+    if not spec_dir:
+        logger.warning(f"📁 [list_spec_files] Task not found: {spec_id}")
+        raise HTTPException(status_code=404, detail="Task not found")
+    
+    if not spec_dir.exists():
+        return {"success": True, "data": []}
+    
+    allowed_extensions = [".md", ".json"]
+    files = []
+    
+    try:
+        for entry in spec_dir.iterdir():
+            if entry.is_file() and any(entry.name.endswith(ext) for ext in allowed_extensions):
+                files.append({
+                    "name": entry.name,
+                    "path": str(entry),
+                    "isDirectory": False
+                })
+        
+        # Sort: spec.md first, then alphabetically
+        files.sort(key=lambda f: (f["name"] != "spec.md", f["name"]))
+        
+        logger.info(f"📁 [list_spec_files] Found {len(files)} files in {spec_dir}")
+        return {"success": True, "data": files}
+        
+    except Exception as e:
+        logger.error(f"📁 [list_spec_files] Error listing files: {e}", exc_info=True)
+        return {"success": False, "error": str(e)}
+
+
+@router.get("/projects/{project_id}/tasks/{spec_id}/files/content")
+async def read_spec_file(project_id: str, spec_id: str, file_path: str) -> dict:
+    """Read content of a file in the spec directory.
+    
+    Args:
+        project_id: Project ID
+        spec_id: Spec/task ID
+        file_path: Full path to the file to read
+    
+    Returns the file content as a string.
+    """
+    logger.info(f"📁 [read_spec_file] project_id={project_id}, spec_id={spec_id}, file_path={file_path}")
+    
+    project_path = get_project_path(project_id)
+    spec_dir = find_spec(project_path, spec_id)
+    
+    if not spec_dir:
+        logger.warning(f"📁 [read_spec_file] Task not found: {spec_id}")
+        raise HTTPException(status_code=404, detail="Task not found")
+    
+    # Security: Ensure the file_path is within the spec directory
+    file = Path(file_path)
+    try:
+        file.resolve().relative_to(spec_dir.resolve())
+    except ValueError:
+        logger.warning(f"📁 [read_spec_file] Access denied: {file_path} not in {spec_dir}")
+        raise HTTPException(status_code=403, detail="Access denied: file outside spec directory")
+    
+    if not file.exists():
+        raise HTTPException(status_code=404, detail="File not found")
+    
+    if not file.is_file():
+        raise HTTPException(status_code=400, detail="Path is not a file")
+    
+    try:
+        content = file.read_text(encoding="utf-8")
+        logger.info(f"📁 [read_spec_file] Read {len(content)} characters from {file}")
+        return {"success": True, "data": content}
+        
+    except Exception as e:
+        logger.error(f"📁 [read_spec_file] Error reading file: {e}", exc_info=True)
+        return {"success": False, "error": str(e)}

@@ -1072,8 +1072,56 @@ export function createWebAdapter(): AppAPI {
     // ===================
     // File Operations
     // ===================
-    listDirectory: unsupported('listDirectory'),
-    readFile: unsupported('readFile'),
+    listDirectory: async (dirPath: string) => {
+      const pathParts = dirPath.replace(/\/$/, '').split('/');
+      const specFolder = pathParts[pathParts.length - 1];
+      const specsIndex = pathParts.indexOf('specs');
+      const autoClaudeIndex = pathParts.indexOf('.auto-claude');
+      
+      if (specsIndex === -1 || autoClaudeIndex === -1) {
+        console.warn('[Web Adapter] listDirectory: Invalid path:', dirPath);
+        return { success: false, error: 'Invalid specs path format' };
+      }
+      
+      const projectPath = pathParts.slice(0, autoClaudeIndex).join('/');
+      const projectsResult = await apiRequest<Array<{ id: string; path: string }>>('/api/projects');
+      if (!projectsResult.success || !projectsResult.data) {
+        return { success: false, error: 'Failed to fetch projects' };
+      }
+      
+      const project = projectsResult.data.find(p => p.path === projectPath);
+      if (!project) {
+        return { success: false, error: 'Project not found' };
+      }
+      
+      return apiRequest(`/api/projects/${project.id}/tasks/${specFolder}/files`);
+    },
+    
+    readFile: async (filePath: string) => {
+      const pathParts = filePath.replace(/\/$/, '').split('/');
+      const specsIndex = pathParts.indexOf('specs');
+      const autoClaudeIndex = pathParts.indexOf('.auto-claude');
+      
+      if (specsIndex === -1 || autoClaudeIndex === -1) {
+        return { success: false, error: 'Invalid file path format' };
+      }
+      
+      const specFolder = pathParts[specsIndex + 1];
+      const projectPath = pathParts.slice(0, autoClaudeIndex).join('/');
+      
+      const projectsResult = await apiRequest<Array<{ id: string; path: string }>>('/api/projects');
+      if (!projectsResult.success || !projectsResult.data) {
+        return { success: false, error: 'Failed to fetch projects' };
+      }
+      
+      const project = projectsResult.data.find(p => p.path === projectPath);
+      if (!project) {
+        return { success: false, error: 'Project not found' };
+      }
+      
+      const encodedPath = encodeURIComponent(filePath);
+      return apiRequest(`/api/projects/${project.id}/tasks/${specFolder}/files/content?file_path=${encodedPath}`);
+    },
 
     // ===================
     // GitHub API

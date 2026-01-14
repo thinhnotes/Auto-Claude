@@ -37,7 +37,7 @@ services:
       dockerfile: Dockerfile.web
     container_name: auto-claude-web
     ports:
-      - "3000:80"
+      - "3001:80"
     environment:
       - VITE_CUSTOM_DOMAIN=${VITE_CUSTOM_DOMAIN:-notesvnn.click}
     depends_on:
