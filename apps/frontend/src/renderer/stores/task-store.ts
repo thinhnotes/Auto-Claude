@@ -250,7 +250,12 @@ export async function loadTasks(projectId: string): Promise<void> {
 
   try {
     const result = await window.electronAPI.getTasks(projectId);
+    console.log('[loadTasks] API result:', { success: result.success, taskCount: result.data?.length });
     if (result.success && result.data) {
+      // Log specsPath for debugging
+      result.data.forEach((task: any, idx: number) => {
+        console.log(`[loadTasks] Task ${idx}: id=${task.id}, specsPath=${task.specsPath}`);
+      });
       store.setTasks(result.data);
     } else {
       store.setError(result.error || 'Failed to load tasks');

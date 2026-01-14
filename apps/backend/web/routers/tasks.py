@@ -31,6 +31,7 @@ from cli.spec_commands import list_specs
 from cli.utils import find_spec, get_specs_dir
 from progress import count_subtasks
 from workspace import get_existing_build_worktree
+from core.worktree import WorktreeManager
 
 from .projects import load_projects
 from ..utils.plan_helpers import get_all_subtasks, load_plan_from_spec, load_task_logs_from_spec
@@ -1167,4 +1168,195 @@ async def read_spec_file(project_id: str, spec_id: str, file_path: str) -> dict:
         
     except Exception as e:
         logger.error(f"📁 [read_spec_file] Error reading file: {e}", exc_info=True)
+        return {"success": False, "error": str(e)}
+
+
+@router.get("/projects/{project_id}/tasks/{spec_id}/git-changes")
+async def get_task_git_changes(project_id: str, spec_id: str) -> dict:
+    """Get git changes (modified files) for a task.
+    
+    Returns a list of files that have been changed in the task's worktree,
+    compared to the base branch.
+    """
+    logger.info(f"📝 [get_task_git_changes] project_id={project_id}, spec_id={spec_id}")
+    
+    project_path = get_project_path(project_id)
+    
+    if not project_path.exists():
+        return {"success": True, "data": {"files": [], "summary": {}}}
+    
+    try:
+        # Use WorktreeManager to find the worktree correctly
+        manager = WorktreeManager(project_path)
+        info = manager.get_worktree_info(spec_id)
+        
+        if not info:
+            logger.info(f"📝 [get_task_git_changes] No worktree found for spec: {spec_id}")
+            return {"success": True, "data": {"files": [], "summary": {}, "hasWorktree": False}}
+        
+        worktree_path = info.path
+        base_branch = info.base_branch
+        
+        logger.info(f"📝 [get_task_git_changes] Found worktree at {worktree_path}, base_branch={base_branch}")
+        
+        # Get changed files with stats
+        diff_result = subprocess.run(
+            ["git", "diff", "--name-status", f"{base_branch}...HEAD"],
+            cwd=str(worktree_path),
+            capture_output=True,
+            text=True
+        )
+        
+        files = []
+        for line in diff_result.stdout.strip().split("\n"):
+            if not line:
+                continue
+            parts = line.split("\t", 1)
+            if len(parts) == 2:
+                status_code = parts[0]
+                file_path = parts[1]
+                
+                # Map git status codes to readable names
+                status_map = {
+                    "A": "added",
+                    "M": "modified", 
+                    "D": "deleted",
+                    "R": "renamed",
+                    "C": "copied",
+                    "U": "unmerged"
+                }
+                status = status_map.get(status_code[0], "modified")
+                
+                # Get line stats for this file
+                stat_result = subprocess.run(
+                    ["git", "diff", "--numstat", f"{base_branch}...HEAD", "--", file_path],
+                    cwd=str(worktree_path),
+                    capture_output=True,
+                    text=True
+                )
+                
+                additions = 0
+                deletions = 0
+                if stat_result.stdout.strip():
+                    stat_parts = stat_result.stdout.strip().split("\t")
+                    if len(stat_parts) >= 2:
+                        try:
+                            additions = int(stat_parts[0]) if stat_parts[0] != "-" else 0
+                            deletions = int(stat_parts[1]) if stat_parts[1] != "-" else 0
+                        except ValueError:
+                            pass
+                
+                files.append({
+                    "path": file_path,
+                    "status": status,
+                    "additions": additions,
+                    "deletions": deletions
+                })
+        
+        # Calculate summary
+        summary = {
+            "totalFiles": len(files),
+            "added": sum(1 for f in files if f["status"] == "added"),
+            "modified": sum(1 for f in files if f["status"] == "modified"),
+            "deleted": sum(1 for f in files if f["status"] == "deleted"),
+            "totalAdditions": sum(f["additions"] for f in files),
+            "totalDeletions": sum(f["deletions"] for f in files)
+        }
+        
+        logger.info(f"📝 [get_task_git_changes] Found {len(files)} changed files")
+        return {
+            "success": True,
+            "data": {
+                "files": files,
+                "summary": summary,
+                "hasWorktree": True,
+                "baseBranch": base_branch
+            }
+        }
+        
+    except Exception as e:
+        logger.error(f"📝 [get_task_git_changes] Error: {e}", exc_info=True)
+        return {"success": False, "error": str(e)}
+
+
+@router.get("/projects/{project_id}/tasks/{spec_id}/git-diff")
+async def get_task_file_diff(project_id: str, spec_id: str, file_path: str) -> dict:
+    """Get the git diff content for a specific file in a task's worktree.
+    
+    Args:
+        project_id: Project ID
+        spec_id: Spec/task ID  
+        file_path: Relative path to the file within the project
+    
+    Returns the unified diff content for the file.
+    """
+    logger.info(f"📝 [get_task_file_diff] project_id={project_id}, spec_id={spec_id}, file_path={file_path}")
+    
+    project_path = get_project_path(project_id)
+    
+    if not project_path.exists():
+        return {"success": False, "error": "Project not found"}
+    
+    try:
+        # Use WorktreeManager to find the worktree correctly
+        manager = WorktreeManager(project_path)
+        info = manager.get_worktree_info(spec_id)
+        
+        if not info:
+            return {"success": False, "error": "No worktree found for this task"}
+        
+        worktree_path = info.path
+        base_branch = info.base_branch
+        
+        logger.info(f"📝 [get_task_file_diff] Found worktree at {worktree_path}, base_branch={base_branch}")
+        
+        # Get the diff for this specific file
+        diff_result = subprocess.run(
+            ["git", "diff", f"{base_branch}...HEAD", "--", file_path],
+            cwd=str(worktree_path),
+            capture_output=True,
+            text=True
+        )
+        
+        diff_content = diff_result.stdout
+        
+        # If no diff (new file), get the file content
+        if not diff_content.strip():
+            # Check if it's a new file
+            status_result = subprocess.run(
+                ["git", "diff", "--name-status", f"{base_branch}...HEAD", "--", file_path],
+                cwd=str(worktree_path),
+                capture_output=True,
+                text=True
+            )
+            
+            if status_result.stdout.strip().startswith("A"):
+                # New file - show full content as additions
+                file_full_path = worktree_path / file_path
+                if file_full_path.exists():
+                    content = file_full_path.read_text(encoding="utf-8", errors="replace")
+                    # Format as a simple diff showing all lines as additions
+                    lines = content.split("\n")
+                    diff_lines = [
+                        f"diff --git a/{file_path} b/{file_path}",
+                        "new file mode 100644",
+                        f"--- /dev/null",
+                        f"+++ b/{file_path}",
+                        f"@@ -0,0 +1,{len(lines)} @@"
+                    ]
+                    diff_lines.extend(f"+{line}" for line in lines)
+                    diff_content = "\n".join(diff_lines)
+        
+        logger.info(f"📝 [get_task_file_diff] Got diff of {len(diff_content)} chars for {file_path}")
+        return {
+            "success": True,
+            "data": {
+                "diff": diff_content,
+                "filePath": file_path,
+                "baseBranch": base_branch
+            }
+        }
+        
+    except Exception as e:
+        logger.error(f"📝 [get_task_file_diff] Error: {e}", exc_info=True)
         return {"success": False, "error": str(e)}

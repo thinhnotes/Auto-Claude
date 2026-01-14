@@ -36,6 +36,9 @@ function getFileIcon(filename: string) {
 export function TaskFiles({ task }: TaskFilesProps) {
   const { t } = useTranslation(['tasks']);
   const { settings } = useSettingsStore();
+  
+  // Debug logging
+  console.log('[TaskFiles] Rendering with task:', { id: task.id, specsPath: task.specsPath });
 
   // State for file listing
   const [files, setFiles] = useState<FileNode[]>([]);

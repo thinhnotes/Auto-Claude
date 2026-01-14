@@ -702,6 +702,31 @@ export interface ElectronAPI {
   listDirectory: (dirPath: string) => Promise<IPCResult<FileNode[]>>;
   readFile: (filePath: string) => Promise<IPCResult<string>>;
 
+  // Task Git Changes operations (for code review view)
+  getTaskGitChanges: (projectId: string, specId: string) => Promise<IPCResult<{
+    files: Array<{
+      path: string;
+      status: 'added' | 'modified' | 'deleted' | 'renamed';
+      additions: number;
+      deletions: number;
+    }>;
+    summary: {
+      totalFiles: number;
+      added: number;
+      modified: number;
+      deleted: number;
+      totalAdditions: number;
+      totalDeletions: number;
+    };
+    hasWorktree: boolean;
+    baseBranch?: string;
+  }>>;
+  getTaskFileDiff: (projectId: string, specId: string, filePath: string) => Promise<IPCResult<{
+    diff: string;
+    filePath: string;
+    baseBranch: string;
+  }>>;
+
   // Git operations
   getGitBranches: (projectPath: string) => Promise<IPCResult<string[]>>;
   getCurrentGitBranch: (projectPath: string) => Promise<IPCResult<string | null>>;

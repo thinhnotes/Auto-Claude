@@ -1073,10 +1073,13 @@ export function createWebAdapter(): AppAPI {
     // File Operations
     // ===================
     listDirectory: async (dirPath: string) => {
+      console.log('[Web Adapter] listDirectory called with:', dirPath);
       const pathParts = dirPath.replace(/\/$/, '').split('/');
       const specFolder = pathParts[pathParts.length - 1];
       const specsIndex = pathParts.indexOf('specs');
       const autoClaudeIndex = pathParts.indexOf('.auto-claude');
+      
+      console.log('[Web Adapter] listDirectory parsed:', { specFolder, specsIndex, autoClaudeIndex, pathParts });
       
       if (specsIndex === -1 || autoClaudeIndex === -1) {
         console.warn('[Web Adapter] listDirectory: Invalid path:', dirPath);
@@ -1084,17 +1087,26 @@ export function createWebAdapter(): AppAPI {
       }
       
       const projectPath = pathParts.slice(0, autoClaudeIndex).join('/');
+      console.log('[Web Adapter] listDirectory projectPath:', projectPath);
+      
       const projectsResult = await apiRequest<Array<{ id: string; path: string }>>('/api/projects');
+      console.log('[Web Adapter] listDirectory projects:', projectsResult);
+      
       if (!projectsResult.success || !projectsResult.data) {
         return { success: false, error: 'Failed to fetch projects' };
       }
       
       const project = projectsResult.data.find(p => p.path === projectPath);
+      console.log('[Web Adapter] listDirectory found project:', project);
+      
       if (!project) {
+        console.warn('[Web Adapter] listDirectory: Project not found for path:', projectPath);
         return { success: false, error: 'Project not found' };
       }
       
-      return apiRequest(`/api/projects/${project.id}/tasks/${specFolder}/files`);
+      const endpoint = `/api/projects/${project.id}/tasks/${specFolder}/files`;
+      console.log('[Web Adapter] listDirectory calling endpoint:', endpoint);
+      return apiRequest(endpoint);
     },
     
     readFile: async (filePath: string) => {
@@ -1121,6 +1133,19 @@ export function createWebAdapter(): AppAPI {
       
       const encodedPath = encodeURIComponent(filePath);
       return apiRequest(`/api/projects/${project.id}/tasks/${specFolder}/files/content?file_path=${encodedPath}`);
+    },
+
+    // Get git changes for a task (list of modified files)
+    getTaskGitChanges: async (projectId: string, specId: string) => {
+      console.log('[Web Adapter] getTaskGitChanges:', { projectId, specId });
+      return apiRequest(`/api/projects/${projectId}/tasks/${specId}/git-changes`);
+    },
+
+    // Get git diff for a specific file in a task
+    getTaskFileDiff: async (projectId: string, specId: string, filePath: string) => {
+      console.log('[Web Adapter] getTaskFileDiff:', { projectId, specId, filePath });
+      const encodedPath = encodeURIComponent(filePath);
+      return apiRequest(`/api/projects/${projectId}/tasks/${specId}/git-diff?file_path=${encodedPath}`);
     },
 
     // ===================
