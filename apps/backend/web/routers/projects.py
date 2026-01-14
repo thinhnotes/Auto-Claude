@@ -6,7 +6,9 @@ API endpoints for managing projects.
 """
 
 import json
+import logging
 import os
+import subprocess
 import sys
 import uuid
 from datetime import datetime
@@ -23,6 +25,7 @@ if str(_PARENT_DIR) not in sys.path:
 
 
 router = APIRouter()
+logger = logging.getLogger("auto-claude-api")
 
 
 class ProjectCreate(BaseModel):
@@ -85,6 +88,84 @@ def count_specs(project_path: str) -> int:
     return len([d for d in specs_dir.iterdir() if d.is_dir()])
 
 
+def ensure_git_has_commits(project_path: Path) -> dict:
+    """
+    Ensure a git repository has at least one commit.
+    
+    This is required for worktree operations which need a valid HEAD.
+    
+    Returns:
+        dict with keys: is_git_repo, had_commits, created_commit, error
+    """
+    result = {
+        "is_git_repo": False,
+        "had_commits": False,
+        "created_commit": False,
+        "error": None,
+    }
+    
+    # Check if it's a git repo
+    git_dir = project_path / ".git"
+    if not git_dir.exists():
+        result["error"] = "Not a git repository"
+        return result
+    
+    result["is_git_repo"] = True
+    
+    # Check if HEAD exists (has commits)
+    try:
+        check_head = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=project_path,
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+        
+        if check_head.returncode == 0:
+            result["had_commits"] = True
+            return result
+        
+        # No commits - create initial commit
+        logger.info(f"Git repo at {project_path} has no commits, creating initial commit...")
+        
+        # Create .gitignore if it doesn't exist
+        gitignore = project_path / ".gitignore"
+        if not gitignore.exists():
+            gitignore.write_text(".auto-claude/\n")
+        
+        # Add all files
+        subprocess.run(
+            ["git", "add", "-A"],
+            cwd=project_path,
+            capture_output=True,
+            timeout=30,
+        )
+        
+        # Create initial commit
+        commit_result = subprocess.run(
+            ["git", "commit", "--allow-empty", "-m", "Initial commit"],
+            cwd=project_path,
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        
+        if commit_result.returncode == 0:
+            result["created_commit"] = True
+            logger.info(f"Created initial commit in {project_path}")
+        else:
+            result["error"] = f"Failed to create commit: {commit_result.stderr}"
+            logger.error(f"Failed to create initial commit: {commit_result.stderr}")
+            
+    except subprocess.TimeoutExpired:
+        result["error"] = "Git command timed out"
+    except Exception as e:
+        result["error"] = str(e)
+    
+    return result
+
+
 @router.get("")
 async def list_projects() -> dict:
     """List all registered projects."""
@@ -128,6 +209,16 @@ async def add_project(project: ProjectCreate) -> ProjectResponse:
     for p in projects:
         if p.get("path") == project.path:
             raise HTTPException(status_code=409, detail="Project already registered")
+
+    # Ensure git repository has at least one commit (required for worktrees)
+    git_result = ensure_git_has_commits(project_path)
+    if git_result["is_git_repo"]:
+        if git_result["created_commit"]:
+            logger.info(f"Created initial commit for project: {project.path}")
+        elif git_result["error"]:
+            logger.warning(f"Git check warning for {project.path}: {git_result['error']}")
+    else:
+        logger.info(f"Project {project.path} is not a git repository")
 
     project_id = str(uuid.uuid4())
     created_at = datetime.utcnow().isoformat()
