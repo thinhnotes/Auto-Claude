@@ -5,10 +5,17 @@ services:
       context: ./apps/backend
       dockerfile: Dockerfile
     container_name: auto-claude-backend
+    # Run as host user to prevent file ownership issues
+    # Docker creates files as root by default, which causes:
+    # 1. Git safe.directory errors on host
+    # 2. SourceTree/git GUIs unable to see changes
+    # 3. Files owned by root:root inaccessible to host user
+    user: "${UID:-1000}:${GID:-1000}"
     ports:
       - "8000:8000"
     environment:
       - PYTHONUNBUFFERED=1
+      - HOME=/tmp  # Set HOME for non-root user to have writable directory
     env_file:
       - .env.docker
     volumes:

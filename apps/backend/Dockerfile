@@ -9,8 +9,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Claude CLI
+# Make claude accessible to non-root users running the container
 RUN curl -fsSL https://claude.ai/install.sh | bash \
-    && ln -sf /root/.claude/local/bin/claude /usr/local/bin/claude
+    && ln -sf /root/.claude/local/bin/claude /usr/local/bin/claude \
+    && chmod -R 755 /root/.claude
 
 # Copy requirements first for better caching
 COPY requirements.txt .
