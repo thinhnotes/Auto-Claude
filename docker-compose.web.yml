@@ -7,13 +7,14 @@ services:
     container_name: auto-claude-backend
     ports:
       - "8000:8000"
-    # Run as host user to ensure write permissions to mounted volumes
-    user: "${UID:-1000}:${GID:-1000}"
+    # NOTE: Running as root for write access. For production, fix host permissions:
+    # sudo chown -R $(id -u):$(id -g) ./code
+    # Then change to: user: "${UID:-1000}:${GID:-1000}"
+    user: "0:0"
     environment:
       - PYTHONUNBUFFERED=1
-      - HOME=/tmp
+      - HOME=/root
       # Git config for worktree operations
-      - GIT_CONFIG_GLOBAL=/tmp/.gitconfig
       - GIT_DISCOVERY_ACROSS_FILESYSTEM=1
     env_file:
       - .env.docker
