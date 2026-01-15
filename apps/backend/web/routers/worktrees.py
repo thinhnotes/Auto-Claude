@@ -76,6 +76,7 @@ class MergeRequest(BaseModel):
 
     delete_after: bool = Field(default=False, description="Delete worktree after merge")
     no_commit: bool = Field(default=False, description="Stage changes without committing")
+    base_branch: Optional[str] = Field(default=None, description="Target branch for merge")
 
 
 def get_project_path(project_id: str) -> Path:
@@ -213,7 +214,8 @@ async def merge_worktree(project_id: str, spec_name: str, request: MergeRequest)
         success = manager.merge_worktree(
             spec_name,
             delete_after=request.delete_after,
-            no_commit=request.no_commit
+            no_commit=request.no_commit,
+            base_branch=request.base_branch,
         )
         
         if success:
@@ -235,7 +237,11 @@ async def merge_worktree(project_id: str, spec_name: str, request: MergeRequest)
 
 
 @router.get("/projects/{project_id}/worktrees/{spec_name}/merge-preview")
-async def merge_worktree_preview(project_id: str, spec_name: str) -> dict:
+async def merge_worktree_preview(
+    project_id: str,
+    spec_name: str,
+    base_branch: Optional[str] = None,
+) -> dict:
     """Preview what merging a worktree would do."""
     project_path = get_project_path(project_id)
     
@@ -249,15 +255,17 @@ async def merge_worktree_preview(project_id: str, spec_name: str) -> dict:
         if not info:
             return {"success": True, "data": {"preview": None}}
         
-        files = manager.get_changed_files(spec_name)
-        summary = manager.get_change_summary(spec_name)
-        
+        preview_base = base_branch or info.base_branch
+
+        files = manager.get_changed_files(spec_name, base_branch=preview_base)
+        summary = manager.get_change_summary(spec_name, base_branch=preview_base)
+
         return {
             "success": True,
             "data": {
                 "preview": {
                     "branch": info.branch,
-                    "base_branch": info.base_branch,
+                    "base_branch": preview_base,
                     "files": [{"status": s, "path": p} for s, p in files],
                     "summary": summary,
                     "commit_count": info.commit_count,

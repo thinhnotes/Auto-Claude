@@ -9,6 +9,9 @@ import {
   FolderGit,
   GitMerge,
   FileCode,
+  FilePlus,
+  FilePen,
+  FileX,
   Plus,
   Minus,
   ChevronRight,
@@ -17,7 +20,6 @@ import {
   Terminal
 } from 'lucide-react';
 import { Button } from './ui/button';
-import { Badge } from './ui/badge';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from './ui/card';
 import { ScrollArea } from './ui/scroll-area';
 import {
@@ -28,6 +30,15 @@ import {
   DialogHeader,
   DialogTitle
 } from './ui/dialog';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from './ui/select';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
+import { Badge } from './ui/badge';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -40,7 +51,15 @@ import {
 } from './ui/alert-dialog';
 import { useProjectStore } from '../stores/project-store';
 import { useTaskStore } from '../stores/task-store';
-import type { WorktreeListItem, WorktreeMergeResult, TerminalWorktreeConfig } from '../../shared/types';
+import { isWeb as isWebPlatform } from '../platform';
+import type {
+  IPCResult,
+  WorktreeListItem,
+  WorktreeListResult,
+  WorktreeMergeResult,
+  WorktreeDiscardResult,
+  TerminalWorktreeConfig,
+} from '../../shared/types';
 
 interface WorktreesProps {
   projectId: string;
@@ -50,10 +69,210 @@ export function Worktrees({ projectId }: WorktreesProps) {
   const projects = useProjectStore((state) => state.projects);
   const selectedProject = projects.find((p) => p.id === projectId);
   const tasks = useTaskStore((state) => state.tasks);
+  const isWeb =
+    isWebPlatform() ||
+    (typeof window !== 'undefined' &&
+      (window.location?.protocol?.startsWith('http') ||
+        (window as any).electronAPI?.platform === 'web' ||
+        (window as any).electronAPI?.isElectron === false));
 
   const [worktrees, setWorktrees] = useState<WorktreeListItem[]>([]);
   const [terminalWorktrees, setTerminalWorktrees] = useState<TerminalWorktreeConfig[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [availableBranches, setAvailableBranches] = useState<string[]>([]);
+  const [mergeBaseBranch, setMergeBaseBranch] = useState<string>('');
+  const [mergePreviewCounts, setMergePreviewCounts] = useState<{
+    commits: number;
+    files: number;
+  } | null>(null);
+  const [mergePreviewFiles, setMergePreviewFiles] = useState<Array<{ status: string; path: string }>>([]);
+  const [mergePreviewDiff, setMergePreviewDiff] = useState<string>('');
+  const [mergePreviewSelectedFile, setMergePreviewSelectedFile] = useState<string>('');
+  const [mergePreviewLoading, setMergePreviewLoading] = useState(false);
+  const [mergePreviewTab, setMergePreviewTab] = useState<'list' | 'diff'>('list');
+
+  const normalizeWorktreeItem = (worktree: any): WorktreeListItem => ({
+    specName: worktree.specName ?? worktree.spec_name ?? '',
+    path: worktree.path ?? '',
+    branch: worktree.branch ?? '',
+    baseBranch: worktree.baseBranch ?? worktree.base_branch ?? '',
+    commitCount: worktree.commitCount ?? worktree.commit_count ?? 0,
+    filesChanged: worktree.filesChanged ?? worktree.files_changed ?? 0,
+    additions: worktree.additions ?? 0,
+    deletions: worktree.deletions ?? 0,
+  });
+
+  const listWorktreesWeb = async (id: string): Promise<IPCResult<WorktreeListResult>> => {
+    const response = await fetch(`/api/projects/${id}/worktrees`, {
+      headers: { 'Content-Type': 'application/json' },
+    });
+
+    if (!response.ok) {
+      const error = await response.text();
+      return { success: false, error };
+    }
+
+    const payload = await response.json();
+    if (!payload?.success || !payload?.data) {
+      return payload;
+    }
+
+    const normalized = (payload.data.worktrees || []).map(normalizeWorktreeItem);
+    return { success: true, data: { worktrees: normalized } };
+  };
+
+  const listBranchesWeb = async (projectPath: string): Promise<string[]> => {
+    if (!projectPath) {
+      return [];
+    }
+
+    const response = await fetch(
+      `/api/git/branches?path=${encodeURIComponent(projectPath)}`,
+      { headers: { 'Content-Type': 'application/json' } }
+    );
+
+    if (!response.ok) {
+      return [];
+    }
+
+    const payload = await response.json();
+    if (!payload?.success || !payload?.data) {
+      return [];
+    }
+
+    return (payload.data as string[]).map((branch) => branch.trim()).filter(Boolean);
+  };
+
+  const getCurrentBranchWeb = async (projectPath: string): Promise<string> => {
+    if (!projectPath) {
+      return '';
+    }
+
+    const response = await fetch(
+      `/api/git/current-branch?path=${encodeURIComponent(projectPath)}`,
+      { headers: { 'Content-Type': 'application/json' } }
+    );
+
+    if (!response.ok) {
+      return '';
+    }
+
+    const payload = await response.json();
+    if (!payload?.success || !payload?.data) {
+      return '';
+    }
+
+    return String(payload.data || '');
+  };
+
+  const mergeWorktreePreviewWeb = async (
+    id: string,
+    specName: string,
+    baseBranch?: string
+  ): Promise<IPCResult<{ preview: { commit_count?: number; files?: Array<{ status: string; path: string }> } | null }>> => {
+    const query = baseBranch ? `?base_branch=${encodeURIComponent(baseBranch)}` : '';
+    const response = await fetch(
+      `/api/projects/${id}/worktrees/${specName}/merge-preview${query}`,
+      { headers: { 'Content-Type': 'application/json' } }
+    );
+
+    if (!response.ok) {
+      const error = await response.text();
+      return { success: false, error };
+    }
+
+    return response.json();
+  };
+
+  const mergeWorktreeFileDiffWeb = async (
+    projectIdValue: string,
+    specName: string,
+    filePath: string,
+    baseBranch?: string
+  ): Promise<IPCResult<string>> => {
+    const params = new URLSearchParams({ file_path: filePath });
+    if (baseBranch) {
+      params.append('base_branch', baseBranch);
+    }
+
+    const response = await fetch(
+      `/api/projects/${projectIdValue}/tasks/${specName}/git-diff?${params.toString()}`,
+      { headers: { 'Content-Type': 'application/json' } }
+    );
+
+    if (!response.ok) {
+      const error = await response.text();
+      return { success: false, error };
+    }
+
+    const payload = await response.json();
+    if (!payload?.success) {
+      return { success: false, error: payload?.error || 'Failed to load diff' };
+    }
+
+    return { success: true, data: payload.data?.diff || '' };
+  };
+
+  const mergeWorktreeWeb = async (
+    id: string,
+    specName: string,
+    baseBranch?: string
+  ): Promise<IPCResult<WorktreeMergeResult>> => {
+    const response = await fetch(`/api/projects/${id}/worktrees/${specName}/merge`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        delete_after: false,
+        no_commit: false,
+        base_branch: baseBranch || undefined,
+      }),
+    });
+
+    if (!response.ok) {
+      const error = await response.text();
+      return { success: false, error };
+    }
+
+    const payload = await response.json();
+    if (!payload?.success) {
+      return { success: false, error: payload?.error || 'Merge failed' };
+    }
+
+    const message = payload?.data?.message || 'Merge completed';
+    return {
+      success: true,
+      data: {
+        success: true,
+        message,
+      },
+    };
+  };
+
+  const discardWorktreeWeb = async (id: string, specName: string): Promise<IPCResult<WorktreeDiscardResult>> => {
+    const response = await fetch(`/api/projects/${id}/worktrees/${specName}?delete_branch=true`, {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+    });
+
+    if (!response.ok) {
+      const error = await response.text();
+      return { success: false, error };
+    }
+
+    const payload = await response.json();
+    if (!payload?.success) {
+      return { success: false, error: payload?.error || 'Delete failed' };
+    }
+
+    const message = payload?.data?.message || 'Worktree discarded successfully';
+    return {
+      success: true,
+      data: {
+        success: true,
+        message,
+      },
+    };
+  };
   const [error, setError] = useState<string | null>(null);
 
   // Terminal worktree delete state
@@ -79,10 +298,12 @@ export function Worktrees({ projectId }: WorktreesProps) {
     setError(null);
 
     try {
-      // Fetch both task worktrees and terminal worktrees in parallel
+      // Fetch task worktrees and terminal worktrees (web doesn't support terminal worktrees)
       const [taskResult, terminalResult] = await Promise.all([
-        window.electronAPI.listWorktrees(projectId),
-        window.electronAPI.listTerminalWorktrees(selectedProject.path)
+        isWeb ? listWorktreesWeb(projectId) : window.electronAPI.listWorktrees(projectId),
+        isWeb
+          ? Promise.resolve({ success: true, data: [] as TerminalWorktreeConfig[] })
+          : window.electronAPI.listTerminalWorktrees(selectedProject.path)
       ]);
 
       console.log('[Worktrees] Task worktrees result:', taskResult);
@@ -106,7 +327,7 @@ export function Worktrees({ projectId }: WorktreesProps) {
     } finally {
       setIsLoading(false);
     }
-  }, [projectId, selectedProject]);
+  }, [projectId, selectedProject, isWeb]);
 
   // Load on mount and when project changes
   useEffect(() => {
@@ -118,19 +339,25 @@ export function Worktrees({ projectId }: WorktreesProps) {
     return tasks.find(t => t.specId === specName);
   };
 
+  const canOperateWorktree = (task: ReturnType<typeof findTaskForWorktree>) => {
+    return isWeb || !!task;
+  };
+
   // Handle merge
   const handleMerge = async () => {
     if (!selectedWorktree) return;
 
     const task = findTaskForWorktree(selectedWorktree.specName);
-    if (!task) {
+    if (!task && !isWeb) {
       setError('Task not found for this worktree');
       return;
     }
 
     setIsMerging(true);
     try {
-      const result = await window.electronAPI.mergeWorktree(task.id);
+      const result = await (isWeb
+        ? mergeWorktreeWeb(projectId, selectedWorktree.specName, mergeBaseBranch || selectedWorktree.baseBranch)
+        : window.electronAPI.mergeWorktree(task!.id));
       if (result.success && result.data) {
         setMergeResult(result.data);
         if (result.data.success) {
@@ -158,14 +385,16 @@ export function Worktrees({ projectId }: WorktreesProps) {
     if (!worktreeToDelete) return;
 
     const task = findTaskForWorktree(worktreeToDelete.specName);
-    if (!task) {
+    if (!task && !isWeb) {
       setError('Task not found for this worktree');
       return;
     }
 
     setIsDeleting(true);
     try {
-      const result = await window.electronAPI.discardWorktree(task.id);
+      const result = await (isWeb
+        ? discardWorktreeWeb(projectId, worktreeToDelete.specName)
+        : window.electronAPI.discardWorktree(task!.id));
       if (result.success) {
         // Refresh worktrees after successful delete
         await loadWorktrees();
@@ -182,10 +411,40 @@ export function Worktrees({ projectId }: WorktreesProps) {
   };
 
   // Open merge dialog
-  const openMergeDialog = (worktree: WorktreeListItem) => {
+  const openMergeDialog = async (worktree: WorktreeListItem) => {
     setSelectedWorktree(worktree);
     setMergeResult(null);
+    setMergePreviewCounts(null);
+    setMergePreviewFiles([]);
+    setMergePreviewDiff('');
+    setMergePreviewSelectedFile('');
+    setMergePreviewTab('list');
     setShowMergeDialog(true);
+
+    if (isWeb) {
+      const repoPath = worktree.path || selectedProject?.path || '';
+      const [branches, currentBranch] = await Promise.all([
+        listBranchesWeb(repoPath),
+        getCurrentBranchWeb(repoPath),
+      ]);
+      const preferred = currentBranch || worktree.baseBranch || branches[0] || '';
+      setAvailableBranches(branches);
+      setMergeBaseBranch(preferred);
+
+      const preview = await mergeWorktreePreviewWeb(projectId, worktree.specName, preferred);
+      if (preview.success && preview.data?.preview) {
+        const files = preview.data.preview.files || [];
+        setMergePreviewFiles(files);
+        setMergePreviewCounts({
+          commits: preview.data.preview.commit_count ?? worktree.commitCount,
+          files: files.length || worktree.filesChanged,
+        });
+      }
+      return;
+    }
+
+    setAvailableBranches([]);
+    setMergeBaseBranch(worktree.baseBranch);
   };
 
   // Confirm delete
@@ -298,6 +557,7 @@ export function Worktrees({ projectId }: WorktreesProps) {
                 </h3>
                 {worktrees.map((worktree) => {
                   const task = findTaskForWorktree(worktree.specName);
+                  const canMerge = canOperateWorktree(task);
                   return (
                     <Card key={worktree.specName} className="overflow-hidden">
                       <CardHeader className="pb-3">
@@ -352,7 +612,7 @@ export function Worktrees({ projectId }: WorktreesProps) {
                             variant="default"
                             size="sm"
                             onClick={() => openMergeDialog(worktree)}
-                            disabled={!task}
+                            disabled={!canMerge}
                           >
                             <GitMerge className="h-3.5 w-3.5 mr-1.5" />
                             Merge to {worktree.baseBranch}
@@ -373,7 +633,7 @@ export function Worktrees({ projectId }: WorktreesProps) {
                             size="sm"
                             className="text-destructive hover:text-destructive hover:bg-destructive/10"
                             onClick={() => confirmDelete(worktree)}
-                            disabled={!task}
+                            disabled={!canMerge}
                           >
                             <Trash2 className="h-3.5 w-3.5 mr-1.5" />
                             Delete
@@ -487,18 +747,163 @@ export function Worktrees({ projectId }: WorktreesProps) {
                 <div className="flex items-center justify-center">
                   <ChevronRight className="h-4 w-4 text-muted-foreground rotate-90" />
                 </div>
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between gap-3">
                   <span className="text-muted-foreground">Target Branch</span>
-                  <span className="font-mono">{selectedWorktree.baseBranch}</span>
+                  {isWeb ? (
+                    <Select
+                      value={mergeBaseBranch || selectedWorktree.baseBranch}
+                      onValueChange={async (value) => {
+                        setMergeBaseBranch(value);
+                        setMergePreviewCounts(null);
+                        setMergePreviewFiles([]);
+                        setMergePreviewDiff('');
+                        setMergePreviewSelectedFile('');
+                        setMergePreviewTab('list');
+                        const preview = await mergeWorktreePreviewWeb(
+                          projectId,
+                          selectedWorktree.specName,
+                          value
+                        );
+                        if (preview.success && preview.data?.preview) {
+                          const files = preview.data.preview.files || [];
+                          setMergePreviewFiles(files);
+                          setMergePreviewCounts({
+                            commits: preview.data.preview.commit_count ?? selectedWorktree.commitCount,
+                            files: files.length || selectedWorktree.filesChanged,
+                          });
+                        }
+                      }}
+                    >
+                      <SelectTrigger className="h-8 w-48">
+                        <SelectValue placeholder="Select branch" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {(availableBranches.length > 0 ? availableBranches : [selectedWorktree.baseBranch])
+                          .filter(Boolean)
+                          .map((branch) => (
+                            <SelectItem key={branch} value={branch}>
+                              {branch}
+                            </SelectItem>
+                          ))}
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <span className="font-mono">{selectedWorktree.baseBranch}</span>
+                  )}
                 </div>
                 <div className="border-t border-border pt-3 mt-3">
                   <div className="flex items-center justify-between text-xs">
                     <span className="text-muted-foreground">Changes</span>
                     <span>
-                      {selectedWorktree.commitCount} commits, {selectedWorktree.filesChanged} files
+                      {(mergePreviewCounts?.commits ?? selectedWorktree.commitCount)} commits, {(mergePreviewCounts?.files ?? selectedWorktree.filesChanged)} files
                     </span>
                   </div>
                 </div>
+
+                {isWeb && (
+                  <div className="border-t border-border pt-3 mt-3">
+                    <Tabs value={mergePreviewTab} onValueChange={(value) => setMergePreviewTab(value as 'list' | 'diff')}>
+                      <TabsList className="w-full justify-start rounded-none border-b border-border bg-transparent px-1 h-auto">
+                        <TabsTrigger
+                          value="list"
+                          className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-3 py-2 text-xs"
+                        >
+                          Files
+                        </TabsTrigger>
+                        <TabsTrigger
+                          value="diff"
+                          className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-3 py-2 text-xs"
+                          disabled={!mergePreviewSelectedFile}
+                        >
+                          Diff
+                        </TabsTrigger>
+                      </TabsList>
+                      <TabsContent value="list" className="mt-3">
+                        <div className="grid grid-cols-[220px_1fr] gap-0 border border-border rounded-lg overflow-hidden">
+                          <ScrollArea className="h-64 border-r border-border">
+                            <div className="p-2 space-y-1">
+                              {mergePreviewFiles.length === 0 && (
+                                <div className="text-xs text-muted-foreground">No files changed</div>
+                              )}
+                              {mergePreviewFiles.map((file) => (
+                                <button
+                                  key={file.path}
+                                  type="button"
+                                  className={`w-full text-left rounded px-2 py-2 hover:bg-muted ${mergePreviewSelectedFile === file.path ? 'bg-muted' : ''}`}
+                                  onClick={async () => {
+                                    setMergePreviewSelectedFile(file.path);
+                                    setMergePreviewTab('diff');
+                                    setMergePreviewLoading(true);
+                                    const diff = await mergeWorktreeFileDiffWeb(
+                                      projectId,
+                                      selectedWorktree.specName,
+                                      file.path,
+                                      mergeBaseBranch || selectedWorktree.baseBranch
+                                    );
+                                    if (diff.success && diff.data) {
+                                      setMergePreviewDiff(diff.data);
+                                    } else {
+                                      setMergePreviewDiff(diff.error || 'Failed to load diff');
+                                    }
+                                    setMergePreviewLoading(false);
+                                  }}
+                                >
+                                  <div className="flex items-center gap-2">
+                                    {file.status === 'added' && <FilePlus className="h-3.5 w-3.5 text-green-500" />}
+                                    {file.status === 'modified' && <FilePen className="h-3.5 w-3.5 text-blue-500" />}
+                                    {file.status === 'deleted' && <FileX className="h-3.5 w-3.5 text-red-500" />}
+                                    {file.status === 'renamed' && <FileCode className="h-3.5 w-3.5 text-yellow-500" />}
+                                    {!['added', 'modified', 'deleted', 'renamed'].includes(file.status) && (
+                                      <FileCode className="h-3.5 w-3.5 text-muted-foreground" />
+                                    )}
+                                    <span className="text-xs font-mono truncate">{file.path.split('/').pop() || file.path}</span>
+                                  </div>
+                                  <div className="text-[10px] text-muted-foreground mt-0.5 truncate">{file.path}</div>
+                                </button>
+                              ))}
+                            </div>
+                          </ScrollArea>
+                          <div className="h-64 bg-muted/10">
+                            <div className="px-3 py-2 border-b border-border text-xs font-medium flex items-center justify-between">
+                              <span className="truncate">{mergePreviewSelectedFile || 'Select a file'}</span>
+                              {mergePreviewSelectedFile && (
+                                <Badge variant="outline" className="text-[10px]">
+                                  {mergePreviewFiles.find((f) => f.path === mergePreviewSelectedFile)?.status || ''}
+                                </Badge>
+                              )}
+                            </div>
+                            <div className="p-2 h-[calc(100%-33px)] overflow-auto">
+                              {mergePreviewLoading ? (
+                                <div className="flex items-center gap-2 text-muted-foreground text-xs">
+                                  <Loader2 className="h-3 w-3 animate-spin" />
+                                  Loading diff...
+                                </div>
+                              ) : (
+                                <pre className="whitespace-pre-wrap font-mono text-xs">
+                                  {mergePreviewDiff || 'Select a file to view changes.'}
+                                </pre>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </TabsContent>
+                      <TabsContent value="diff" className="mt-3">
+                        <div className="rounded-md border border-border bg-muted/30 p-2 text-xs">
+                          {mergePreviewLoading ? (
+                            <div className="flex items-center gap-2 text-muted-foreground">
+                              <Loader2 className="h-3 w-3 animate-spin" />
+                              Loading diff...
+                            </div>
+                          ) : (
+                            <pre className="whitespace-pre-wrap font-mono text-xs">
+                              {mergePreviewDiff || 'Select a file to view changes.'}
+                            </pre>
+                          )}
+                        </div>
+                      </TabsContent>
+                    </Tabs>
+                  </div>
+                )}
               </div>
             </div>
           )}

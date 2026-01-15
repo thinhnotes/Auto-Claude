@@ -1293,7 +1293,12 @@ async def get_task_git_changes(project_id: str, spec_id: str) -> dict:
 
 
 @router.get("/projects/{project_id}/tasks/{spec_id}/git-diff")
-async def get_task_file_diff(project_id: str, spec_id: str, file_path: str) -> dict:
+async def get_task_file_diff(
+    project_id: str,
+    spec_id: str,
+    file_path: str,
+    base_branch: str | None = None,
+) -> dict:
     """Get the git diff content for a specific file in a task's worktree.
     
     Args:
@@ -1319,7 +1324,7 @@ async def get_task_file_diff(project_id: str, spec_id: str, file_path: str) -> d
             return {"success": False, "error": "No worktree found for this task"}
         
         worktree_path = info.path
-        base_branch = info.base_branch
+        base_branch = base_branch or info.base_branch
         
         logger.info(f"📝 [get_task_file_diff] Found worktree at {worktree_path}, base_branch={base_branch}")
         
