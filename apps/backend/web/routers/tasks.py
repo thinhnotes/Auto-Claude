@@ -823,11 +823,18 @@ async def get_task_logs(task_id: str, lines: int = 100) -> TaskLogsResponse:
 
 
 @router.get("/projects/{project_id}/tasks/{spec_id}/logs")
-async def get_task_logs_detailed(project_id: str, spec_id: str) -> dict[str, Any]:
+async def get_task_logs_detailed(
+    project_id: str,
+    spec_id: str,
+    since: Optional[str] = None,
+) -> dict[str, Any]:
     """Get detailed phase-based logs for a task (for task detail panel).
     
     Returns logs structured by phase (planning, coding, validation) for the UI.
     Reads from task_logs.json which has proper phase tracking from the TaskLogger.
+    
+    If since is provided and logs have not changed since that timestamp, returns
+    success with data: null to allow conditional polling.
     """
     logger.info(f"📋 [get_task_logs_detailed] project_id={project_id}, spec_id={spec_id}")
     
@@ -877,6 +884,12 @@ async def get_task_logs_detailed(project_id: str, spec_id: str) -> dict[str, Any
             phases = task_logs["phases"]
         created_at = task_logs.get("created_at", now)
         updated_at = task_logs.get("updated_at", now)
+    
+    if since and updated_at <= since:
+        return {
+            "success": True,
+            "data": None,
+        }
     
     # Ensure only one phase is marked as "active" at a time
     # Priority: validation > coding > planning

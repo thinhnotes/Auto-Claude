@@ -28,6 +28,11 @@ _logger.info(f"[phase_config] DEFAULT_SONNET_MODEL resolved to: {DEFAULT_SONNET_
 _logger.info(f"[phase_config] DEFAULT_OPUS_MODEL resolved to: {DEFAULT_OPUS_MODEL}")
 _logger.info(f"[phase_config] DEFAULT_HAIKU_MODEL resolved to: {DEFAULT_HAIKU_MODEL}")
 
+
+def _is_thinking_enabled() -> bool:
+    value = os.environ.get("CLAUDE_THINKING_ENABLED", "true").lower()
+    return value in ("true", "1", "yes", "on")
+
 # Model shorthand to full model ID mapping
 MODEL_ID_MAP: dict[str, str] = {
     "opus": DEFAULT_OPUS_MODEL,
@@ -147,6 +152,9 @@ def get_thinking_budget(thinking_level: str) -> int | None:
         Token budget or None for no extended thinking
     """
     import logging
+
+    if not _is_thinking_enabled():
+        return None
 
     if thinking_level not in THINKING_BUDGET_MAP:
         valid_levels = ", ".join(THINKING_BUDGET_MAP.keys())
