@@ -113,6 +113,7 @@ function unsupportedVoid(operation: string): (...args: unknown[]) => void {
 // This prevents request piling when requests take longer than the poll interval
 const taskLogPolls: Map<string, { timeoutId: ReturnType<typeof setTimeout> | null; cancelled: boolean }> = new Map();
 const taskLogCallbacks: Set<(specId: string, logs: any) => void> = new Set();
+const taskLogUpdatedAt: Map<string, string> = new Map();
 
 // Track poll timeouts for task progress (subtasks)
 const taskProgressPolls: Map<string, { timeoutId: ReturnType<typeof setTimeout> | null; cancelled: boolean }> = new Map();
@@ -1062,13 +1063,23 @@ export function createWebAdapter(): AppAPI {
         if (pollState.cancelled) return;
         
         try {
-          const result = await apiRequest(`/api/projects/${projectId}/tasks/${specId}/logs`);
+          const lastUpdatedAt = taskLogUpdatedAt.get(taskId);
+          const query = lastUpdatedAt ? `?since=${encodeURIComponent(lastUpdatedAt)}` : '';
+          const result = await apiRequest(`/api/projects/${projectId}/tasks/${specId}/logs${query}`);
           if (pollState.cancelled) return;
           
-          if (result.success && result.data) {
-            taskLogCallbacks.forEach(callback => {
-              callback(specId, result.data);
-            });
+          if (result.success) {
+            if (result.data) {
+              const logs = result.data as { updated_at?: string };
+              if (logs.updated_at) {
+                taskLogUpdatedAt.set(taskId, logs.updated_at);
+              }
+              taskLogCallbacks.forEach(callback => {
+                callback(specId, result.data);
+              });
+            } else if (lastUpdatedAt === undefined) {
+              taskLogUpdatedAt.set(taskId, '');
+            }
           }
         } catch (e) {
           console.error('[TaskLog Poll] Error:', e);
@@ -1093,6 +1104,7 @@ export function createWebAdapter(): AppAPI {
             clearTimeout(pollState.timeoutId);
           }
           taskLogPolls.delete(taskId);
+          taskLogUpdatedAt.delete(taskId);
           break;
         }
       }
