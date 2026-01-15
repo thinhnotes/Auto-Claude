@@ -37,7 +37,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from './ui/select';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 import { Badge } from './ui/badge';
 import {
   AlertDialog,
@@ -65,6 +64,39 @@ interface WorktreesProps {
   projectId: string;
 }
 
+function renderMergeDiff(diff: string) {
+  if (!diff) {
+    return <div className="text-xs text-muted-foreground">Select a file to view changes.</div>;
+  }
+
+  const lines = diff.split('\n');
+  return (
+    <div className="text-xs font-mono leading-relaxed">
+      {lines.map((line, idx) => {
+        let lineClass = 'px-2 py-0.5';
+
+        if (line.startsWith('+++') || line.startsWith('---')) {
+          lineClass += ' text-muted-foreground bg-muted/30';
+        } else if (line.startsWith('@@')) {
+          lineClass += ' text-purple-400 bg-purple-500/10';
+        } else if (line.startsWith('+')) {
+          lineClass += ' text-green-400 bg-green-500/10';
+        } else if (line.startsWith('-')) {
+          lineClass += ' text-red-400 bg-red-500/10';
+        } else if (line.startsWith('diff --git')) {
+          lineClass += ' text-muted-foreground font-medium border-t border-border mt-2 pt-2';
+        }
+
+        return (
+          <div key={`${idx}-${line}`} className={lineClass}>
+            {line}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 export function Worktrees({ projectId }: WorktreesProps) {
   const projects = useProjectStore((state) => state.projects);
   const selectedProject = projects.find((p) => p.id === projectId);
@@ -89,7 +121,6 @@ export function Worktrees({ projectId }: WorktreesProps) {
   const [mergePreviewDiff, setMergePreviewDiff] = useState<string>('');
   const [mergePreviewSelectedFile, setMergePreviewSelectedFile] = useState<string>('');
   const [mergePreviewLoading, setMergePreviewLoading] = useState(false);
-  const [mergePreviewTab, setMergePreviewTab] = useState<'list' | 'diff'>('list');
 
   const normalizeWorktreeItem = (worktree: any): WorktreeListItem => ({
     specName: worktree.specName ?? worktree.spec_name ?? '',
@@ -418,7 +449,6 @@ export function Worktrees({ projectId }: WorktreesProps) {
     setMergePreviewFiles([]);
     setMergePreviewDiff('');
     setMergePreviewSelectedFile('');
-    setMergePreviewTab('list');
     setShowMergeDialog(true);
 
     if (isWeb) {
@@ -726,7 +756,7 @@ export function Worktrees({ projectId }: WorktreesProps) {
 
       {/* Merge Dialog */}
       <Dialog open={showMergeDialog} onOpenChange={setShowMergeDialog}>
-        <DialogContent>
+        <DialogContent className="max-w-4xl">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <GitMerge className="h-5 w-5" />
@@ -758,7 +788,6 @@ export function Worktrees({ projectId }: WorktreesProps) {
                         setMergePreviewFiles([]);
                         setMergePreviewDiff('');
                         setMergePreviewSelectedFile('');
-                        setMergePreviewTab('list');
                         const preview = await mergeWorktreePreviewWeb(
                           projectId,
                           selectedWorktree.specName,
@@ -802,106 +831,74 @@ export function Worktrees({ projectId }: WorktreesProps) {
 
                 {isWeb && (
                   <div className="border-t border-border pt-3 mt-3">
-                    <Tabs value={mergePreviewTab} onValueChange={(value) => setMergePreviewTab(value as 'list' | 'diff')}>
-                      <TabsList className="w-full justify-start rounded-none border-b border-border bg-transparent px-1 h-auto">
-                        <TabsTrigger
-                          value="list"
-                          className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-3 py-2 text-xs"
-                        >
-                          Files
-                        </TabsTrigger>
-                        <TabsTrigger
-                          value="diff"
-                          className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-3 py-2 text-xs"
-                          disabled={!mergePreviewSelectedFile}
-                        >
-                          Diff
-                        </TabsTrigger>
-                      </TabsList>
-                      <TabsContent value="list" className="mt-3">
-                        <div className="grid grid-cols-[220px_1fr] gap-0 border border-border rounded-lg overflow-hidden">
-                          <ScrollArea className="h-64 border-r border-border">
-                            <div className="p-2 space-y-1">
-                              {mergePreviewFiles.length === 0 && (
-                                <div className="text-xs text-muted-foreground">No files changed</div>
-                              )}
-                              {mergePreviewFiles.map((file) => (
-                                <button
-                                  key={file.path}
-                                  type="button"
-                                  className={`w-full text-left rounded px-2 py-2 hover:bg-muted ${mergePreviewSelectedFile === file.path ? 'bg-muted' : ''}`}
-                                  onClick={async () => {
-                                    setMergePreviewSelectedFile(file.path);
-                                    setMergePreviewTab('diff');
-                                    setMergePreviewLoading(true);
-                                    const diff = await mergeWorktreeFileDiffWeb(
-                                      projectId,
-                                      selectedWorktree.specName,
-                                      file.path,
-                                      mergeBaseBranch || selectedWorktree.baseBranch
-                                    );
-                                    if (diff.success && diff.data) {
-                                      setMergePreviewDiff(diff.data);
-                                    } else {
-                                      setMergePreviewDiff(diff.error || 'Failed to load diff');
-                                    }
-                                    setMergePreviewLoading(false);
-                                  }}
-                                >
-                                  <div className="flex items-center gap-2">
-                                    {file.status === 'added' && <FilePlus className="h-3.5 w-3.5 text-green-500" />}
-                                    {file.status === 'modified' && <FilePen className="h-3.5 w-3.5 text-blue-500" />}
-                                    {file.status === 'deleted' && <FileX className="h-3.5 w-3.5 text-red-500" />}
-                                    {file.status === 'renamed' && <FileCode className="h-3.5 w-3.5 text-yellow-500" />}
-                                    {!['added', 'modified', 'deleted', 'renamed'].includes(file.status) && (
-                                      <FileCode className="h-3.5 w-3.5 text-muted-foreground" />
-                                    )}
-                                    <span className="text-xs font-mono truncate">{file.path.split('/').pop() || file.path}</span>
-                                  </div>
-                                  <div className="text-[10px] text-muted-foreground mt-0.5 truncate">{file.path}</div>
-                                </button>
-                              ))}
-                            </div>
-                          </ScrollArea>
-                          <div className="h-64 bg-muted/10">
-                            <div className="px-3 py-2 border-b border-border text-xs font-medium flex items-center justify-between">
-                              <span className="truncate">{mergePreviewSelectedFile || 'Select a file'}</span>
-                              {mergePreviewSelectedFile && (
-                                <Badge variant="outline" className="text-[10px]">
-                                  {mergePreviewFiles.find((f) => f.path === mergePreviewSelectedFile)?.status || ''}
-                                </Badge>
-                              )}
-                            </div>
-                            <div className="p-2 h-[calc(100%-33px)] overflow-auto">
-                              {mergePreviewLoading ? (
-                                <div className="flex items-center gap-2 text-muted-foreground text-xs">
-                                  <Loader2 className="h-3 w-3 animate-spin" />
-                                  Loading diff...
+                    <div className="mt-3">
+                      <div className="grid grid-cols-[220px_1fr] gap-0 border border-border rounded-lg overflow-hidden">
+                        <ScrollArea className="h-64 border-r border-border">
+                          <div className="p-2 space-y-1">
+                            {mergePreviewFiles.length === 0 && (
+                              <div className="text-xs text-muted-foreground">No files changed</div>
+                            )}
+                            {mergePreviewFiles.map((file) => (
+                              <button
+                                key={file.path}
+                                type="button"
+                                className={`w-full text-left rounded px-2 py-2 hover:bg-muted ${mergePreviewSelectedFile === file.path ? 'bg-muted' : ''}`}
+                                onClick={async () => {
+                                  setMergePreviewSelectedFile(file.path);
+                                  setMergePreviewLoading(true);
+                                  const diff = await mergeWorktreeFileDiffWeb(
+                                    projectId,
+                                    selectedWorktree.specName,
+                                    file.path,
+                                    mergeBaseBranch || selectedWorktree.baseBranch
+                                  );
+                                  if (diff.success && diff.data) {
+                                    setMergePreviewDiff(diff.data);
+                                  } else {
+                                    setMergePreviewDiff(diff.error || 'Failed to load diff');
+                                  }
+                                  setMergePreviewLoading(false);
+                                }}
+                              >
+                                <div className="flex items-center gap-2">
+                                  {file.status === 'added' && <FilePlus className="h-3.5 w-3.5 text-green-500" />}
+                                  {file.status === 'modified' && <FilePen className="h-3.5 w-3.5 text-blue-500" />}
+                                  {file.status === 'deleted' && <FileX className="h-3.5 w-3.5 text-red-500" />}
+                                  {file.status === 'renamed' && <FileCode className="h-3.5 w-3.5 text-yellow-500" />}
+                                  {!['added', 'modified', 'deleted', 'renamed'].includes(file.status) && (
+                                    <FileCode className="h-3.5 w-3.5 text-muted-foreground" />
+                                  )}
+                                  <span className="text-xs font-mono truncate">{file.path.split('/').pop() || file.path}</span>
                                 </div>
-                              ) : (
-                                <pre className="whitespace-pre-wrap font-mono text-xs">
-                                  {mergePreviewDiff || 'Select a file to view changes.'}
-                                </pre>
-                              )}
-                            </div>
+                                <div className="text-[10px] text-muted-foreground mt-0.5 truncate">{file.path}</div>
+                              </button>
+                            ))}
+                          </div>
+                        </ScrollArea>
+                        <div className="h-64 bg-muted/10">
+                          <div className="px-3 py-2 border-b border-border text-xs font-medium flex items-center justify-between">
+                            <span className="truncate">{mergePreviewSelectedFile || 'Select a file'}</span>
+                            {mergePreviewSelectedFile && (
+                              <Badge variant="outline" className="text-[10px]">
+                                {mergePreviewFiles.find((f) => f.path === mergePreviewSelectedFile)?.status || ''}
+                              </Badge>
+                            )}
+                          </div>
+                          <div className="p-2 h-[calc(100%-33px)] overflow-auto">
+                            {mergePreviewLoading ? (
+                              <div className="flex items-center gap-2 text-muted-foreground text-xs">
+                                <Loader2 className="h-3 w-3 animate-spin" />
+                                Loading diff...
+                              </div>
+                            ) : (
+                              <div className="whitespace-pre-wrap">
+                                {renderMergeDiff(mergePreviewDiff)}
+                              </div>
+                            )}
                           </div>
                         </div>
-                      </TabsContent>
-                      <TabsContent value="diff" className="mt-3">
-                        <div className="rounded-md border border-border bg-muted/30 p-2 text-xs">
-                          {mergePreviewLoading ? (
-                            <div className="flex items-center gap-2 text-muted-foreground">
-                              <Loader2 className="h-3 w-3 animate-spin" />
-                              Loading diff...
-                            </div>
-                          ) : (
-                            <pre className="whitespace-pre-wrap font-mono text-xs">
-                              {mergePreviewDiff || 'Select a file to view changes.'}
-                            </pre>
-                          )}
-                        </div>
-                      </TabsContent>
-                    </Tabs>
+                      </div>
+                    </div>
                   </div>
                 )}
               </div>
