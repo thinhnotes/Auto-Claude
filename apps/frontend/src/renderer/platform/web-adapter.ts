@@ -109,12 +109,13 @@ function unsupportedVoid(operation: string): (...args: unknown[]) => void {
   };
 }
 
-// Track poll intervals for task logs (changed from EventSource to interval-based polling)
-const taskLogEventSources: Map<string, ReturnType<typeof setInterval>> = new Map();
+// Track poll timeouts for task logs (using setTimeout for "poll after completion" pattern)
+// This prevents request piling when requests take longer than the poll interval
+const taskLogPolls: Map<string, { timeoutId: ReturnType<typeof setTimeout> | null; cancelled: boolean }> = new Map();
 const taskLogCallbacks: Set<(specId: string, logs: any) => void> = new Set();
 
-// Track poll intervals for task progress (subtasks)
-const taskProgressPolls: Map<string, ReturnType<typeof setInterval>> = new Map();
+// Track poll timeouts for task progress (subtasks)
+const taskProgressPolls: Map<string, { timeoutId: ReturnType<typeof setTimeout> | null; cancelled: boolean }> = new Map();
 const taskProgressCallbacks: Set<(taskId: string, plan: any, projectId?: string) => void> = new Set();
 
 /**
@@ -239,23 +240,34 @@ export function createWebAdapter(): AppAPI {
       });
     },
 
-    // Watch for task progress updates (subtasks) - polls every 2 seconds
+    // Watch for task progress updates (subtasks) - polls 2 seconds after each request completes
     watchTaskProgress: async (projectId: string, specId: string) => {
       const taskId = `${projectId}:${specId}`;
       
-      // Close existing poll if any
+      // Cancel existing poll if any
       if (taskProgressPolls.has(taskId)) {
         const existing = taskProgressPolls.get(taskId);
         if (existing) {
-          clearInterval(existing);
+          existing.cancelled = true;
+          if (existing.timeoutId) {
+            clearTimeout(existing.timeoutId);
+          }
         }
         taskProgressPolls.delete(taskId);
       }
       
-      // Poll every 2 seconds for subtask updates
-      const pollInterval = setInterval(async () => {
+      // Create poll state
+      const pollState = { timeoutId: null as ReturnType<typeof setTimeout> | null, cancelled: false };
+      taskProgressPolls.set(taskId, pollState);
+      
+      // Poll function - waits for request to complete before scheduling next poll
+      const poll = async () => {
+        if (pollState.cancelled) return;
+        
         try {
           const result = await apiRequest(`/api/projects/${projectId}/tasks/${specId}/plan`);
+          if (pollState.cancelled) return;
+          
           if (result.success && result.data) {
             taskProgressCallbacks.forEach(callback => {
               callback(taskId, result.data, projectId);
@@ -264,18 +276,25 @@ export function createWebAdapter(): AppAPI {
         } catch (e) {
           console.error('[TaskProgress Poll] Error:', e);
         }
-      }, 2000);
+        
+        // Schedule next poll only after this one completes (prevents request piling)
+        if (!pollState.cancelled) {
+          pollState.timeoutId = setTimeout(poll, 2000);
+        }
+      };
       
-      taskProgressPolls.set(taskId, pollInterval);
+      // Start first poll immediately
+      poll();
       return { success: true };
     },
 
     unwatchTaskProgress: async (specId: string) => {
-      // Find and close the poll interval for this spec
-      for (const [taskId, interval] of Array.from(taskProgressPolls.entries())) {
+      // Find and cancel the poll for this spec
+      for (const [taskId, pollState] of Array.from(taskProgressPolls.entries())) {
         if (taskId.endsWith(`:${specId}`)) {
-          if (interval) {
-            clearInterval(interval);
+          pollState.cancelled = true;
+          if (pollState.timeoutId) {
+            clearTimeout(pollState.timeoutId);
           }
           taskProgressPolls.delete(taskId);
           break;
@@ -1019,21 +1038,33 @@ export function createWebAdapter(): AppAPI {
     },
     watchTaskLogs: async (projectId: string, specId: string) => {
       // Web mode: Use polling instead of SSE for better compatibility
+      // Uses "poll after completion" pattern to prevent request piling
       const taskId = `${projectId}:${specId}`;
       
-      // Close existing poll interval if any
-      if (taskLogEventSources.has(taskId)) {
-        const existing = taskLogEventSources.get(taskId);
+      // Cancel existing poll if any
+      if (taskLogPolls.has(taskId)) {
+        const existing = taskLogPolls.get(taskId);
         if (existing) {
-          clearInterval(existing);
+          existing.cancelled = true;
+          if (existing.timeoutId) {
+            clearTimeout(existing.timeoutId);
+          }
         }
-        taskLogEventSources.delete(taskId);
+        taskLogPolls.delete(taskId);
       }
       
-      // Poll every 2 seconds for log updates
-      const pollInterval = setInterval(async () => {
+      // Create poll state
+      const pollState = { timeoutId: null as ReturnType<typeof setTimeout> | null, cancelled: false };
+      taskLogPolls.set(taskId, pollState);
+      
+      // Poll function - waits for request to complete before scheduling next poll
+      const poll = async () => {
+        if (pollState.cancelled) return;
+        
         try {
           const result = await apiRequest(`/api/projects/${projectId}/tasks/${specId}/logs`);
+          if (pollState.cancelled) return;
+          
           if (result.success && result.data) {
             taskLogCallbacks.forEach(callback => {
               callback(specId, result.data);
@@ -1042,19 +1073,26 @@ export function createWebAdapter(): AppAPI {
         } catch (e) {
           console.error('[TaskLog Poll] Error:', e);
         }
-      }, 2000);
+        
+        // Schedule next poll only after this one completes (prevents request piling)
+        if (!pollState.cancelled) {
+          pollState.timeoutId = setTimeout(poll, 2000);
+        }
+      };
       
-      taskLogEventSources.set(taskId, pollInterval);
+      // Start first poll immediately
+      poll();
       return { success: true };
     },
     unwatchTaskLogs: async (specId: string) => {
-      // Find and close the poll interval for this spec
-      for (const [taskId, interval] of Array.from(taskLogEventSources.entries())) {
+      // Find and cancel the poll for this spec
+      for (const [taskId, pollState] of Array.from(taskLogPolls.entries())) {
         if (taskId.endsWith(`:${specId}`)) {
-          if (interval) {
-            clearInterval(interval);
+          pollState.cancelled = true;
+          if (pollState.timeoutId) {
+            clearTimeout(pollState.timeoutId);
           }
-          taskLogEventSources.delete(taskId);
+          taskLogPolls.delete(taskId);
           break;
         }
       }
