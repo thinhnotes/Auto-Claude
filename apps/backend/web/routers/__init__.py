@@ -30,6 +30,7 @@ from .context import router as context_router
 from .git import router as git_router
 from .source_env import router as source_env_router
 from .ollama import router as ollama_router
+from .roadmap import router as roadmap_router
 
 __all__ = [
     "projects_router",
@@ -44,4 +45,5 @@ __all__ = [
     "git_router",
     "source_env_router",
     "ollama_router",
+    "roadmap_router",
 ]

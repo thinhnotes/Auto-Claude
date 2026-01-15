@@ -119,6 +119,92 @@ const taskLogUpdatedAt: Map<string, string> = new Map();
 const taskProgressPolls: Map<string, { timeoutId: ReturnType<typeof setTimeout> | null; cancelled: boolean }> = new Map();
 const taskProgressCallbacks: Set<(taskId: string, plan: any, projectId?: string) => void> = new Set();
 
+const roadmapPolls: Map<string, { timeoutId: ReturnType<typeof setTimeout> | null; cancelled: boolean }> = new Map();
+const roadmapProgressCallbacks: Set<(projectId: string, status: any) => void> = new Set();
+const roadmapCompleteCallbacks: Set<(projectId: string, roadmap: any) => void> = new Set();
+const roadmapErrorCallbacks: Set<(projectId: string, error: string) => void> = new Set();
+const roadmapStoppedCallbacks: Set<(projectId: string) => void> = new Set();
+
+function stopRoadmapPolling(projectId: string) {
+  const pollState = roadmapPolls.get(projectId);
+  if (pollState) {
+    pollState.cancelled = true;
+    if (pollState.timeoutId) {
+      clearTimeout(pollState.timeoutId);
+    }
+    roadmapPolls.delete(projectId);
+  }
+}
+
+type RoadmapStatusPayload = {
+  isRunning: boolean;
+  phase?: string;
+  progress?: number;
+  message?: string;
+  error?: string;
+};
+
+function startRoadmapPolling(projectId: string) {
+  stopRoadmapPolling(projectId);
+
+  const pollState = { timeoutId: null as ReturnType<typeof setTimeout> | null, cancelled: false };
+  roadmapPolls.set(projectId, pollState);
+
+  const poll = async () => {
+    if (pollState.cancelled) return;
+
+    try {
+      const statusResult = await apiRequest<RoadmapStatusPayload>(
+        `/api/projects/${projectId}/roadmap/status`
+      );
+      if (pollState.cancelled) return;
+
+      if (statusResult.success && statusResult.data) {
+        const statusData = statusResult.data as RoadmapStatusPayload;
+        roadmapProgressCallbacks.forEach((callback) => {
+          callback(projectId, statusData);
+        });
+
+        if (statusData.phase === 'complete') {
+          const roadmapResult = await apiRequest(`/api/projects/${projectId}/roadmap`);
+          if (roadmapResult.success && roadmapResult.data) {
+            roadmapCompleteCallbacks.forEach((callback) => {
+              callback(projectId, roadmapResult.data);
+            });
+          }
+          stopRoadmapPolling(projectId);
+          return;
+        }
+
+        if (statusData.phase === 'error') {
+          roadmapErrorCallbacks.forEach((callback) => {
+            callback(projectId, statusData.error || 'Roadmap generation failed');
+          });
+          stopRoadmapPolling(projectId);
+          return;
+        }
+
+        if (!statusData.isRunning && statusData.phase === 'idle') {
+          stopRoadmapPolling(projectId);
+          return;
+        }
+      }
+    } catch (error) {
+      roadmapErrorCallbacks.forEach((callback) => {
+        callback(projectId, error instanceof Error ? error.message : 'Roadmap polling failed');
+      });
+      stopRoadmapPolling(projectId);
+      return;
+    }
+
+    if (!pollState.cancelled) {
+      pollState.timeoutId = setTimeout(poll, 2000);
+    }
+  };
+
+  poll();
+}
+
 /**
  * Create the Web API adapter
  *
@@ -773,18 +859,86 @@ export function createWebAdapter(): AppAPI {
     // ===================
     // Roadmap
     // ===================
-    getRoadmap: unsupported('getRoadmap'),
-    getRoadmapStatus: unsupported('getRoadmapStatus'),
-    saveRoadmap: unsupported('saveRoadmap'),
-    generateRoadmap: unsupportedVoid('generateRoadmap'),
-    refreshRoadmap: unsupportedVoid('refreshRoadmap'),
-    updateFeatureStatus: unsupported('updateFeatureStatus'),
-    convertFeatureToSpec: unsupported('convertFeatureToSpec'),
-    stopRoadmap: unsupported('stopRoadmap'),
-    onRoadmapProgress: unsupportedEvent('onRoadmapProgress'),
-    onRoadmapComplete: unsupportedEvent('onRoadmapComplete'),
-    onRoadmapError: unsupportedEvent('onRoadmapError'),
-    onRoadmapStopped: unsupportedEvent('onRoadmapStopped'),
+    getRoadmap: async (projectId: string) =>
+      apiRequest(`/api/projects/${projectId}/roadmap`),
+    getRoadmapStatus: async (projectId: string) => {
+      const result = await apiRequest<RoadmapStatusPayload>(`/api/projects/${projectId}/roadmap/status`);
+      if (result.success && result.data?.isRunning) {
+        startRoadmapPolling(projectId);
+      }
+      return result;
+    },
+    saveRoadmap: async (projectId: string, roadmap: any) =>
+      apiRequest(`/api/projects/${projectId}/roadmap`, {
+        method: 'PATCH',
+        body: JSON.stringify({ roadmap }),
+      }),
+    generateRoadmap: (projectId: string, enableCompetitorAnalysis?: boolean, refreshCompetitorAnalysis?: boolean) => {
+      const payload = {
+        enable_competitor_analysis: enableCompetitorAnalysis ?? false,
+        refresh_competitor_analysis: refreshCompetitorAnalysis ?? false,
+      };
+      apiRequest(`/api/projects/${projectId}/roadmap/generate`, {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      });
+      startRoadmapPolling(projectId);
+    },
+    refreshRoadmap: (projectId: string, enableCompetitorAnalysis?: boolean, refreshCompetitorAnalysis?: boolean) => {
+      const payload = {
+        refresh: true,
+        enable_competitor_analysis: enableCompetitorAnalysis ?? false,
+        refresh_competitor_analysis: refreshCompetitorAnalysis ?? false,
+      };
+      apiRequest(`/api/projects/${projectId}/roadmap/refresh`, {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      });
+      startRoadmapPolling(projectId);
+    },
+    updateFeatureStatus: async (projectId: string, featureId: string, status: any) =>
+      apiRequest(`/api/projects/${projectId}/roadmap/features/${featureId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ status }),
+      }),
+    convertFeatureToSpec: async (projectId: string, featureId: string) =>
+      apiRequest(`/api/projects/${projectId}/roadmap/convert-to-spec/${featureId}`, {
+        method: 'POST',
+      }),
+    stopRoadmap: async (projectId: string) => {
+      stopRoadmapPolling(projectId);
+      const result = await apiRequest(`/api/projects/${projectId}/roadmap/stop`, { method: 'POST' });
+      if (result.success) {
+        roadmapStoppedCallbacks.forEach((callback) => {
+          callback(projectId);
+        });
+      }
+      return result;
+    },
+    onRoadmapProgress: (callback: (projectId: string, status: any) => void) => {
+      roadmapProgressCallbacks.add(callback as any);
+      return () => {
+        roadmapProgressCallbacks.delete(callback as any);
+      };
+    },
+    onRoadmapComplete: (callback: (projectId: string, roadmap: any) => void) => {
+      roadmapCompleteCallbacks.add(callback as any);
+      return () => {
+        roadmapCompleteCallbacks.delete(callback as any);
+      };
+    },
+    onRoadmapError: (callback: (projectId: string, error: string) => void) => {
+      roadmapErrorCallbacks.add(callback as any);
+      return () => {
+        roadmapErrorCallbacks.delete(callback as any);
+      };
+    },
+    onRoadmapStopped: (callback: (projectId: string) => void) => {
+      roadmapStoppedCallbacks.add(callback as any);
+      return () => {
+        roadmapStoppedCallbacks.delete(callback as any);
+      };
+    },
 
     // ===================
     // Ideation
