@@ -35,6 +35,13 @@ def get_utility_model_config(
         if extended thinking is disabled, or an int representing token budget
     """
     model = os.environ.get("UTILITY_MODEL_ID", default_model)
+    if os.environ.get("CLAUDE_THINKING_ENABLED", "true").lower() not in (
+        "true",
+        "1",
+        "yes",
+        "on",
+    ):
+        return model, None
     thinking_budget_str = os.environ.get("UTILITY_THINKING_BUDGET", "")
 
     # Parse thinking budget: empty string = disabled (None), number = budget tokens

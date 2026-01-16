@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useProjectStore } from '../../../stores/project-store';
-import { checkTaskRunning, isIncompleteHumanReview, getTaskProgress } from '../../../stores/task-store';
+import { useTaskStore, checkTaskRunning, isIncompleteHumanReview, getTaskProgress } from '../../../stores/task-store';
 import type { Task, TaskLogs, TaskLogPhase, WorktreeStatus, WorktreeDiff, MergeConflict, MergeStats, GitConflictInfo } from '../../../../shared/types';
 
 export interface UseTaskDetailOptions {
@@ -197,6 +197,34 @@ export function useTaskDetail({ task }: UseTaskDetailOptions) {
       window.electronAPI.unwatchTaskLogs(task.specId);
     };
   }, [selectedProject, task.specId]);
+
+  // Watch for subtask progress updates (polls every 2 seconds when task is running)
+  const updateTaskFromPlan = useTaskStore((state) => state.updateTaskFromPlan);
+  
+  useEffect(() => {
+    if (!selectedProject) return;
+    
+    // Only poll when task is actively running or in ai_review
+    const shouldPoll = isActiveTask;
+    if (!shouldPoll) return;
+
+    // Start watching for progress updates (web mode uses polling)
+    window.electronAPI.watchTaskProgress?.(selectedProject.id, task.specId);
+
+    // Listen for progress changes
+    const unsubscribe = window.electronAPI.onTaskProgress((taskId: string, plan, projectId?: string) => {
+      // Filter by taskId (can be task.id or task.specId)
+      if (taskId === task.id || taskId === task.specId || taskId === `${selectedProject.id}:${task.specId}`) {
+        // Update task store with new subtask data
+        updateTaskFromPlan(task.id, plan);
+      }
+    });
+
+    return () => {
+      unsubscribe();
+      window.electronAPI.unwatchTaskProgress?.(task.specId);
+    };
+  }, [selectedProject, task.id, task.specId, isActiveTask, updateTaskFromPlan]);
 
   // Toggle phase expansion
   const togglePhase = useCallback((phase: TaskLogPhase) => {

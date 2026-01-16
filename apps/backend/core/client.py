@@ -780,9 +780,14 @@ def create_client(
         print("   - CLAUDE.md: disabled by project settings")
     print()
 
+    # Resolve model shorthand (sonnet, opus, haiku) to full model ID
+    from phase_config import resolve_model_id
+    resolved_model = resolve_model_id(model)
+    logger.info(f"[create_client] Input model: {model} -> Resolved model: {resolved_model}")
+
     # Build options dict, conditionally including output_format
     options_kwargs = {
-        "model": model,
+        "model": resolved_model,
         "system_prompt": base_prompt,
         "allowed_tools": allowed_tools_list,
         "mcp_servers": mcp_servers,

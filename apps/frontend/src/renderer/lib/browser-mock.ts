@@ -1,32 +1,17 @@
 /**
- * Browser mock for window.electronAPI
- * This allows the app to run in a regular browser for UI development/testing
- *
- * This module aggregates all mock implementations from separate modules
- * for better code organization and maintainability.
+ * Browser mock / Web adapter for window.electronAPI
+ * 
+ * When running in a browser (not Electron), this module sets up
+ * window.electronAPI to use the web adapter that makes real HTTP calls
+ * to the Python backend.
  */
 
 import type { ElectronAPI } from '../../shared/types';
-import {
-  projectMock,
-  taskMock,
-  workspaceMock,
-  terminalMock,
-  claudeProfileMock,
-  contextMock,
-  integrationMock,
-  changelogMock,
-  insightsMock,
-  infrastructureMock,
-  settingsMock
-} from './mocks';
-
-// Check if we're in a browser (not Electron)
-const isElectron = typeof window !== 'undefined' && window.electronAPI !== undefined;
+import { createWebAdapter } from '../platform/web-adapter';
 
 /**
- * Create mock electronAPI for browser
- * Aggregates all mock implementations from separate modules
+ * Check if we're running in Electron (without circular dependency)
+ * This checks for Electron-specific globals that exist before electronAPI is set
  */
 const browserMockAPI: ElectronAPI = {
   // Project Operations
@@ -311,14 +296,41 @@ const browserMockAPI: ElectronAPI = {
   getRecentErrors: async () => [],
   listLogFiles: async () => []
 };
+function isRunningInElectron(): boolean {
+  return (
+    typeof window !== 'undefined' &&
+    // Check for Electron-specific process object
+    typeof (window as any).process !== 'undefined' &&
+    (window as any).process?.versions?.electron !== undefined
+  );
+}
 
 /**
- * Initialize browser mock if not running in Electron
+ * Initialize browser API if not running in Electron
+ * Uses the real web adapter to communicate with the Python backend
  */
 export function initBrowserMock(): void {
-  if (!isElectron) {
-    console.warn('%c[Browser Mock] Initializing mock electronAPI for browser preview', 'color: #f0ad4e; font-weight: bold;');
-    (window as Window & { electronAPI: ElectronAPI }).electronAPI = browserMockAPI;
+  if (!isRunningInElectron()) {
+    console.info('%c[Web Mode] Connecting to backend API...', 'color: #17a2b8; font-weight: bold;');
+    const webAdapter = createWebAdapter();
+    
+    // Use Object.defineProperty to handle cases where electronAPI might already exist
+    try {
+      Object.defineProperty(window, 'electronAPI', {
+        value: webAdapter,
+        writable: true,
+        configurable: true,
+      });
+    } catch {
+      // Fallback: try direct assignment if defineProperty fails
+      try {
+        (window as any).electronAPI = webAdapter;
+      } catch (e) {
+        console.warn('[Web Mode] Could not set electronAPI:', e);
+      }
+    }
+    
+    console.info('%c[Web Mode] API adapter initialized', 'color: #28a745; font-weight: bold;');
   }
 }
 

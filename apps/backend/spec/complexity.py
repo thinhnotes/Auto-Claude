@@ -45,10 +45,18 @@ class ComplexityAssessment:
     needs_self_critique: bool = False
 
     def phases_to_run(self) -> list[str]:
-        """Return list of phase names to run based on complexity."""
-        # If AI provided recommended phases, use those
+        """Return list of phase names to run based on complexity.
+
+        NOTE: "planning" phase is NOT included here. Implementation planning
+        is deferred to task start (run.py) where the planner agent creates
+        the implementation_plan.json with subtasks. This ensures:
+        1. Planning logs are visible during task execution
+        2. The planner agent can use the full spec context
+        3. Clear separation between spec creation and task execution
+        """
+        # If AI provided recommended phases, filter out "planning" to defer it
         if self.recommended_phases:
-            return self.recommended_phases
+            return [p for p in self.recommended_phases if p != "planning"]
 
         # Otherwise fall back to default phase sets
         # Note: historical_context runs early (after discovery) if Graphiti is enabled
@@ -60,7 +68,7 @@ class ComplexityAssessment:
             phases = ["discovery", "historical_context", "requirements"]
             if self.needs_research:
                 phases.append("research")
-            phases.extend(["context", "spec_writing", "planning", "validation"])
+            phases.extend(["context", "spec_writing", "validation"])
             return phases
         else:  # COMPLEX
             return [
@@ -71,7 +79,6 @@ class ComplexityAssessment:
                 "context",
                 "spec_writing",
                 "self_critique",
-                "planning",
                 "validation",
             ]
 

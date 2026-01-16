@@ -11,10 +11,27 @@ import os
 from pathlib import Path
 from typing import Literal, TypedDict
 
-# Default model IDs (can be overridden via ANTHROPIC_DEFAULT_*_MODEL env vars)
-DEFAULT_OPUS_MODEL = os.environ.get("ANTHROPIC_DEFAULT_OPUS_MODEL", "claude-opus-4-5-20251101")
-DEFAULT_SONNET_MODEL = os.environ.get("ANTHROPIC_DEFAULT_SONNET_MODEL", "claude-sonnet-4-5-20250929")
-DEFAULT_HAIKU_MODEL = os.environ.get("ANTHROPIC_DEFAULT_HAIKU_MODEL", "claude-haiku-4-5-20251001")
+# Default model IDs (can be overridden via AUTO_BUILD_MODEL or ANTHROPIC_DEFAULT_*_MODEL env vars)
+# Priority: AUTO_BUILD_MODEL > ANTHROPIC_DEFAULT_*_MODEL > hardcoded fallback
+_AUTO_BUILD_MODEL = os.environ.get("AUTO_BUILD_MODEL")
+
+# If AUTO_BUILD_MODEL is set, use it for all models; otherwise check specific env vars
+DEFAULT_OPUS_MODEL = _AUTO_BUILD_MODEL or os.environ.get("ANTHROPIC_DEFAULT_OPUS_MODEL", "claude-opus-4-5-20251101")
+DEFAULT_SONNET_MODEL = _AUTO_BUILD_MODEL or os.environ.get("ANTHROPIC_DEFAULT_SONNET_MODEL", "claude-sonnet-4-5-20250929")
+DEFAULT_HAIKU_MODEL = _AUTO_BUILD_MODEL or os.environ.get("ANTHROPIC_DEFAULT_HAIKU_MODEL", "claude-haiku-4-5-20251001")
+
+# Debug logging for model resolution
+import logging
+_logger = logging.getLogger("auto-claude-api")
+_logger.info(f"[phase_config] AUTO_BUILD_MODEL env: {_AUTO_BUILD_MODEL}")
+_logger.info(f"[phase_config] DEFAULT_SONNET_MODEL resolved to: {DEFAULT_SONNET_MODEL}")
+_logger.info(f"[phase_config] DEFAULT_OPUS_MODEL resolved to: {DEFAULT_OPUS_MODEL}")
+_logger.info(f"[phase_config] DEFAULT_HAIKU_MODEL resolved to: {DEFAULT_HAIKU_MODEL}")
+
+
+def _is_thinking_enabled() -> bool:
+    value = os.environ.get("CLAUDE_THINKING_ENABLED", "true").lower()
+    return value in ("true", "1", "yes", "on")
 
 # Model shorthand to full model ID mapping
 MODEL_ID_MAP: dict[str, str] = {
@@ -102,9 +119,10 @@ def resolve_model_id(model: str) -> str:
 
     Note: MODEL_ID_MAP already uses environment variables at module load time,
     so the priority is:
-    1. ANTHROPIC_DEFAULT_*_MODEL env vars (applied to MODEL_ID_MAP)
-    2. MODEL_ID_MAP mapping
-    3. Pass through unchanged (assume full model ID)
+    1. AUTO_BUILD_MODEL env var (applied to MODEL_ID_MAP)
+    2. ANTHROPIC_DEFAULT_*_MODEL env vars (applied to MODEL_ID_MAP)
+    3. MODEL_ID_MAP mapping
+    4. Pass through unchanged (assume full model ID)
 
     Args:
         model: Model shorthand or full ID
@@ -114,9 +132,12 @@ def resolve_model_id(model: str) -> str:
     """
     # MODEL_ID_MAP already includes env var overrides from module initialization
     if model in MODEL_ID_MAP:
-        return MODEL_ID_MAP[model]
+        resolved = MODEL_ID_MAP[model]
+        _logger.info(f"[resolve_model_id] '{model}' -> '{resolved}' (from MODEL_ID_MAP)")
+        return resolved
 
     # Already a full model ID or unknown shorthand
+    _logger.info(f"[resolve_model_id] '{model}' passed through unchanged")
     return model
 
 
@@ -131,6 +152,9 @@ def get_thinking_budget(thinking_level: str) -> int | None:
         Token budget or None for no extended thinking
     """
     import logging
+
+    if not _is_thinking_enabled():
+        return None
 
     if thinking_level not in THINKING_BUDGET_MAP:
         valid_levels = ", ".join(THINKING_BUDGET_MAP.keys())
