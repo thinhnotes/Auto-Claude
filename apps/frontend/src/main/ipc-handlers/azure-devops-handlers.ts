@@ -352,8 +352,6 @@ async function getWorkItemsForIteration(
       whereClause += ` AND [System.AreaPath] UNDER '${cleanAreaPath}'`;
     }
 
-    console.log(cleanAreaPath)
-    console.log(cleanIterationPath)
     const wiqlQuery = {
       query: `SELECT [System.Id], [System.Title], [System.State], [System.WorkItemType], [System.AssignedTo], [System.CreatedDate], [System.ChangedDate], [Microsoft.VSTS.Common.Priority], [System.Tags], [System.IterationPath], [System.AreaPath], [Microsoft.VSTS.Scheduling.StoryPoints], [Microsoft.VSTS.Scheduling.Effort], [System.Description], [Microsoft.VSTS.Common.AcceptanceCriteria]
               FROM WorkItems 
