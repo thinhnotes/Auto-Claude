@@ -85,19 +85,15 @@ export function useAzureDevOpsBoard(): UseAzureDevOpsBoardReturn {
     try {
       const result = await window.electronAPI.azureDevOps?.getAreas(projectId);
 
-      console.log("[AzureDevOps] Areas fetched:", result)
       if (result?.success && result.areas) {
-        console.log('[AzureDevOps] Areas fetched:', result.areas);
         setAreas(result.areas);
-        
+
         const storedAreaPath = getStoredSelection(projectId, 'areaPath');
         const validStoredArea = storedAreaPath && result.areas.some(a => a.path === storedAreaPath);
-        
+
         if (validStoredArea) {
-          console.log('[AzureDevOps] Restoring area from storage:', storedAreaPath);
           setSelectedAreaPath(storedAreaPath);
         } else if (result.areas.length > 0) {
-          console.log('[AzureDevOps] Auto-selecting area:', result.areas[0].path);
           setSelectedAreaPath(result.areas[0].path);
           setStoredSelection(projectId, 'areaPath', result.areas[0].path);
         }
