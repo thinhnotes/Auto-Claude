@@ -121,14 +121,14 @@ export function useAzureDevOpsBoard(): UseAzureDevOpsBoardReturn {
         });
 
         const storedIterationId = getStoredSelection(projectId, 'iterationId');
-        const validStoredIteration = storedIterationId && result.iterations.some((i: AzureDevOpsIteration) => i.id === storedIterationId);
+        const validStoredIteration = storedIterationId && result.iterations.some(i => i.id === storedIterationId);
         
         if (validStoredIteration) {
           console.log('[AzureDevOps] Restoring iteration from storage:', storedIterationId);
           setSelectedIterationId(storedIterationId);
         } else {
           const currentIteration = result.iterations.find(
-            (iter: AzureDevOpsIteration) =>
+            iter =>
               iter.isCurrent || iter.state === 'current' || iter.attributes?.timeFrame === 'current'
           );
 
