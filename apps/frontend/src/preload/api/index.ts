@@ -49,8 +49,7 @@ export const createElectronAPI = (): ElectronAPI => ({
   ...createClaudeCodeAPI(),
   ...createMcpAPI(),
   ...createProfileAPI(),
-  github: createGitHubAPI(),
-  azureDevOps: createAzureDevOpsAPI()
+  github: createGitHubAPI()
 });
 
 // Export individual API creators for potential use in tests or specialized contexts

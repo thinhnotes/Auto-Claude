@@ -51,11 +51,10 @@ function isPRReview(memory: MemoryEpisode): boolean {
 // Get the effective category for a memory
 function getMemoryCategory(memory: MemoryEpisode): FilterCategory {
   if (isPRReview(memory)) return 'pr';
-  const memoryType = memory.type || 'session_insight';
-  if (['session_insight', 'task_outcome'].includes(memoryType)) return 'sessions';
-  if (['codebase_discovery', 'codebase_map'].includes(memoryType)) return 'codebase';
-  if (['pattern', 'pr_pattern'].includes(memoryType)) return 'patterns';
-  if (['gotcha', 'pr_gotcha'].includes(memoryType)) return 'gotchas';
+  if (['session_insight', 'task_outcome'].includes(memory.type)) return 'sessions';
+  if (['codebase_discovery', 'codebase_map'].includes(memory.type)) return 'codebase';
+  if (['pattern', 'pr_pattern'].includes(memory.type)) return 'patterns';
+  if (['gotcha', 'pr_gotcha'].includes(memory.type)) return 'gotchas';
   return 'sessions'; // default
 }
 
@@ -272,8 +271,8 @@ export function MemoriesTab({
                   <Icon className="h-3.5 w-3.5" />
                   <span>{config.label}</span>
                   {count > 0 && (
-                    <Badge 
-                      variant="secondary" 
+                    <Badge
+                      variant="secondary"
                       className={cn(
                         'ml-1 px-1.5 py-0 text-xs',
                         isActive && 'bg-background/20'

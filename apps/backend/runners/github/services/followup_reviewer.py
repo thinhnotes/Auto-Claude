@@ -35,6 +35,7 @@ try:
         ReviewSeverity,
     )
     from .category_utils import map_category
+    from .io_utils import safe_print
     from .prompt_manager import PromptManager
     from .pydantic_models import FollowupReviewResponse
 except (ImportError, ValueError, SystemError):
@@ -47,6 +48,7 @@ except (ImportError, ValueError, SystemError):
         ReviewSeverity,
     )
     from services.category_utils import map_category
+    from services.io_utils import safe_print
     from services.prompt_manager import PromptManager
     from services.pydantic_models import FollowupReviewResponse
 
@@ -102,7 +104,7 @@ class FollowupReviewer:
                     "pr_number": pr_number,
                 }
             )
-        print(f"[Followup] [{phase}] {message}", flush=True)
+        safe_print(f"[Followup] [{phase}] {message}")
 
     async def review_followup(
         self,
@@ -598,25 +600,26 @@ class FollowupReviewer:
             ]
         )
 
-        # Format commits
+        # Format commits with timestamps (for timeline correlation with AI comments)
         commits_text = "\n".join(
             [
-                f"- {c.get('sha', '')[:8]}: {c.get('commit', {}).get('message', '').split(chr(10))[0]}"
+                f"- {c.get('sha', '')[:8]} ({c.get('commit', {}).get('author', {}).get('date', 'unknown')}): {c.get('commit', {}).get('message', '').split(chr(10))[0]}"
                 for c in context.commits_since_review
             ]
         )
 
-        # Format comments
+        # Format contributor comments with timestamps
         contributor_comments_text = "\n".join(
             [
-                f"- @{c.get('user', {}).get('login', 'unknown')}: {c.get('body', '')[:200]}"
+                f"- @{c.get('user', {}).get('login', 'unknown')} ({c.get('created_at', 'unknown')}): {c.get('body', '')[:200]}"
                 for c in context.contributor_comments_since_review
             ]
         )
 
+        # Format AI comments with timestamps for timeline awareness
         ai_comments_text = "\n".join(
             [
-                f"- @{c.get('user', {}).get('login', 'unknown')}: {c.get('body', '')[:200]}"
+                f"- @{c.get('user', {}).get('login', 'unknown')} ({c.get('created_at', 'unknown')}): {c.get('body', '')[:200]}"
                 for c in context.ai_bot_comments_since_review
             ]
         )
@@ -680,9 +683,10 @@ Analyze this follow-up review context and provide your structured response.
             # Use Claude Agent SDK query() with structured outputs
             # Reference: https://platform.claude.com/docs/en/agent-sdk/structured-outputs
             from claude_agent_sdk import ClaudeAgentOptions, query
-            from phase_config import get_thinking_budget
+            from phase_config import get_thinking_budget, resolve_model_id
 
-            model = self.config.model or "claude-sonnet-4-5-20250929"
+            model_shorthand = self.config.model or "sonnet"
+            model = resolve_model_id(model_shorthand)
             thinking_level = self.config.thinking_level or "medium"
             thinking_budget = get_thinking_budget(thinking_level)
 
@@ -691,7 +695,7 @@ Analyze this follow-up review context and provide your structured response.
             logger.debug(
                 f"[Followup] Using output_format schema: {list(schema.get('properties', {}).keys())}"
             )
-            print(f"[Followup] SDK query with output_format, model={model}", flush=True)
+            safe_print(f"[Followup] SDK query with output_format, model={model}")
 
             # Iterate through messages from the query
             # Note: max_turns=2 because structured output uses a tool call + response
@@ -726,7 +730,7 @@ Analyze this follow-up review context and provide your structured response.
                                     logger.info(
                                         "[Followup] Found StructuredOutput tool use"
                                     )
-                                    print(
+                                    safe_print(
                                         "[Followup] Using SDK structured output",
                                         flush=True,
                                     )
@@ -744,7 +748,7 @@ Analyze this follow-up review context and provide your structured response.
                         logger.info(
                             "[Followup] Found structured_output attribute on message"
                         )
-                        print(
+                        safe_print(
                             "[Followup] Using SDK structured output (direct attribute)",
                             flush=True,
                         )
@@ -768,7 +772,7 @@ Analyze this follow-up review context and provide your structured response.
         except ValueError as e:
             # OAuth token not found
             logger.warning(f"No OAuth token available for AI review: {e}")
-            print("AI review failed: No OAuth token found", flush=True)
+            safe_print("AI review failed: No OAuth token found")
             return None
         except Exception as e:
             logger.error(f"AI review with structured output failed: {e}")

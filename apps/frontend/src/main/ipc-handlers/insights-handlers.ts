@@ -1,18 +1,67 @@
-import { ipcMain } from 'electron';
-import type { BrowserWindow } from 'electron';
-import path from 'path';
-import { existsSync, readdirSync, mkdirSync, writeFileSync } from 'fs';
-import { IPC_CHANNELS, getSpecsDir, AUTO_BUILD_PATHS } from '../../shared/constants';
-import type { IPCResult, InsightsSession, InsightsSessionSummary, InsightsModelConfig, Task, TaskMetadata } from '../../shared/types';
-import { projectStore } from '../project-store';
-import { insightsService } from '../insights-service';
+import { ipcMain, app } from "electron";
+import type { BrowserWindow } from "electron";
+import path from "path";
+import { existsSync, readdirSync, mkdirSync, writeFileSync, readFileSync } from "fs";
+import { debugError } from "../../shared/utils/debug-logger";
+import {
+  IPC_CHANNELS,
+  getSpecsDir,
+  AUTO_BUILD_PATHS,
+  DEFAULT_APP_SETTINGS,
+  DEFAULT_FEATURE_MODELS,
+  DEFAULT_FEATURE_THINKING,
+} from "../../shared/constants";
+import type {
+  IPCResult,
+  InsightsSession,
+  InsightsSessionSummary,
+  InsightsModelConfig,
+  Task,
+  TaskMetadata,
+  AppSettings,
+} from "../../shared/types";
+import { projectStore } from "../project-store";
+import { insightsService } from "../insights-service";
+import { safeSendToRenderer } from "./utils";
+
+/**
+ * Read insights feature settings from the settings file
+ */
+function getInsightsFeatureSettings(): InsightsModelConfig {
+  const settingsPath = path.join(app.getPath("userData"), "settings.json");
+
+  try {
+    if (existsSync(settingsPath)) {
+      const content = readFileSync(settingsPath, "utf-8");
+      const settings: AppSettings = { ...DEFAULT_APP_SETTINGS, ...JSON.parse(content) };
+
+      // Get insights-specific settings from Agent Settings
+      // Use nullish coalescing at property level to handle partial settings objects
+      const featureModels = settings.featureModels ?? DEFAULT_FEATURE_MODELS;
+      const featureThinking = settings.featureThinking ?? DEFAULT_FEATURE_THINKING;
+
+      return {
+        profileId: "balanced", // Default profile for settings-based config
+        model: featureModels.insights ?? DEFAULT_FEATURE_MODELS.insights,
+        thinkingLevel: featureThinking.insights ?? DEFAULT_FEATURE_THINKING.insights,
+      };
+    }
+  } catch (error) {
+    debugError("[Insights Handler] Failed to read feature settings:", error);
+  }
+
+  // Return defaults if settings file doesn't exist or fails to parse
+  return {
+    profileId: "balanced", // Default profile for settings-based config
+    model: DEFAULT_FEATURE_MODELS.insights,
+    thinkingLevel: DEFAULT_FEATURE_THINKING.insights,
+  };
+}
 
 /**
  * Register all insights-related IPC handlers
  */
-export function registerInsightsHandlers(
-  getMainWindow: () => BrowserWindow | null
-): void {
+export function registerInsightsHandlers(getMainWindow: () => BrowserWindow | null): void {
   // ============================================
   // Insights Operations
   // ============================================
@@ -22,7 +71,7 @@ export function registerInsightsHandlers(
     async (_, projectId: string): Promise<IPCResult<InsightsSession | null>> => {
       const project = projectStore.getProject(projectId);
       if (!project) {
-        return { success: false, error: 'Project not found' };
+        return { success: false, error: "Project not found" };
       }
 
       const session = insightsService.loadSession(projectId, project.path);
@@ -35,33 +84,47 @@ export function registerInsightsHandlers(
     async (_, projectId: string, message: string, modelConfig?: InsightsModelConfig) => {
       const project = projectStore.getProject(projectId);
       if (!project) {
-        const mainWindow = getMainWindow();
-        if (mainWindow) {
-          mainWindow.webContents.send(IPC_CHANNELS.INSIGHTS_ERROR, projectId, 'Project not found');
-        }
+        safeSendToRenderer(
+          getMainWindow,
+          IPC_CHANNELS.INSIGHTS_ERROR,
+          projectId,
+          "Project not found"
+        );
         return;
       }
+
+      // Get feature settings from Agent Settings and merge with provided config
+      const featureSettings = getInsightsFeatureSettings();
+      const configWithSettings: InsightsModelConfig = {
+        // Start with feature settings as defaults
+        ...featureSettings,
+        // Override with any explicitly provided config
+        ...modelConfig,
+      };
+
+      console.log("[Insights Handler] Using model config:", {
+        model: configWithSettings.model,
+        thinkingLevel: configWithSettings.thinkingLevel,
+      });
 
       // Await the async sendMessage to ensure proper error handling and
       // that all async operations (like getProcessEnv) complete before
       // the handler returns. This fixes race conditions on Windows where
       // environment setup wouldn't complete before process spawn.
       try {
-        await insightsService.sendMessage(projectId, project.path, message, modelConfig);
+        await insightsService.sendMessage(projectId, project.path, message, configWithSettings);
       } catch (error) {
         // Errors during sendMessage (executor errors) are already emitted via
         // the 'error' event, but we catch here to prevent unhandled rejection
         // and ensure all error types are reported to the UI
-        console.error('[Insights IPC] Error in sendMessage:', error);
-        const mainWindow = getMainWindow();
-        if (mainWindow) {
-          const errorMessage = error instanceof Error ? error.message : String(error);
-          mainWindow.webContents.send(
-            IPC_CHANNELS.INSIGHTS_ERROR,
-            projectId,
-            `Failed to send message: ${errorMessage}`
-          );
-        }
+        console.error("[Insights IPC] Error in sendMessage:", error);
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        safeSendToRenderer(
+          getMainWindow,
+          IPC_CHANNELS.INSIGHTS_ERROR,
+          projectId,
+          `Failed to send message: ${errorMessage}`
+        );
       }
     }
   );
@@ -71,7 +134,7 @@ export function registerInsightsHandlers(
     async (_, projectId: string): Promise<IPCResult> => {
       const project = projectStore.getProject(projectId);
       if (!project) {
-        return { success: false, error: 'Project not found' };
+        return { success: false, error: "Project not found" };
       }
 
       insightsService.clearSession(projectId, project.path);
@@ -90,32 +153,32 @@ export function registerInsightsHandlers(
     ): Promise<IPCResult<Task>> => {
       const project = projectStore.getProject(projectId);
       if (!project) {
-        return { success: false, error: 'Project not found' };
+        return { success: false, error: "Project not found" };
       }
 
       if (!project.autoBuildPath) {
-        return { success: false, error: 'Auto Claude not initialized for this project' };
+        return { success: false, error: "Auto Claude not initialized for this project" };
       }
 
       try {
         // Generate a unique spec ID based on existing specs
         // Get specs directory path
-                const specsBaseDir = getSpecsDir(project.autoBuildPath);
+        const specsBaseDir = getSpecsDir(project.autoBuildPath);
         const specsDir = path.join(project.path, specsBaseDir);
 
         // Find next available spec number
         let specNumber = 1;
         if (existsSync(specsDir)) {
           const existingDirs = readdirSync(specsDir, { withFileTypes: true })
-            .filter(d => d.isDirectory())
-            .map(d => d.name);
+            .filter((d) => d.isDirectory())
+            .map((d) => d.name);
 
           const existingNumbers = existingDirs
-            .map(name => {
+            .map((name) => {
               const match = name.match(/^(\d+)/);
               return match ? parseInt(match[1], 10) : 0;
             })
-            .filter(n => n > 0);
+            .filter((n) => n > 0);
 
           if (existingNumbers.length > 0) {
             specNumber = Math.max(...existingNumbers) + 1;
@@ -125,10 +188,10 @@ export function registerInsightsHandlers(
         // Create spec ID with zero-padded number and slugified title
         const slugifiedTitle = title
           .toLowerCase()
-          .replace(/[^a-z0-9]+/g, '-')
-          .replace(/^-|-$/g, '')
+          .replace(/[^a-z0-9]+/g, "-")
+          .replace(/^-|-$/g, "")
           .substring(0, 50);
-        const specId = `${String(specNumber).padStart(3, '0')}-${slugifiedTitle}`;
+        const specId = `${String(specNumber).padStart(3, "0")}-${slugifiedTitle}`;
 
         // Create spec directory
         const specDir = path.join(specsDir, specId);
@@ -136,8 +199,8 @@ export function registerInsightsHandlers(
 
         // Build metadata with source type
         const taskMetadata: TaskMetadata = {
-          sourceType: 'insights',
-          ...metadata
+          sourceType: "insights",
+          ...metadata,
         };
 
         // Create initial implementation_plan.json
@@ -147,15 +210,15 @@ export function registerInsightsHandlers(
           description: description,
           created_at: now,
           updated_at: now,
-          status: 'pending',
-          phases: []
+          status: "pending",
+          phases: [],
         };
 
         const planPath = path.join(specDir, AUTO_BUILD_PATHS.IMPLEMENTATION_PLAN);
         writeFileSync(planPath, JSON.stringify(implementationPlan, null, 2));
 
         // Save task metadata
-        const metadataPath = path.join(specDir, 'task_metadata.json');
+        const metadataPath = path.join(specDir, "task_metadata.json");
         writeFileSync(metadataPath, JSON.stringify(taskMetadata, null, 2));
 
         // Create the task object
@@ -165,19 +228,19 @@ export function registerInsightsHandlers(
           projectId,
           title,
           description,
-          status: 'backlog',
+          status: "backlog",
           subtasks: [],
           logs: [],
           metadata: taskMetadata,
           createdAt: new Date(),
-          updatedAt: new Date()
+          updatedAt: new Date(),
         };
 
         return { success: true, data: task };
       } catch (error) {
         return {
           success: false,
-          error: error instanceof Error ? error.message : 'Failed to create task'
+          error: error instanceof Error ? error.message : "Failed to create task",
         };
       }
     }
@@ -189,7 +252,7 @@ export function registerInsightsHandlers(
     async (_, projectId: string): Promise<IPCResult<InsightsSessionSummary[]>> => {
       const project = projectStore.getProject(projectId);
       if (!project) {
-        return { success: false, error: 'Project not found' };
+        return { success: false, error: "Project not found" };
       }
 
       const sessions = insightsService.listSessions(project.path);
@@ -203,7 +266,7 @@ export function registerInsightsHandlers(
     async (_, projectId: string): Promise<IPCResult<InsightsSession>> => {
       const project = projectStore.getProject(projectId);
       if (!project) {
-        return { success: false, error: 'Project not found' };
+        return { success: false, error: "Project not found" };
       }
 
       const session = insightsService.createNewSession(projectId, project.path);
@@ -217,7 +280,7 @@ export function registerInsightsHandlers(
     async (_, projectId: string, sessionId: string): Promise<IPCResult<InsightsSession | null>> => {
       const project = projectStore.getProject(projectId);
       if (!project) {
-        return { success: false, error: 'Project not found' };
+        return { success: false, error: "Project not found" };
       }
 
       const session = insightsService.switchSession(projectId, project.path, sessionId);
@@ -231,14 +294,14 @@ export function registerInsightsHandlers(
     async (_, projectId: string, sessionId: string): Promise<IPCResult> => {
       const project = projectStore.getProject(projectId);
       if (!project) {
-        return { success: false, error: 'Project not found' };
+        return { success: false, error: "Project not found" };
       }
 
       const success = insightsService.deleteSession(projectId, project.path, sessionId);
       if (success) {
         return { success: true };
       }
-      return { success: false, error: 'Failed to delete session' };
+      return { success: false, error: "Failed to delete session" };
     }
   );
 
@@ -248,31 +311,40 @@ export function registerInsightsHandlers(
     async (_, projectId: string, sessionId: string, newTitle: string): Promise<IPCResult> => {
       const project = projectStore.getProject(projectId);
       if (!project) {
-        return { success: false, error: 'Project not found' };
+        return { success: false, error: "Project not found" };
       }
 
       const success = insightsService.renameSession(project.path, sessionId, newTitle);
       if (success) {
         return { success: true };
       }
-      return { success: false, error: 'Failed to rename session' };
+      return { success: false, error: "Failed to rename session" };
     }
   );
 
   // Update model configuration for a session
   ipcMain.handle(
     IPC_CHANNELS.INSIGHTS_UPDATE_MODEL_CONFIG,
-    async (_, projectId: string, sessionId: string, modelConfig: InsightsModelConfig): Promise<IPCResult> => {
+    async (
+      _,
+      projectId: string,
+      sessionId: string,
+      modelConfig: InsightsModelConfig
+    ): Promise<IPCResult> => {
       const project = projectStore.getProject(projectId);
       if (!project) {
-        return { success: false, error: 'Project not found' };
+        return { success: false, error: "Project not found" };
       }
 
-      const success = insightsService.updateSessionModelConfig(project.path, sessionId, modelConfig);
+      const success = insightsService.updateSessionModelConfig(
+        project.path,
+        sessionId,
+        modelConfig
+      );
       if (success) {
         return { success: true };
       }
-      return { success: false, error: 'Failed to update model configuration' };
+      return { success: false, error: "Failed to update model configuration" };
     }
   );
 
@@ -281,35 +353,22 @@ export function registerInsightsHandlers(
   // ============================================
 
   // Forward streaming chunks to renderer
-  insightsService.on('stream-chunk', (projectId: string, chunk: unknown) => {
-    const mainWindow = getMainWindow();
-    if (mainWindow) {
-      mainWindow.webContents.send(IPC_CHANNELS.INSIGHTS_STREAM_CHUNK, projectId, chunk);
-    }
+  insightsService.on("stream-chunk", (projectId: string, chunk: unknown) => {
+    safeSendToRenderer(getMainWindow, IPC_CHANNELS.INSIGHTS_STREAM_CHUNK, projectId, chunk);
   });
 
   // Forward status updates to renderer
-  insightsService.on('status', (projectId: string, status: unknown) => {
-    const mainWindow = getMainWindow();
-    if (mainWindow) {
-      mainWindow.webContents.send(IPC_CHANNELS.INSIGHTS_STATUS, projectId, status);
-    }
+  insightsService.on("status", (projectId: string, status: unknown) => {
+    safeSendToRenderer(getMainWindow, IPC_CHANNELS.INSIGHTS_STATUS, projectId, status);
   });
 
   // Forward errors to renderer
-  insightsService.on('error', (projectId: string, error: string) => {
-    const mainWindow = getMainWindow();
-    if (mainWindow) {
-      mainWindow.webContents.send(IPC_CHANNELS.INSIGHTS_ERROR, projectId, error);
-    }
+  insightsService.on("error", (projectId: string, error: string) => {
+    safeSendToRenderer(getMainWindow, IPC_CHANNELS.INSIGHTS_ERROR, projectId, error);
   });
 
   // Forward SDK rate limit events to renderer
-  insightsService.on('sdk-rate-limit', (rateLimitInfo: unknown) => {
-    const mainWindow = getMainWindow();
-    if (mainWindow) {
-      mainWindow.webContents.send(IPC_CHANNELS.CLAUDE_SDK_RATE_LIMIT, rateLimitInfo);
-    }
+  insightsService.on("sdk-rate-limit", (rateLimitInfo: unknown) => {
+    safeSendToRenderer(getMainWindow, IPC_CHANNELS.CLAUDE_SDK_RATE_LIMIT, rateLimitInfo);
   });
-
 }

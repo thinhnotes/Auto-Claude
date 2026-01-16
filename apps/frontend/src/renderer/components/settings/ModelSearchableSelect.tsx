@@ -47,7 +47,7 @@ interface ModelSearchableSelectProps {
  * @example
  * ```tsx
  * <ModelSearchableSelect
- *   value="claude-3-5-sonnet-20241022"
+ *   value="claude-sonnet-4-5-20250929"
  *   onChange={(modelId) => setModel(modelId)}
  *   baseUrl="https://api.anthropic.com"
  *   apiKey="sk-ant-..."
@@ -118,7 +118,7 @@ export function ModelSearchableSelect({
     } catch (err) {
       if (err instanceof Error && err.name !== 'AbortError') {
         // Check if it's specifically "not supported" or a general error
-        if (err.message.includes('does not support model listing') || 
+        if (err.message.includes('does not support model listing') ||
             err.message.includes('not_supported')) {
           setModelDiscoveryNotSupported(true);
         } else {
@@ -142,13 +142,11 @@ export function ModelSearchableSelect({
    */
   const handleOpen = () => {
     if (disabled) return;
-    
     // If we already know model discovery isn't supported, don't open dropdown
     if (modelDiscoveryNotSupported) {
       setIsManualInput(true);
       return;
     }
-    
     setIsOpen(true);
     setSearchQuery('');
 

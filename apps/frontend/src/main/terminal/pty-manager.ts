@@ -7,39 +7,51 @@ import * as pty from '@lydell/node-pty';
 import * as os from 'os';
 import { existsSync } from 'fs';
 import type { TerminalProcess, WindowGetter } from './types';
+import { isWindows, getWindowsShellPaths } from '../platform';
 import { IPC_CHANNELS } from '../../shared/constants';
 import { getClaudeProfileManager } from '../claude-profile-manager';
 import { readSettingsFile } from '../settings-utils';
+import { debugLog, debugError } from '../../shared/utils/debug-logger';
 import type { SupportedTerminal } from '../../shared/types/settings';
 
+// Windows shell paths are now imported from the platform module via getWindowsShellPaths()
+
 /**
- * Windows shell paths for different terminal preferences
+ * Track pending exit promises for terminals being destroyed.
+ * Used to wait for PTY process exit on Windows where termination is async.
  */
-const WINDOWS_SHELL_PATHS: Record<string, string[]> = {
-  powershell: [
-    'C:\\Program Files\\PowerShell\\7\\pwsh.exe',  // PowerShell 7 (Core)
-    'C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe',  // Windows PowerShell 5.1
-  ],
-  windowsterminal: [
-    'C:\\Program Files\\PowerShell\\7\\pwsh.exe',  // Prefer PowerShell Core in Windows Terminal
-    'C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe',
-  ],
-  cmd: [
-    'C:\\Windows\\System32\\cmd.exe',
-  ],
-  gitbash: [
-    'C:\\Program Files\\Git\\bin\\bash.exe',
-    'C:\\Program Files (x86)\\Git\\bin\\bash.exe',
-  ],
-  cygwin: [
-    'C:\\cygwin64\\bin\\bash.exe',
-    'C:\\cygwin\\bin\\bash.exe',
-  ],
-  msys2: [
-    'C:\\msys64\\usr\\bin\\bash.exe',
-    'C:\\msys32\\usr\\bin\\bash.exe',
-  ],
-};
+const pendingExitPromises = new Map<string, {
+  resolve: () => void;
+  timeoutId: NodeJS.Timeout;
+}>();
+
+/**
+ * Default timeouts for waiting for PTY exit (in milliseconds).
+ * Windows needs longer timeout due to slower process termination.
+ */
+const PTY_EXIT_TIMEOUT_WINDOWS = 2000;
+const PTY_EXIT_TIMEOUT_UNIX = 500;
+
+/**
+ * Wait for a PTY process to exit.
+ * Returns a promise that resolves when the PTY's onExit event fires.
+ * Has a timeout fallback in case the exit event never fires.
+ */
+export function waitForPtyExit(terminalId: string, timeoutMs?: number): Promise<void> {
+  const timeout = timeoutMs ?? (isWindows() ? PTY_EXIT_TIMEOUT_WINDOWS : PTY_EXIT_TIMEOUT_UNIX);
+
+  return new Promise<void>((resolve) => {
+    // Set up timeout fallback
+    const timeoutId = setTimeout(() => {
+      debugLog('[PtyManager] PTY exit timeout for terminal:', terminalId);
+      pendingExitPromises.delete(terminalId);
+      resolve();
+    }, timeout);
+
+    // Store the promise resolver
+    pendingExitPromises.set(terminalId, { resolve, timeoutId });
+  });
+}
 
 /**
  * Get the Windows shell executable based on preferred terminal setting
@@ -50,8 +62,9 @@ function getWindowsShell(preferredTerminal: SupportedTerminal | undefined): stri
     return process.env.COMSPEC || 'cmd.exe';
   }
 
-  // Check if we have paths defined for this terminal type
-  const paths = WINDOWS_SHELL_PATHS[preferredTerminal];
+  // Check if we have paths defined for this terminal type (from platform module)
+  const windowsShellPaths = getWindowsShellPaths();
+  const paths = windowsShellPaths[preferredTerminal];
   if (paths) {
     // Find the first existing shell
     for (const shellPath of paths) {
@@ -78,13 +91,13 @@ export function spawnPtyProcess(
   const settings = readSettingsFile();
   const preferredTerminal = settings?.preferredTerminal as SupportedTerminal | undefined;
 
-  const shell = process.platform === 'win32'
+  const shell = isWindows()
     ? getWindowsShell(preferredTerminal)
     : process.env.SHELL || '/bin/zsh';
 
-  const shellArgs = process.platform === 'win32' ? [] : ['-l'];
+  const shellArgs = isWindows() ? [] : ['-l'];
 
-  console.warn('[PtyManager] Spawning shell:', shell, shellArgs, '(preferred:', preferredTerminal || 'system', ')');
+  debugLog('[PtyManager] Spawning shell:', shell, shellArgs, '(preferred:', preferredTerminal || 'system', ')');
 
   // Create a clean environment without DEBUG to prevent Claude Code from
   // enabling debug mode when the Electron app is run in development mode.
@@ -137,7 +150,15 @@ export function setupPtyHandlers(
 
   // Handle terminal exit
   ptyProcess.onExit(({ exitCode }) => {
-    console.warn('[PtyManager] Terminal exited:', id, 'code:', exitCode);
+    debugLog('[PtyManager] Terminal exited:', id, 'code:', exitCode);
+
+    // Resolve any pending exit promise FIRST (before other cleanup)
+    const pendingExit = pendingExitPromises.get(id);
+    if (pendingExit) {
+      clearTimeout(pendingExit.timeoutId);
+      pendingExitPromises.delete(id);
+      pendingExit.resolve();
+    }
 
     const win = getWindow();
     if (win) {
@@ -147,15 +168,106 @@ export function setupPtyHandlers(
     // Call custom exit handler
     onExitCallback(terminal);
 
-    terminals.delete(id);
+    // Only delete if this is the SAME terminal object (not a newly created one with same ID).
+    // This prevents a race where destroyTerminal() awaits PTY exit, a new terminal is created
+    // with the same ID during the await, and then the old PTY's onExit deletes the new terminal.
+    if (terminals.get(id) === terminal) {
+      terminals.delete(id);
+    }
+  });
+}
+
+/**
+ * Constants for chunked write behavior
+ * CHUNKED_WRITE_THRESHOLD: Data larger than this (bytes) will be written in chunks
+ * CHUNK_SIZE: Size of each chunk - smaller chunks yield to event loop more frequently
+ */
+const CHUNKED_WRITE_THRESHOLD = 1000;
+const CHUNK_SIZE = 100;
+
+/**
+ * Write queue per terminal to prevent interleaving of concurrent writes.
+ * Maps terminal ID to the last write Promise in the queue.
+ */
+const pendingWrites = new Map<string, Promise<void>>();
+
+/**
+ * Internal function to perform the actual write (chunked or direct)
+ * Returns a Promise that resolves when the write is complete
+ */
+function performWrite(terminal: TerminalProcess, data: string): Promise<void> {
+  return new Promise((resolve) => {
+    // For large commands, write in chunks to prevent blocking
+    if (data.length > CHUNKED_WRITE_THRESHOLD) {
+      debugLog('[PtyManager:writeToPty] Large write detected, using chunked write');
+      let offset = 0;
+      let chunkNum = 0;
+
+      const writeChunk = () => {
+        // Check if terminal is still valid before writing
+        if (!terminal.pty) {
+          debugError('[PtyManager:writeToPty] Terminal PTY no longer valid, aborting chunked write');
+          resolve();
+          return;
+        }
+
+        if (offset >= data.length) {
+          debugLog('[PtyManager:writeToPty] Chunked write completed, total chunks:', chunkNum);
+          resolve();
+          return;
+        }
+
+        const chunk = data.slice(offset, offset + CHUNK_SIZE);
+        chunkNum++;
+        try {
+          terminal.pty.write(chunk);
+          offset += CHUNK_SIZE;
+          // Use setImmediate to yield to the event loop between chunks
+          setImmediate(writeChunk);
+        } catch (error) {
+          debugError('[PtyManager:writeToPty] Chunked write FAILED at chunk', chunkNum, ':', error);
+          resolve(); // Resolve anyway - fire-and-forget semantics
+        }
+      };
+
+      // Start the chunked write after yielding
+      setImmediate(writeChunk);
+    } else {
+      try {
+        terminal.pty.write(data);
+        debugLog('[PtyManager:writeToPty] Write completed successfully');
+      } catch (error) {
+        debugError('[PtyManager:writeToPty] Write FAILED:', error);
+      }
+      resolve();
+    }
   });
 }
 
 /**
  * Write data to a PTY process
+ * Uses setImmediate to prevent blocking the event loop on large writes.
+ * Serializes writes per terminal to prevent interleaving of concurrent writes.
  */
 export function writeToPty(terminal: TerminalProcess, data: string): void {
-  terminal.pty.write(data);
+  debugLog('[PtyManager:writeToPty] About to write to pty, data length:', data.length);
+
+  // Get the previous write Promise for this terminal (if any)
+  const previousWrite = pendingWrites.get(terminal.id) || Promise.resolve();
+
+  // Chain this write after the previous one completes
+  const currentWrite = previousWrite.then(() => performWrite(terminal, data));
+
+  // Update the pending write for this terminal
+  pendingWrites.set(terminal.id, currentWrite);
+
+  // Clean up the Map entry when done to prevent memory leaks
+  currentWrite.finally(() => {
+    // Only clean up if this is still the latest write
+    if (pendingWrites.get(terminal.id) === currentWrite) {
+      pendingWrites.delete(terminal.id);
+    }
+  });
 }
 
 /**
@@ -166,9 +278,30 @@ export function resizePty(terminal: TerminalProcess, cols: number, rows: number)
 }
 
 /**
- * Kill a PTY process
+ * Kill a PTY process.
+ * @param terminal The terminal process to kill
+ * @param waitForExit If true, returns a promise that resolves when the PTY exits.
+ *                    Used on Windows where PTY termination is async.
  */
-export function killPty(terminal: TerminalProcess): void {
+export function killPty(terminal: TerminalProcess, waitForExit: true): Promise<void>;
+export function killPty(terminal: TerminalProcess, waitForExit?: false): void;
+export function killPty(terminal: TerminalProcess, waitForExit?: boolean): Promise<void> | void {
+  if (waitForExit) {
+    const exitPromise = waitForPtyExit(terminal.id);
+    try {
+      terminal.pty.kill();
+    } catch (error) {
+      // Clean up the pending promise if kill() throws
+      const pending = pendingExitPromises.get(terminal.id);
+      if (pending) {
+        clearTimeout(pending.timeoutId);
+        pendingExitPromises.delete(terminal.id);
+        pending.resolve();
+      }
+      throw error;
+    }
+    return exitPromise;
+  }
   terminal.pty.kill();
 }
 

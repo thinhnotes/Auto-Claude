@@ -54,12 +54,25 @@ export const workspaceMock = {
     }
   }),
 
-  discardWorktree: async () => ({
+  createWorktreePR: async () => ({
+    success: true,
+    data: {
+      success: true,
+      prUrl: 'https://github.com/example/repo/pull/123'
+    }
+  }),
+
+  discardWorktree: async (_taskId: string, _skipStatusChange?: boolean) => ({
     success: true,
     data: {
       success: true,
       message: 'Worktree discarded successfully'
     }
+  }),
+
+  clearStagedState: async () => ({
+    success: true,
+    data: { cleared: true }
   }),
 
   listWorktrees: async () => ({

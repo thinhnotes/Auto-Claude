@@ -25,13 +25,31 @@ from typing import TYPE_CHECKING
 
 try:
     from .gh_client import GHClient, PRTooLargeError
+    from .services.io_utils import safe_print
 except (ImportError, ValueError, SystemError):
+    # Import from core.io_utils directly to avoid circular import with services package
+    # (services/__init__.py imports pr_review_engine which imports context_gatherer)
+    from core.io_utils import safe_print
     from gh_client import GHClient, PRTooLargeError
 
 # Validation patterns for git refs and paths (defense-in-depth)
 # These patterns allow common valid characters while rejecting potentially dangerous ones
 SAFE_REF_PATTERN = re.compile(r"^[a-zA-Z0-9._/\-]+$")
 SAFE_PATH_PATTERN = re.compile(r"^[a-zA-Z0-9._/\-@]+$")
+
+# Common config file names to search for in project directories
+# Used by both _find_config_files() and find_related_files_for_root()
+CONFIG_FILE_NAMES = [
+    "tsconfig.json",
+    "package.json",
+    "pyproject.toml",
+    "setup.py",
+    ".eslintrc",
+    ".prettierrc",
+    "jest.config.js",
+    "vitest.config.ts",
+    "vite.config.ts",
+]
 
 
 def _validate_git_ref(ref: str) -> bool:
@@ -232,11 +250,11 @@ class PRContextGatherer:
         Returns:
             PRContext with all necessary information for review
         """
-        print(f"[Context] Gathering context for PR #{self.pr_number}...", flush=True)
+        safe_print(f"[Context] Gathering context for PR #{self.pr_number}...")
 
         # Fetch basic PR metadata
         pr_data = await self._fetch_pr_metadata()
-        print(
+        safe_print(
             f"[Context] PR metadata: {pr_data['title']} by {pr_data['author']['login']}",
             flush=True,
         )
@@ -248,7 +266,7 @@ class PRContextGatherer:
         if head_sha and base_sha:
             refs_available = await self._ensure_pr_refs_available(head_sha, base_sha)
             if not refs_available:
-                print(
+                safe_print(
                     "[Context] Warning: Could not fetch PR refs locally. "
                     "Will use GitHub API patches as fallback.",
                     flush=True,
@@ -256,27 +274,27 @@ class PRContextGatherer:
 
         # Fetch changed files with content
         changed_files = await self._fetch_changed_files(pr_data)
-        print(f"[Context] Fetched {len(changed_files)} changed files", flush=True)
+        safe_print(f"[Context] Fetched {len(changed_files)} changed files")
 
         # Fetch full diff
         diff = await self._fetch_pr_diff()
-        print(f"[Context] Fetched diff: {len(diff)} chars", flush=True)
+        safe_print(f"[Context] Fetched diff: {len(diff)} chars")
 
         # Detect repo structure
         repo_structure = self._detect_repo_structure()
-        print("[Context] Detected repo structure", flush=True)
+        safe_print("[Context] Detected repo structure")
 
         # Find related files
         related_files = self._find_related_files(changed_files)
-        print(f"[Context] Found {len(related_files)} related files", flush=True)
+        safe_print(f"[Context] Found {len(related_files)} related files")
 
         # Fetch commits
         commits = await self._fetch_commits()
-        print(f"[Context] Fetched {len(commits)} commits", flush=True)
+        safe_print(f"[Context] Fetched {len(commits)} commits")
 
         # Fetch AI bot comments for triage
         ai_bot_comments = await self._fetch_ai_bot_comments()
-        print(f"[Context] Fetched {len(ai_bot_comments)} AI bot comments", flush=True)
+        safe_print(f"[Context] Fetched {len(ai_bot_comments)} AI bot comments")
 
         # Check if diff was truncated (empty diff but files were changed)
         diff_truncated = len(diff) == 0 and len(changed_files) > 0
@@ -287,7 +305,7 @@ class PRContextGatherer:
         has_merge_conflicts = mergeable == "CONFLICTING"
 
         if has_merge_conflicts:
-            print(
+            safe_print(
                 f"[Context] ⚠️  PR has merge conflicts (mergeStateStatus: {merge_state_status})",
                 flush=True,
             )
@@ -356,12 +374,12 @@ class PRContextGatherer:
         """
         # Validate SHAs before using in git commands
         if not _validate_git_ref(head_sha):
-            print(
+            safe_print(
                 f"[Context] Invalid head SHA rejected: {head_sha[:50]}...", flush=True
             )
             return False
         if not _validate_git_ref(base_sha):
-            print(
+            safe_print(
                 f"[Context] Invalid base SHA rejected: {base_sha[:50]}...", flush=True
             )
             return False
@@ -381,14 +399,14 @@ class PRContextGatherer:
             stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=30.0)
 
             if proc.returncode == 0:
-                print(
+                safe_print(
                     f"[Context] Fetched PR refs: base={base_sha[:8]} → head={head_sha[:8]}",
                     flush=True,
                 )
                 return True
             else:
                 # If direct SHA fetch fails, try fetching the PR ref
-                print("[Context] Direct SHA fetch failed, trying PR ref...", flush=True)
+                safe_print("[Context] Direct SHA fetch failed, trying PR ref...")
                 proc2 = await asyncio.create_subprocess_exec(
                     "git",
                     "fetch",
@@ -400,21 +418,21 @@ class PRContextGatherer:
                 )
                 await asyncio.wait_for(proc2.communicate(), timeout=30.0)
                 if proc2.returncode == 0:
-                    print(
+                    safe_print(
                         f"[Context] Fetched PR ref: refs/pr/{self.pr_number}",
                         flush=True,
                     )
                     return True
-                print(
+                safe_print(
                     f"[Context] Failed to fetch PR refs: {stderr.decode('utf-8')}",
                     flush=True,
                 )
                 return False
         except asyncio.TimeoutError:
-            print("[Context] Timeout fetching PR refs", flush=True)
+            safe_print("[Context] Timeout fetching PR refs")
             return False
         except Exception as e:
-            print(f"[Context] Error fetching PR refs: {e}", flush=True)
+            safe_print(f"[Context] Error fetching PR refs: {e}")
             return False
 
     async def _fetch_changed_files(self, pr_data: dict) -> list[ChangedFile]:
@@ -435,7 +453,7 @@ class PRContextGatherer:
             additions = file_info.get("additions", 0)
             deletions = file_info.get("deletions", 0)
 
-            print(f"[Context]   Processing {path} ({status})...", flush=True)
+            safe_print(f"[Context]   Processing {path} ({status})...")
 
             # Use commit SHAs if available (works for fork PRs), fallback to branch names
             head_ref = pr_data.get("headRefOid") or pr_data["headRefName"]
@@ -491,10 +509,10 @@ class PRContextGatherer:
         """
         # Validate inputs to prevent command injection
         if not _validate_file_path(path):
-            print(f"[Context] Invalid file path rejected: {path[:50]}...", flush=True)
+            safe_print(f"[Context] Invalid file path rejected: {path[:50]}...")
             return ""
         if not _validate_git_ref(ref):
-            print(f"[Context] Invalid git ref rejected: {ref[:50]}...", flush=True)
+            safe_print(f"[Context] Invalid git ref rejected: {ref[:50]}...")
             return ""
 
         try:
@@ -515,10 +533,10 @@ class PRContextGatherer:
 
             return stdout.decode("utf-8")
         except asyncio.TimeoutError:
-            print(f"[Context] Timeout reading {path} from {ref}", flush=True)
+            safe_print(f"[Context] Timeout reading {path} from {ref}")
             return ""
         except Exception as e:
-            print(f"[Context] Error reading {path} from {ref}: {e}", flush=True)
+            safe_print(f"[Context] Error reading {path} from {ref}: {e}")
             return ""
 
     async def _get_file_patch(self, path: str, base_ref: str, head_ref: str) -> str:
@@ -535,15 +553,15 @@ class PRContextGatherer:
         """
         # Validate inputs to prevent command injection
         if not _validate_file_path(path):
-            print(f"[Context] Invalid file path rejected: {path[:50]}...", flush=True)
+            safe_print(f"[Context] Invalid file path rejected: {path[:50]}...")
             return ""
         if not _validate_git_ref(base_ref):
-            print(
+            safe_print(
                 f"[Context] Invalid base ref rejected: {base_ref[:50]}...", flush=True
             )
             return ""
         if not _validate_git_ref(head_ref):
-            print(
+            safe_print(
                 f"[Context] Invalid head ref rejected: {head_ref[:50]}...", flush=True
             )
             return ""
@@ -563,7 +581,7 @@ class PRContextGatherer:
             stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=10.0)
 
             if proc.returncode != 0:
-                print(
+                safe_print(
                     f"[Context] Failed to get patch for {path}: {stderr.decode('utf-8')}",
                     flush=True,
                 )
@@ -571,10 +589,10 @@ class PRContextGatherer:
 
             return stdout.decode("utf-8")
         except asyncio.TimeoutError:
-            print(f"[Context] Timeout getting patch for {path}", flush=True)
+            safe_print(f"[Context] Timeout getting patch for {path}")
             return ""
         except Exception as e:
-            print(f"[Context] Error getting patch for {path}: {e}", flush=True)
+            safe_print(f"[Context] Error getting patch for {path}: {e}")
             return ""
 
     async def _fetch_pr_diff(self) -> str:
@@ -587,8 +605,8 @@ class PRContextGatherer:
         try:
             return await self.gh_client.pr_diff(self.pr_number)
         except PRTooLargeError as e:
-            print(f"[Context] Warning: {str(e)}", flush=True)
-            print(
+            safe_print(f"[Context] Warning: {str(e)}")
+            safe_print(
                 "[Context] Skipping full diff - will use individual file patches",
                 flush=True,
             )
@@ -630,7 +648,7 @@ class PRContextGatherer:
                     ai_comments.append(ai_comment)
 
         except Exception as e:
-            print(f"[Context] Error fetching AI bot comments: {e}", flush=True)
+            safe_print(f"[Context] Error fetching AI bot comments: {e}")
 
         return ai_comments
 
@@ -698,7 +716,7 @@ class PRContextGatherer:
                 return json.loads(result.stdout)
             return []
         except Exception as e:
-            print(f"[Context] Error fetching review comments: {e}", flush=True)
+            safe_print(f"[Context] Error fetching review comments: {e}")
             return []
 
     async def _fetch_pr_issue_comments(self) -> list[dict]:
@@ -717,7 +735,7 @@ class PRContextGatherer:
                 return json.loads(result.stdout)
             return []
         except Exception as e:
-            print(f"[Context] Error fetching issue comments: {e}", flush=True)
+            safe_print(f"[Context] Error fetching issue comments: {e}")
             return []
 
     def _detect_repo_structure(self) -> str:
@@ -938,20 +956,8 @@ class PRContextGatherer:
 
     def _find_config_files(self, directory: Path) -> set[str]:
         """Find configuration files in a directory."""
-        config_names = [
-            "tsconfig.json",
-            "package.json",
-            "pyproject.toml",
-            "setup.py",
-            ".eslintrc",
-            ".prettierrc",
-            "jest.config.js",
-            "vitest.config.ts",
-            "vite.config.ts",
-        ]
-
         found = set()
-        for name in config_names:
+        for name in CONFIG_FILE_NAMES:
             config_path = directory / name
             full_path = self.project_dir / config_path
             if full_path.exists() and full_path.is_file():
@@ -969,6 +975,68 @@ class PRContextGatherer:
             return {str(type_def)}
 
         return set()
+
+    @staticmethod
+    def find_related_files_for_root(
+        changed_files: list[ChangedFile],
+        project_root: Path,
+    ) -> list[str]:
+        """
+        Find files related to the changes using a specific project root.
+
+        This static method allows finding related files AFTER a worktree
+        has been created, ensuring files exist in the worktree filesystem.
+
+        Args:
+            changed_files: List of changed files from the PR
+            project_root: Path to search for related files (e.g., worktree path)
+
+        Returns:
+            List of related file paths (relative to project root)
+        """
+        related: set[str] = set()
+
+        for changed_file in changed_files:
+            path = Path(changed_file.path)
+
+            # Find test files
+            test_patterns = [
+                # Jest/Vitest patterns
+                path.parent / f"{path.stem}.test{path.suffix}",
+                path.parent / f"{path.stem}.spec{path.suffix}",
+                path.parent / "__tests__" / f"{path.name}",
+                # Python patterns
+                path.parent / f"test_{path.stem}.py",
+                path.parent / f"{path.stem}_test.py",
+                # Go patterns
+                path.parent / f"{path.stem}_test.go",
+            ]
+
+            for test_path in test_patterns:
+                full_path = project_root / test_path
+                if full_path.exists() and full_path.is_file():
+                    related.add(str(test_path))
+
+            # Find config files in same directory
+            for name in CONFIG_FILE_NAMES:
+                config_path = path.parent / name
+                full_path = project_root / config_path
+                if full_path.exists() and full_path.is_file():
+                    related.add(str(config_path))
+
+            # Find type definition files
+            if path.suffix in [".ts", ".tsx"]:
+                type_def = path.parent / f"{path.stem}.d.ts"
+                full_path = project_root / type_def
+                if full_path.exists() and full_path.is_file():
+                    related.add(str(type_def))
+
+        # Remove files that are already in changed_files
+        changed_paths = {cf.path for cf in changed_files}
+        related = {r for r in related if r not in changed_paths}
+
+        # Limit to 20 most relevant files
+        return sorted(related)[:20]
 
 
 class FollowupContextGatherer:
@@ -1015,7 +1083,7 @@ class FollowupContextGatherer:
         previous_sha = self.previous_review.reviewed_commit_sha
 
         if not previous_sha:
-            print(
+            safe_print(
                 "[Followup] No reviewed_commit_sha in previous review, cannot gather incremental context",
                 flush=True,
             )
@@ -1026,7 +1094,7 @@ class FollowupContextGatherer:
                 current_commit_sha="",
             )
 
-        print(
+        safe_print(
             f"[Followup] Gathering context since commit {previous_sha[:8]}...",
             flush=True,
         )
@@ -1035,7 +1103,7 @@ class FollowupContextGatherer:
         current_sha = await self.gh_client.get_pr_head_sha(self.pr_number)
 
         if not current_sha:
-            print("[Followup] Could not fetch current HEAD SHA", flush=True)
+            safe_print("[Followup] Could not fetch current HEAD SHA")
             return FollowupReviewContext(
                 pr_number=self.pr_number,
                 previous_review=self.previous_review,
@@ -1044,7 +1112,7 @@ class FollowupContextGatherer:
             )
 
         if previous_sha == current_sha:
-            print("[Followup] No new commits since last review", flush=True)
+            safe_print("[Followup] No new commits since last review")
             return FollowupReviewContext(
                 pr_number=self.pr_number,
                 previous_review=self.previous_review,
@@ -1052,7 +1120,7 @@ class FollowupContextGatherer:
                 current_commit_sha=current_sha,
             )
 
-        print(
+        safe_print(
             f"[Followup] Comparing {previous_sha[:8]}...{current_sha[:8]}", flush=True
         )
 
@@ -1065,29 +1133,29 @@ class FollowupContextGatherer:
             pr_files, new_commits = await self.gh_client.get_pr_files_changed_since(
                 self.pr_number, previous_sha, reviewed_file_blobs=reviewed_file_blobs
             )
-            print(
+            safe_print(
                 f"[Followup] PR has {len(pr_files)} files, "
                 f"{len(new_commits)} commits since last review"
                 + (" (blob comparison used)" if reviewed_file_blobs else ""),
                 flush=True,
             )
         except Exception as e:
-            print(f"[Followup] Error getting PR files/commits: {e}", flush=True)
+            safe_print(f"[Followup] Error getting PR files/commits: {e}")
             # Fallback to compare_commits if PR endpoints fail
-            print("[Followup] Falling back to commit comparison...", flush=True)
+            safe_print("[Followup] Falling back to commit comparison...")
             try:
                 comparison = await self.gh_client.compare_commits(
                     previous_sha, current_sha
                 )
                 new_commits = comparison.get("commits", [])
                 pr_files = comparison.get("files", [])
-                print(
+                safe_print(
                     f"[Followup] Fallback: Found {len(new_commits)} commits, "
                     f"{len(pr_files)} files (may include merge-introduced changes)",
                     flush=True,
                 )
             except Exception as e2:
-                print(f"[Followup] Fallback also failed: {e2}", flush=True)
+                safe_print(f"[Followup] Fallback also failed: {e2}")
                 return FollowupReviewContext(
                     pr_number=self.pr_number,
                     previous_review=self.previous_review,
@@ -1099,7 +1167,7 @@ class FollowupContextGatherer:
         # Use PR files as the canonical list (excludes files from merged branches)
         commits = new_commits
         files = pr_files
-        print(
+        safe_print(
             f"[Followup] Found {len(commits)} new commits, {len(files)} changed files",
             flush=True,
         )
@@ -1123,7 +1191,7 @@ class FollowupContextGatherer:
                 self.pr_number, self.previous_review.reviewed_at
             )
         except Exception as e:
-            print(f"[Followup] Error fetching comments: {e}", flush=True)
+            safe_print(f"[Followup] Error fetching comments: {e}")
             comments = {"review_comments": [], "issue_comments": []}
 
         # Get formal PR reviews since last review (from Cursor, CodeRabbit, etc.)
@@ -1132,7 +1200,7 @@ class FollowupContextGatherer:
                 self.pr_number, self.previous_review.reviewed_at
             )
         except Exception as e:
-            print(f"[Followup] Error fetching PR reviews: {e}", flush=True)
+            safe_print(f"[Followup] Error fetching PR reviews: {e}")
             pr_reviews = []
 
         # Separate AI bot comments from contributor comments
@@ -1179,7 +1247,7 @@ class FollowupContextGatherer:
             contributor_reviews
         )
 
-        print(
+        safe_print(
             f"[Followup] Found {total_contributor_feedback} contributor feedback "
             f"({len(contributor_comments)} comments, {len(contributor_reviews)} reviews), "
             f"{total_ai_feedback} AI feedback "
@@ -1200,12 +1268,12 @@ class FollowupContextGatherer:
             has_merge_conflicts = mergeable == "CONFLICTING"
 
             if has_merge_conflicts:
-                print(
+                safe_print(
                     f"[Followup] ⚠️  PR has merge conflicts (mergeStateStatus: {merge_state_status})",
                     flush=True,
                 )
         except Exception as e:
-            print(f"[Followup] Could not fetch merge status: {e}", flush=True)
+            safe_print(f"[Followup] Could not fetch merge status: {e}")
 
         return FollowupReviewContext(
             pr_number=self.pr_number,

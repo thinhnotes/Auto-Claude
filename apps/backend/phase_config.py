@@ -47,7 +47,7 @@ THINKING_BUDGET_MAP: dict[str, int | None] = {
     "low": 1024,
     "medium": 4096,  # Moderate analysis
     "high": 16384,  # Deep thinking for QA review
-    "ultrathink": 65536,  # Maximum reasoning depth
+    "ultrathink": 60000,  # Maximum reasoning depth (must be < Opus 4.5's 64000 limit)
 }
 
 # Spec runner phase-specific thinking levels
@@ -124,20 +124,22 @@ def resolve_model_id(model: str) -> str:
     3. MODEL_ID_MAP mapping
     4. Pass through unchanged (assume full model ID)
 
+    Priority:
+    1. Environment variable override (from API Profile)
+    2. Hardcoded MODEL_ID_MAP
+    3. Pass through unchanged (assume full model ID)
+
     Args:
         model: Model shorthand or full ID
 
     Returns:
         Full Claude model ID
     """
-    # MODEL_ID_MAP already includes env var overrides from module initialization
+    # Check for environment variable override (from API Profile custom model mappings)
     if model in MODEL_ID_MAP:
-        resolved = MODEL_ID_MAP[model]
-        _logger.info(f"[resolve_model_id] '{model}' -> '{resolved}' (from MODEL_ID_MAP)")
-        return resolved
+        return MODEL_ID_MAP[model]
 
     # Already a full model ID or unknown shorthand
-    _logger.info(f"[resolve_model_id] '{model}' passed through unchanged")
     return model
 
 

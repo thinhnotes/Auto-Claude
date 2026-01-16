@@ -1,26 +1,4 @@
-// Load .env file FIRST before any other imports that might use process.env
-import { config } from 'dotenv';
-import { resolve, dirname } from 'path';
-import { existsSync } from 'fs';
-
-// Load .env from apps/frontend directory
-// In development: __dirname is out/main (compiled), so go up 2 levels
-// In production: app resources directory
-const possibleEnvPaths = [
-  resolve(__dirname, '../../.env'),           // Development: out/main -> apps/frontend/.env
-  resolve(__dirname, '../../../.env'),        // Alternative: might be in different location
-  resolve(process.cwd(), 'apps/frontend/.env'), // Fallback: from workspace root
-];
-
-for (const envPath of possibleEnvPaths) {
-  if (existsSync(envPath)) {
-    config({ path: envPath });
-    console.log(`[dotenv] Loaded environment from: ${envPath}`);
-    break;
-  }
-}
-
-import { app, BrowserWindow, shell, nativeImage, session, screen } from 'electron';
+import { app, BrowserWindow, shell, nativeImage } from 'electron';
 import { join } from 'path';
 import { accessSync, readFileSync, writeFileSync, rmSync } from 'fs';
 import { electronApp, optimizer, is } from '@electron-toolkit/utils';
@@ -367,16 +345,43 @@ app.whenReady().then(() => {
     });
   });
 
-  // Initialize usage monitoring after window is created
+  // Pre-warm CLI tool cache in background (non-blocking)
+  // This ensures CLI detection is done before user needs it
+  // Include all commonly used tools to prevent sync blocking on first use
+  setImmediate(() => {
+    preWarmToolCache(['claude', 'git', 'gh', 'python']).catch((error) => {
+      console.warn('[main] Failed to pre-warm CLI cache:', error);
+    });
+  });
+
+  // Initialize Claude profile manager, then start usage monitor
+  // We do this sequentially to ensure profile data (including auto-switch settings)
+  // is loaded BEFORE the usage monitor attempts to read settings.
+  // This prevents the "UsageMonitor disabled" error due to race condition.
+  initializeClaudeProfileManager()
+    .then(() => {
+      // Only start monitoring if window is still available (app not quitting)
+      if (mainWindow) {
+        // Setup event forwarding from usage monitor to renderer
+        initializeUsageMonitorForwarding(mainWindow);
+
+        // Start the usage monitor
+        const usageMonitor = getUsageMonitor();
+        usageMonitor.start();
+        console.warn('[main] Usage monitor initialized and started (after profile load)');
+      }
+    })
+    .catch((error) => {
+      console.warn('[main] Failed to initialize profile manager:', error);
+      // Fallback: try starting usage monitor anyway (might use defaults)
+      if (mainWindow) {
+        initializeUsageMonitorForwarding(mainWindow);
+        const usageMonitor = getUsageMonitor();
+        usageMonitor.start();
+      }
+    });
+
   if (mainWindow) {
-    // Setup event forwarding from usage monitor to renderer
-    initializeUsageMonitorForwarding(mainWindow);
-
-    // Start the usage monitor
-    const usageMonitor = getUsageMonitor();
-    usageMonitor.start();
-    console.warn('[main] Usage monitor initialized and started');
-
     // Log debug mode status
     const isDebugMode = process.env.DEBUG === 'true';
     if (isDebugMode) {

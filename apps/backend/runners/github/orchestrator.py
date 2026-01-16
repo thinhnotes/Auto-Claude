@@ -24,6 +24,8 @@ try:
     from .context_gatherer import PRContext, PRContextGatherer
     from .gh_client import GHClient
     from .models import (
+        BRANCH_BEHIND_BLOCKER_MSG,
+        BRANCH_BEHIND_REASONING,
         AICommentTriage,
         AICommentVerdict,
         AutoFixState,
@@ -44,12 +46,15 @@ try:
         PRReviewEngine,
         TriageEngine,
     )
+    from .services.io_utils import safe_print
 except (ImportError, ValueError, SystemError):
     # When imported directly (runner.py adds github dir to path)
     from bot_detection import BotDetector
     from context_gatherer import PRContext, PRContextGatherer
     from gh_client import GHClient
     from models import (
+        BRANCH_BEHIND_BLOCKER_MSG,
+        BRANCH_BEHIND_REASONING,
         AICommentTriage,
         AICommentVerdict,
         AutoFixState,
@@ -70,6 +75,7 @@ except (ImportError, ValueError, SystemError):
         PRReviewEngine,
         TriageEngine,
     )
+    from services.io_utils import safe_print
 
 
 @dataclass
@@ -263,12 +269,12 @@ class GitHubOrchestrator:
                     comment_id=triage.comment_id,
                     body=triage.response_comment,
                 )
-                print(
+                safe_print(
                     f"[AI TRIAGE] Posted reply to {triage.tool_name} comment {triage.comment_id}",
                     flush=True,
                 )
             except Exception as e:
-                print(
+                safe_print(
                     f"[AI TRIAGE] Failed to post reply to comment {triage.comment_id}: {e}",
                     flush=True,
                 )
@@ -291,7 +297,7 @@ class GitHubOrchestrator:
         Returns:
             PRReviewResult with findings and overall assessment
         """
-        print(
+        safe_print(
             f"[DEBUG orchestrator] review_pr() called for PR #{pr_number}", flush=True
         )
 
@@ -304,14 +310,14 @@ class GitHubOrchestrator:
 
         try:
             # Gather PR context
-            print("[DEBUG orchestrator] Creating context gatherer...", flush=True)
+            safe_print("[DEBUG orchestrator] Creating context gatherer...")
             gatherer = PRContextGatherer(
                 self.project_dir, pr_number, repo=self.config.repo
             )
 
-            print("[DEBUG orchestrator] Gathering PR context...", flush=True)
+            safe_print("[DEBUG orchestrator] Gathering PR context...")
             pr_context = await gatherer.gather()
-            print(
+            safe_print(
                 f"[DEBUG orchestrator] Context gathered: {pr_context.title} "
                 f"({len(pr_context.changed_files)} files, {len(pr_context.related_files)} related)",
                 flush=True,
@@ -327,14 +333,14 @@ class GitHubOrchestrator:
 
             # Allow forcing a review to bypass "already reviewed" check
             if should_skip and force_review and "Already reviewed" in skip_reason:
-                print(
+                safe_print(
                     f"[BOT DETECTION] Force review requested - bypassing: {skip_reason}",
                     flush=True,
                 )
                 should_skip = False
 
             if should_skip:
-                print(
+                safe_print(
                     f"[BOT DETECTION] Skipping PR #{pr_number}: {skip_reason}",
                     flush=True,
                 )
@@ -344,7 +350,7 @@ class GitHubOrchestrator:
                 if "Already reviewed" in skip_reason:
                     existing_review = PRReviewResult.load(self.github_dir, pr_number)
                     if existing_review:
-                        print(
+                        safe_print(
                             "[BOT DETECTION] Returning existing review (no new commits)",
                             flush=True,
                         )
@@ -369,14 +375,14 @@ class GitHubOrchestrator:
             )
 
             # Delegate to PR Review Engine
-            print("[DEBUG orchestrator] Running multi-pass review...", flush=True)
+            safe_print("[DEBUG orchestrator] Running multi-pass review...")
             (
                 findings,
                 structural_issues,
                 ai_triages,
                 quick_scan,
             ) = await self.pr_review_engine.run_multi_pass_review(pr_context)
-            print(
+            safe_print(
                 f"[DEBUG orchestrator] Multi-pass review complete: "
                 f"{len(findings)} findings, {len(structural_issues)} structural, {len(ai_triages)} AI triages",
                 flush=True,
@@ -403,12 +409,12 @@ class GitHubOrchestrator:
                 ci_log_parts.append(f"{pending_without_awaiting} pending")
             if awaiting > 0:
                 ci_log_parts.append(f"{awaiting} awaiting approval")
-            print(
+            safe_print(
                 f"[orchestrator] CI status: {', '.join(ci_log_parts)}",
                 flush=True,
             )
             if awaiting > 0:
-                print(
+                safe_print(
                     f"[orchestrator] ⚠️ {awaiting} workflow(s) from fork need maintainer approval to run",
                     flush=True,
                 )
@@ -420,8 +426,9 @@ class GitHubOrchestrator:
                 ai_triages,
                 ci_status,
                 has_merge_conflicts=pr_context.has_merge_conflicts,
+                merge_state_status=pr_context.merge_state_status,
             )
-            print(
+            safe_print(
                 f"[DEBUG orchestrator] Verdict: {verdict.value} - {verdict_reasoning}",
                 flush=True,
             )
@@ -466,12 +473,12 @@ class GitHubOrchestrator:
                     blob_sha = file.get("sha", "")
                     if filename and blob_sha:
                         file_blobs[filename] = blob_sha
-                print(
+                safe_print(
                     f"[Review] Captured {len(file_blobs)} file blob SHAs for follow-up tracking",
                     flush=True,
                 )
             except Exception as e:
-                print(
+                safe_print(
                     f"[Review] Warning: Could not capture file blobs: {e}", flush=True
                 )
 
@@ -539,11 +546,11 @@ class GitHubOrchestrator:
             # Log full exception details for debugging
             error_details = f"{type(e).__name__}: {e}"
             full_traceback = traceback.format_exc()
-            print(
+            safe_print(
                 f"[ERROR orchestrator] PR review failed for #{pr_number}: {error_details}",
                 flush=True,
             )
-            print(f"[ERROR orchestrator] Full traceback:\n{full_traceback}", flush=True)
+            safe_print(f"[ERROR orchestrator] Full traceback:\n{full_traceback}")
 
             result = PRReviewResult(
                 pr_number=pr_number,
@@ -572,7 +579,7 @@ class GitHubOrchestrator:
         Raises:
             ValueError: If no previous review exists for this PR
         """
-        print(
+        safe_print(
             f"[DEBUG orchestrator] followup_review_pr() called for PR #{pr_number}",
             flush=True,
         )
@@ -617,7 +624,7 @@ class GitHubOrchestrator:
 
             # Check if context gathering failed
             if followup_context.error:
-                print(
+                safe_print(
                     f"[Followup] Context gathering failed: {followup_context.error}",
                     flush=True,
                 )
@@ -646,29 +653,165 @@ class GitHubOrchestrator:
             has_commits = bool(followup_context.commits_since_review)
             has_file_changes = bool(followup_context.files_changed_since_review)
 
+            # ALWAYS fetch current CI status to detect CI recovery
+            # This must happen BEFORE the early return check to avoid stale CI verdicts
+            ci_status = await self.gh_client.get_pr_checks_comprehensive(pr_number)
+            followup_context.ci_status = ci_status
+
             if not has_commits and not has_file_changes:
                 base_sha = previous_review.reviewed_commit_sha[:8]
-                print(
+
+                # Check if CI status has changed since last review
+                # If CI was failing before but now passes, we need to update the verdict
+                current_failing = ci_status.get("failing", 0)
+                current_awaiting = ci_status.get("awaiting_approval", 0)
+
+                # Helper to detect CI-related blockers (includes workflows pending)
+                def is_ci_blocker(b: str) -> bool:
+                    return b.startswith("CI Failed:") or b.startswith(
+                        "Workflows Pending:"
+                    )
+
+                previous_blockers = getattr(previous_review, "blockers", [])
+                previous_was_blocked_by_ci = (
+                    previous_review.verdict == MergeVerdict.BLOCKED
+                    and any(is_ci_blocker(b) for b in previous_blockers)
+                )
+
+                # Determine the appropriate verdict based on current CI status
+                # CI/Workflow status check (both block merging)
+                ci_or_workflow_blocking = current_failing > 0 or current_awaiting > 0
+
+                if ci_or_workflow_blocking:
+                    # CI is still failing or workflows pending - keep blocked verdict
+                    updated_verdict = MergeVerdict.BLOCKED
+                    if current_failing > 0:
+                        updated_reasoning = (
+                            f"No code changes since last review. "
+                            f"{current_failing} CI check(s) still failing."
+                        )
+                        failed_checks = ci_status.get("failed_checks", [])
+                        ci_note = (
+                            f" Failing: {', '.join(failed_checks)}"
+                            if failed_checks
+                            else ""
+                        )
+                        no_change_summary = (
+                            f"No new commits since last review. "
+                            f"CI status: {current_failing} check(s) failing.{ci_note}"
+                        )
+                    else:
+                        updated_reasoning = (
+                            f"No code changes since last review. "
+                            f"{current_awaiting} workflow(s) awaiting approval."
+                        )
+                        no_change_summary = (
+                            f"No new commits since last review. "
+                            f"{current_awaiting} workflow(s) awaiting maintainer approval."
+                        )
+                elif previous_was_blocked_by_ci and not ci_or_workflow_blocking:
+                    # CI/Workflows have recovered! Update verdict to reflect this
+                    safe_print(
+                        "[Followup] CI recovered - updating verdict from BLOCKED",
+                        flush=True,
+                    )
+                    # Check for remaining non-CI blockers (use helper defined above)
+                    non_ci_blockers = [
+                        b for b in previous_blockers if not is_ci_blocker(b)
+                    ]
+
+                    # Determine verdict based on findings AND remaining blockers
+                    if non_ci_blockers:
+                        # There are still non-CI blockers - stay blocked
+                        updated_verdict = MergeVerdict.BLOCKED
+                        updated_reasoning = (
+                            "CI checks now passing. Non-CI blockers still remain: "
+                            + ", ".join(non_ci_blockers[:3])
+                        )
+                    elif previous_review.findings:
+                        # Check finding severity - only low severity is non-blocking
+                        findings = previous_review.findings
+                        high_medium = [
+                            f
+                            for f in findings
+                            if f.severity
+                            in (
+                                ReviewSeverity.HIGH,
+                                ReviewSeverity.MEDIUM,
+                                ReviewSeverity.CRITICAL,
+                            )
+                        ]
+                        if high_medium:
+                            # There are blocking findings - needs revision
+                            updated_verdict = MergeVerdict.NEEDS_REVISION
+                            updated_reasoning = f"CI checks now passing. {len(high_medium)} code finding(s) still require attention."
+                        else:
+                            # Only low-severity findings - safe to merge
+                            updated_verdict = MergeVerdict.READY_TO_MERGE
+                            updated_reasoning = f"CI checks now passing. {len(findings)} non-blocking suggestion(s) to consider."
+                    else:
+                        updated_verdict = MergeVerdict.READY_TO_MERGE
+                        updated_reasoning = (
+                            "CI checks now passing. No outstanding code issues."
+                        )
+                    no_change_summary = (
+                        "No new commits since last review. "
+                        "CI checks are now passing. Previous findings still apply."
+                    )
+                else:
+                    # No CI-related changes, keep previous verdict
+                    updated_verdict = previous_review.verdict
+                    updated_reasoning = "No changes since last review."
+                    no_change_summary = "No new commits since last review. Previous findings still apply."
+
+                safe_print(
                     f"[Followup] No changes since last review at {base_sha}",
                     flush=True,
                 )
-                # Return a result indicating no changes
-                no_change_summary = (
-                    "No new commits since last review. Previous findings still apply."
-                )
+
+                # Build blockers list - always filter out CI blockers first, then add current
+                blockers = list(previous_blockers)
+                # Remove ALL CI-related blockers (CI Failed + Workflows Pending)
+                blockers = [b for b in blockers if not is_ci_blocker(b)]
+
+                # Add back only currently failing CI checks
+                if current_failing > 0:
+                    failed_checks = ci_status.get("failed_checks", [])
+                    for check_name in failed_checks:
+                        blocker_msg = f"CI Failed: {check_name}"
+                        if blocker_msg not in blockers:
+                            blockers.append(blocker_msg)
+
+                # Add back workflows pending if any
+                if current_awaiting > 0:
+                    blocker_msg = f"Workflows Pending: {current_awaiting} workflow(s) awaiting maintainer approval"
+                    if blocker_msg not in blockers:
+                        blockers.append(blocker_msg)
+
+                # Map verdict to overall_status (consistent with rest of codebase)
+                if updated_verdict == MergeVerdict.BLOCKED:
+                    overall_status = "request_changes"
+                elif updated_verdict == MergeVerdict.NEEDS_REVISION:
+                    overall_status = "request_changes"
+                elif updated_verdict == MergeVerdict.MERGE_WITH_CHANGES:
+                    overall_status = "comment"
+                else:
+                    overall_status = "approve"
+
                 result = PRReviewResult(
                     pr_number=pr_number,
                     repo=self.config.repo,
                     success=True,
                     findings=previous_review.findings,
                     summary=no_change_summary,
-                    overall_status=previous_review.overall_status,
-                    verdict=previous_review.verdict,
-                    verdict_reasoning="No changes since last review.",
+                    overall_status=overall_status,
+                    verdict=updated_verdict,
+                    verdict_reasoning=updated_reasoning,
                     reviewed_commit_sha=followup_context.current_commit_sha
                     or previous_review.reviewed_commit_sha,
                     is_followup_review=True,
                     unresolved_findings=[f.id for f in previous_review.findings],
+                    blockers=blockers,
                 )
                 await result.save(self.github_dir)
                 return result
@@ -689,13 +832,12 @@ class GitHubOrchestrator:
                 pr_number=pr_number,
             )
 
-            # Fetch CI status BEFORE calling reviewer so AI can factor it into verdict
-            ci_status = await self.gh_client.get_pr_checks_comprehensive(pr_number)
-            followup_context.ci_status = ci_status
+            # CI status already fetched above (before early return check)
+            # followup_context.ci_status is already populated
 
             # Use parallel orchestrator for follow-up if enabled
             if self.config.use_parallel_orchestrator:
-                print(
+                safe_print(
                     "[AI] Using parallel orchestrator for follow-up review (SDK subagents)...",
                     flush=True,
                 )
@@ -741,7 +883,7 @@ class GitHubOrchestrator:
             # (CI status was already passed to AI via followup_context.ci_status)
             failed_checks = followup_context.ci_status.get("failed_checks", [])
             if failed_checks:
-                print(
+                safe_print(
                     f"[Followup] CI checks failing: {failed_checks}",
                     flush=True,
                 )
@@ -802,6 +944,7 @@ class GitHubOrchestrator:
         ai_triages: list[AICommentTriage],
         ci_status: dict | None = None,
         has_merge_conflicts: bool = False,
+        merge_state_status: str = "",
     ) -> tuple[MergeVerdict, str, list[str]]:
         """
         Generate merge verdict based on all findings, CI status, and merge conflicts.
@@ -811,9 +954,22 @@ class GitHubOrchestrator:
         - Verification failures
         - Redundancy issues
         - Failing CI checks
+
+        Warns on (NEEDS_REVISION):
+        - Branch behind base (out of date)
         """
         blockers = []
         ci_status = ci_status or {}
+        is_branch_behind = merge_state_status == "BEHIND"
+
+        # CRITICAL: Merge conflicts block merging - check first
+        if has_merge_conflicts:
+            blockers.append(
+                "Merge Conflicts: PR has conflicts with base branch that must be resolved"
+            )
+        # Branch behind base is a warning, not a hard blocker
+        elif is_branch_behind:
+            blockers.append(BRANCH_BEHIND_BLOCKER_MSG)
 
         # CRITICAL: Merge conflicts block merging - check first
         if has_merge_conflicts:
@@ -944,6 +1100,21 @@ class GitHubOrchestrator:
             elif len(critical) > 0:
                 verdict = MergeVerdict.BLOCKED
                 reasoning = f"Blocked by {len(critical)} critical issues"
+            # Branch behind is a soft blocker - NEEDS_REVISION, not BLOCKED
+            elif is_branch_behind:
+                verdict = MergeVerdict.NEEDS_REVISION
+                if high or medium:
+                    # Branch behind + code issues that need addressing
+                    total = len(high) + len(medium)
+                    reasoning = (
+                        f"{BRANCH_BEHIND_REASONING} "
+                        f"{total} issue(s) must be addressed ({len(high)} required, {len(medium)} recommended)."
+                    )
+                else:
+                    # Just branch behind, no code issues
+                    reasoning = BRANCH_BEHIND_REASONING
+                if low:
+                    reasoning += f" {len(low)} non-blocking suggestion(s) to consider."
             else:
                 verdict = MergeVerdict.NEEDS_REVISION
                 reasoning = f"{len(blockers)} issues must be addressed"
@@ -1240,7 +1411,7 @@ class GitHubOrchestrator:
                         issue["number"], result.labels_to_remove
                     )
                 except Exception as e:
-                    print(f"Failed to apply labels to #{issue['number']}: {e}")
+                    safe_print(f"Failed to apply labels to #{issue['number']}: {e}")
 
             # Save result
             await result.save(self.github_dir)

@@ -27,10 +27,12 @@ from claude_agent_sdk import AgentDefinition
 
 try:
     from ...core.client import create_client
-    from ...phase_config import get_thinking_budget
-    from ..context_gatherer import PRContext, _validate_git_ref
+    from ...phase_config import get_thinking_budget, resolve_model_id
+    from ..context_gatherer import PRContext, PRContextGatherer, _validate_git_ref
     from ..gh_client import GHClient
     from ..models import (
+        BRANCH_BEHIND_BLOCKER_MSG,
+        BRANCH_BEHIND_REASONING,
         GitHubRunnerConfig,
         MergeVerdict,
         PRReviewFinding,
@@ -38,22 +40,26 @@ try:
         ReviewSeverity,
     )
     from .category_utils import map_category
+    from .io_utils import safe_print
     from .pr_worktree_manager import PRWorktreeManager
     from .pydantic_models import ParallelOrchestratorResponse
     from .sdk_utils import process_sdk_stream
 except (ImportError, ValueError, SystemError):
-    from context_gatherer import PRContext, _validate_git_ref
+    from context_gatherer import PRContext, PRContextGatherer, _validate_git_ref
     from core.client import create_client
     from gh_client import GHClient
     from models import (
+        BRANCH_BEHIND_BLOCKER_MSG,
+        BRANCH_BEHIND_REASONING,
         GitHubRunnerConfig,
         MergeVerdict,
         PRReviewFinding,
         PRReviewResult,
         ReviewSeverity,
     )
-    from phase_config import get_thinking_budget
+    from phase_config import get_thinking_budget, resolve_model_id
     from services.category_utils import map_category
+    from services.io_utils import safe_print
     from services.pr_worktree_manager import PRWorktreeManager
     from services.pydantic_models import ParallelOrchestratorResponse
     from services.sdk_utils import process_sdk_stream
@@ -269,19 +275,35 @@ class ParallelOrchestratorReviewer:
         if len(diff_content) > MAX_DIFF_CHARS:
             diff_content = diff_content[:MAX_DIFF_CHARS] + "\n\n... (diff truncated)"
 
-        # Build AI comments context if present
+        # Build AI comments context if present (with timestamps for timeline awareness)
         ai_comments_section = ""
         if context.ai_bot_comments:
             ai_comments_list = []
             for comment in context.ai_bot_comments[:20]:
                 ai_comments_list.append(
-                    f"- **{comment.tool_name}** on {comment.file or 'general'}: "
+                    f"- **{comment.tool_name}** ({comment.created_at}) on {comment.file or 'general'}: "
                     f"{comment.body[:200]}..."
                 )
             ai_comments_section = f"""
 ### AI Review Comments (need triage)
-Found {len(context.ai_bot_comments)} comments from AI tools:
+Found {len(context.ai_bot_comments)} comments from AI tools.
+**IMPORTANT: Check timestamps! If a later commit fixed an AI-flagged issue, use ADDRESSED verdict (not FALSE_POSITIVE).**
+
 {chr(10).join(ai_comments_list)}
+"""
+
+        # Build commits timeline section (important for AI triage)
+        commits_section = ""
+        if context.commits:
+            commits_list = []
+            for commit in context.commits:
+                sha = commit.get("oid", "")[:8]
+                message = commit.get("messageHeadline", "")
+                committed_at = commit.get("committedDate", "")
+                commits_list.append(f"- `{sha}` ({committed_at}): {message}")
+            commits_section = f"""
+### Commit Timeline
+{chr(10).join(commits_list)}
 """
 
         pr_context = f"""
@@ -301,7 +323,7 @@ Found {len(context.ai_bot_comments)} comments from AI tools:
 
 ### All Changed Files
 {chr(10).join(files_list)}
-{ai_comments_section}
+{commits_section}{ai_comments_section}
 ### Code Changes
 ```diff
 {diff_content}
@@ -376,12 +398,12 @@ The SDK will run invoked agents in parallel automatically.
             agents: List of agent names that were invoked
         """
         if agents:
-            print(
+            safe_print(
                 f"[ParallelOrchestrator] Specialist agents invoked: {', '.join(agents)}",
                 flush=True,
             )
             for agent in agents:
-                print(f"[Agent:{agent}] Analysis complete", flush=True)
+                safe_print(f"[Agent:{agent}] Analysis complete")
 
     def _log_findings_summary(self, findings: list[PRReviewFinding]) -> None:
         """Log findings summary for verification.
@@ -390,13 +412,13 @@ The SDK will run invoked agents in parallel automatically.
             findings: List of findings to summarize
         """
         if findings:
-            print(
+            safe_print(
                 f"[ParallelOrchestrator] Parsed {len(findings)} findings from structured output",
                 flush=True,
             )
-            print("[ParallelOrchestrator] Findings summary:", flush=True)
+            safe_print("[ParallelOrchestrator] Findings summary:")
             for i, f in enumerate(findings, 1):
-                print(
+                safe_print(
                     f"  [{f.severity.value.upper()}] {i}. {f.title} ({f.file}:{f.line})",
                     flush=True,
                 )
@@ -462,23 +484,21 @@ The SDK will run invoked agents in parallel automatically.
                 pr_number=context.pr_number,
             )
 
-            # Build orchestrator prompt
-            prompt = self._build_orchestrator_prompt(context)
-
             # Create temporary worktree at PR head commit for isolated review
-            # This ensures agents read from the correct PR state, not the current checkout
+            # This MUST happen BEFORE building the prompt so we can find related files
+            # that exist in the PR but not in the current checkout
             head_sha = context.head_sha or context.head_branch
 
             if DEBUG_MODE:
-                print(
+                safe_print(
                     f"[PRReview] DEBUG: context.head_sha='{context.head_sha}'",
                     flush=True,
                 )
-                print(
+                safe_print(
                     f"[PRReview] DEBUG: context.head_branch='{context.head_branch}'",
                     flush=True,
                 )
-                print(f"[PRReview] DEBUG: resolved head_sha='{head_sha}'", flush=True)
+                safe_print(f"[PRReview] DEBUG: resolved head_sha='{head_sha}'")
 
             # SECURITY: Validate the resolved head_sha (whether SHA or branch name)
             # This catches invalid refs early before subprocess calls
@@ -491,7 +511,7 @@ The SDK will run invoked agents in parallel automatically.
 
             if not head_sha:
                 if DEBUG_MODE:
-                    print("[PRReview] DEBUG: No head_sha - using fallback", flush=True)
+                    safe_print("[PRReview] DEBUG: No head_sha - using fallback")
                 logger.warning(
                     "[ParallelOrchestrator] No head_sha available, using current checkout"
                 )
@@ -503,7 +523,7 @@ The SDK will run invoked agents in parallel automatically.
                 )
             else:
                 if DEBUG_MODE:
-                    print(
+                    safe_print(
                         f"[PRReview] DEBUG: Creating worktree for head_sha={head_sha}",
                         flush=True,
                     )
@@ -512,15 +532,34 @@ The SDK will run invoked agents in parallel automatically.
                         head_sha, context.pr_number
                     )
                     project_root = worktree_path
-                    if DEBUG_MODE:
-                        print(
-                            f"[PRReview] DEBUG: Using worktree as "
-                            f"project_root={project_root}",
-                            flush=True,
-                        )
+                    # Count files in worktree to give user visibility (with limit to avoid slowdown)
+                    MAX_FILE_COUNT = 10000
+                    try:
+                        file_count = 0
+                        for f in worktree_path.rglob("*"):
+                            if f.is_file() and ".git" not in f.parts:
+                                file_count += 1
+                                if file_count >= MAX_FILE_COUNT:
+                                    break
+                    except (OSError, PermissionError):
+                        file_count = 0
+                    file_count_str = (
+                        f"{file_count:,}+"
+                        if file_count >= MAX_FILE_COUNT
+                        else f"{file_count:,}"
+                    )
+                    # Always log worktree creation with file count (not gated by DEBUG_MODE)
+                    safe_print(
+                        f"[PRReview] Created temporary worktree: {worktree_path.name} ({file_count_str} files)",
+                        flush=True,
+                    )
+                    safe_print(
+                        f"[PRReview] Worktree contains PR branch HEAD: {head_sha[:8]}",
+                        flush=True,
+                    )
                 except (RuntimeError, ValueError) as e:
                     if DEBUG_MODE:
-                        print(
+                        safe_print(
                             f"[PRReview] DEBUG: Worktree creation FAILED: {e}",
                             flush=True,
                         )
@@ -535,8 +574,33 @@ The SDK will run invoked agents in parallel automatically.
                         else self.project_dir
                     )
 
+            # Rescan for related files using the worktree/project root
+            # This fixes the issue where related files were 0 because context gathering
+            # happened BEFORE the worktree was created (PR files didn't exist locally)
+            if context.changed_files:
+                new_related_files = PRContextGatherer.find_related_files_for_root(
+                    context.changed_files,
+                    project_root,
+                )
+                # Always log rescan result (not gated by DEBUG_MODE)
+                if new_related_files:
+                    context.related_files = new_related_files
+                    safe_print(
+                        f"[PRReview] Rescanned in worktree: found {len(new_related_files)} related files"
+                    )
+                else:
+                    safe_print(
+                        f"[PRReview] Rescanned in worktree: found 0 related files "
+                        f"(initial scan found {len(context.related_files)})"
+                    )
+
+            # Build orchestrator prompt AFTER worktree creation and related files rescan
+            prompt = self._build_orchestrator_prompt(context)
+
             # Use model and thinking level from config (user settings)
-            model = self.config.model or "claude-sonnet-4-5-20250929"
+            # Resolve model shorthand via environment variable override if configured
+            model_shorthand = self.config.model or "sonnet"
+            model = resolve_model_id(model_shorthand)
             thinking_level = self.config.thinking_level or "medium"
             thinking_budget = get_thinking_budget(thinking_level)
 
@@ -560,7 +624,7 @@ The SDK will run invoked agents in parallel automatically.
             async with client:
                 await client.query(prompt)
 
-                print(
+                safe_print(
                     f"[ParallelOrchestrator] Running orchestrator ({model})...",
                     flush=True,
                 )
@@ -569,6 +633,7 @@ The SDK will run invoked agents in parallel automatically.
                 stream_result = await process_sdk_stream(
                     client=client,
                     context_name="ParallelOrchestrator",
+                    model=model,
                 )
 
                 # Check for stream processing errors
@@ -604,7 +669,7 @@ The SDK will run invoked agents in parallel automatically.
             logger.info(
                 f"[ParallelOrchestrator] Session complete. Agents invoked: {final_agents}"
             )
-            print(
+            safe_print(
                 f"[ParallelOrchestrator] Complete. Agents invoked: {final_agents}",
                 flush=True,
             )
@@ -616,9 +681,11 @@ The SDK will run invoked agents in parallel automatically.
                 f"[ParallelOrchestrator] Review complete: {len(unique_findings)} findings"
             )
 
-            # Generate verdict (includes merge conflict check)
+            # Generate verdict (includes merge conflict check and branch-behind check)
             verdict, verdict_reasoning, blockers = self._generate_verdict(
-                unique_findings, has_merge_conflicts=context.has_merge_conflicts
+                unique_findings,
+                has_merge_conflicts=context.has_merge_conflicts,
+                merge_state_status=context.merge_state_status,
             )
 
             # Generate summary
@@ -862,10 +929,23 @@ The SDK will run invoked agents in parallel automatically.
         return unique
 
     def _generate_verdict(
-        self, findings: list[PRReviewFinding], has_merge_conflicts: bool = False
+        self,
+        findings: list[PRReviewFinding],
+        has_merge_conflicts: bool = False,
+        merge_state_status: str = "",
     ) -> tuple[MergeVerdict, str, list[str]]:
-        """Generate merge verdict based on findings and merge conflict status."""
+        """Generate merge verdict based on findings, merge conflict status, and branch state."""
         blockers = []
+        is_branch_behind = merge_state_status == "BEHIND"
+
+        # CRITICAL: Merge conflicts block merging - check first
+        if has_merge_conflicts:
+            blockers.append(
+                "Merge Conflicts: PR has conflicts with base branch that must be resolved"
+            )
+        # Branch behind base is a warning, not a hard blocker
+        elif is_branch_behind:
+            blockers.append(BRANCH_BEHIND_BLOCKER_MSG)
 
         # CRITICAL: Merge conflicts block merging - check first
         if has_merge_conflicts:
@@ -892,6 +972,21 @@ The SDK will run invoked agents in parallel automatically.
             elif critical:
                 verdict = MergeVerdict.BLOCKED
                 reasoning = f"Blocked by {len(critical)} critical issue(s)"
+            # Branch behind is a soft blocker - NEEDS_REVISION, not BLOCKED
+            elif is_branch_behind:
+                verdict = MergeVerdict.NEEDS_REVISION
+                if high or medium:
+                    # Branch behind + code issues that need addressing
+                    total = len(high) + len(medium)
+                    reasoning = (
+                        f"{BRANCH_BEHIND_REASONING} "
+                        f"{total} issue(s) must be addressed ({len(high)} required, {len(medium)} recommended)."
+                    )
+                else:
+                    # Just branch behind, no code issues
+                    reasoning = BRANCH_BEHIND_REASONING
+                if low:
+                    reasoning += f" {len(low)} non-blocking suggestion(s) to consider."
             else:
                 verdict = MergeVerdict.BLOCKED
                 reasoning = f"Blocked by {len(blockers)} issue(s)"

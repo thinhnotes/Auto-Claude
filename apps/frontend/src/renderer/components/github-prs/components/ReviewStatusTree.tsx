@@ -15,11 +15,13 @@ export type ReviewStatus =
   | 'ready_to_merge'
   | 'needs_attention'
   | 'ready_for_followup'
-  | 'followup_issues_remain';
+  | 'followup_issues_remain'
+  | 'reviewing';
 
 export interface ReviewStatusTreeProps {
   status: ReviewStatus;
   isReviewing: boolean;
+  startedAt: string | null;
   reviewResult: PRReviewResult | null;
   previousReviewResult: PRReviewResult | null;
   postedCount: number;
@@ -37,6 +39,7 @@ export interface ReviewStatusTreeProps {
 export function ReviewStatusTree({
   status,
   isReviewing,
+  startedAt,
   reviewResult,
   previousReviewResult,
   postedCount,
@@ -127,7 +130,7 @@ export function ReviewStatusTree({
       id: 'start',
       label: t('prReview.reviewStarted'),
       status: 'completed',
-      date: reviewResult?.reviewedAt || new Date().toISOString()
+      date: startedAt || reviewResult?.reviewedAt || new Date().toISOString()
     });
 
     // Step 2: AI Analysis
@@ -175,25 +178,56 @@ export function ReviewStatusTree({
       });
     }
 
-    // Step 4: Follow-up (only show when not currently reviewing AND commits happened after posting)
-    // This prevents showing follow-up prompts for commits that were made during/before the review
-    if (!isReviewing && newCommitsCheck?.hasNewCommits && newCommitsCheck?.hasCommitsAfterPosting) {
-      steps.push({
-        id: 'new_commits',
-        label: t('prReview.newCommits', { count: newCommitsCheck.newCommitCount }),
-        status: 'alert',
-        date: null
-      });
-      steps.push({
-        id: 'followup',
-        label: t('prReview.readyForFollowup'),
-        status: 'pending',
-        action: (
-          <Button size="sm" variant="outline" onClick={onRunFollowupReview} className="ml-2 h-6 text-xs px-2">
-            {t('prReview.runFollowup')}
-          </Button>
-        )
-      });
+    // Step 4: Follow-up (only show when findings were POSTED and new commits happened after posting)
+    // This prevents showing follow-up prompts when initial review was never posted to GitHub
+    const hasPostedFindings = postedCount > 0 || reviewResult?.hasPostedFindings;
+    if (!isReviewing && hasPostedFindings && newCommitsCheck?.hasNewCommits && newCommitsCheck?.hasCommitsAfterPosting) {
+      // Check if new commits overlap with files that had findings
+      const hasOverlap = newCommitsCheck.hasOverlapWithFindings ?? true; // Default to true for safety
+
+      if (hasOverlap) {
+        // Files with findings were modified - need verification
+        steps.push({
+          id: 'new_commits',
+          label: t('prReview.newCommitsOverlap', {
+            count: newCommitsCheck.newCommitCount,
+            files: newCommitsCheck.overlappingFiles?.length ?? 0
+          }),
+          status: 'alert',
+          date: null
+        });
+        steps.push({
+          id: 'followup',
+          label: t('prReview.verifyChanges'),
+          status: 'pending',
+          action: (
+            <Button size="sm" variant="outline" onClick={onRunFollowupReview} className="ml-2 h-6 text-xs px-2">
+              {t('prReview.runFollowup')}
+            </Button>
+          )
+        });
+      } else {
+        // No overlap - branch synced, previous review still valid
+        steps.push({
+          id: 'branch_synced',
+          label: newCommitsCheck.isMergeFromBase
+            ? t('prReview.branchSynced', { count: newCommitsCheck.newCommitCount })
+            : t('prReview.newCommitsNoOverlap', { count: newCommitsCheck.newCommitCount }),
+          status: 'completed',
+          date: null,
+          action: (
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={onRunFollowupReview}
+              className="ml-2 h-6 text-xs px-2 text-muted-foreground hover:text-foreground"
+              title={t('prReview.runFollowupAnyway')}
+            >
+              {t('prReview.verifyAnyway')}
+            </Button>
+          )
+        });
+      }
     }
   }
 

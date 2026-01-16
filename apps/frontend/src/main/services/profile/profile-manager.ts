@@ -124,7 +124,6 @@ export async function saveProfilesFile(data: ProfilesFile): Promise<void> {
   // Write file with formatted JSON
   const content = JSON.stringify(data, null, 2);
   await fs.writeFile(filePath, content, 'utf-8');
-  
   // Set secure file permissions (user read/write only - 0600)
   const permissionsValid = await validateFilePermissions(filePath);
   if (!permissionsValid) {
@@ -167,17 +166,17 @@ export async function validateFilePermissions(filePath: string): Promise<boolean
 /**
  * Execute a function with exclusive file lock to prevent race conditions
  * This ensures atomic read-modify-write operations on the profiles file
- * 
+ *
  * @param fn Function to execute while holding the lock
  * @returns Result of the function execution
  */
 export async function withProfilesLock<T>(fn: () => Promise<T>): Promise<T> {
   const filePath = getProfilesFilePath();
   const dir = path.dirname(filePath);
-  
+
   // Ensure directory and file exist before trying to lock
   await fs.mkdir(dir, { recursive: true });
-  
+
   // Create file if it doesn't exist (needed for lockfile to work)
   try {
     await fs.access(filePath);
@@ -194,7 +193,6 @@ export async function withProfilesLock<T>(fn: () => Promise<T>): Promise<T> {
       // EEXIST means another process won the race, proceed normally
     }
   }
-  
   // Acquire lock with reasonable timeout
   let release: (() => Promise<void>) | undefined;
   try {
@@ -205,7 +203,6 @@ export async function withProfilesLock<T>(fn: () => Promise<T>): Promise<T> {
         maxTimeout: 500
       }
     });
-    
     // Execute the function while holding the lock
     return await fn();
   } finally {
@@ -219,7 +216,7 @@ export async function withProfilesLock<T>(fn: () => Promise<T>): Promise<T> {
 /**
  * Atomically modify the profiles file
  * Loads, modifies, and saves the file within an exclusive lock
- * 
+ *
  * @param modifier Function that modifies the ProfilesFile
  * @returns The modified ProfilesFile
  */
@@ -229,25 +226,25 @@ export async function atomicModifyProfiles(
   return await withProfilesLock(async () => {
     // Load current state
     const file = await loadProfilesFile();
-    
+
     // Apply modification
     const modifiedFile = await modifier(file);
-    
+
     // Save atomically (write to temp file and rename)
     const filePath = getProfilesFilePath();
     const tempPath = `${filePath}.tmp`;
-    
+
     try {
       // Write to temp file
       const content = JSON.stringify(modifiedFile, null, 2);
       await fs.writeFile(tempPath, content, 'utf-8');
-      
+
       // Set permissions on temp file
       await fs.chmod(tempPath, 0o600);
-      
+
       // Atomically replace original file
       await fs.rename(tempPath, filePath);
-      
+
       return modifiedFile;
     } catch (error) {
       // Clean up temp file on error

@@ -10,6 +10,7 @@ import { projectStore } from '../project-store';
 import { parseEnvFile } from './utils';
 import { getClaudeCliInvocation, getClaudeCliInvocationAsync } from '../claude-cli-utils';
 import { debugError } from '../../shared/utils/debug-logger';
+import { getSpawnOptions, getSpawnCommand } from '../env-utils';
 
 // GitLab environment variable keys
 const GITLAB_ENV_KEYS = {
@@ -665,11 +666,10 @@ ${existingVars['GRAPHITI_DB_PATH'] ? `GRAPHITI_DB_PATH=${existingVars['GRAPHITI_
       try {
         // Check if Claude CLI is available and authenticated
         const result = await new Promise<ClaudeAuthResult>((resolve) => {
-          const proc = spawn(claudeCmd, ['--version'], {
+          const proc = spawn(getSpawnCommand(claudeCmd), ['--version'], getSpawnOptions(claudeCmd, {
             cwd: project.path,
             env: claudeEnv,
-            shell: false
-          });
+          }));
 
           let _stdout = '';
           let _stderr = '';
@@ -686,11 +686,10 @@ ${existingVars['GRAPHITI_DB_PATH'] ? `GRAPHITI_DB_PATH=${existingVars['GRAPHITI_
             if (code === 0) {
               // Claude CLI is available, check if authenticated
               // Run a simple command that requires auth
-              const authCheck = spawn(claudeCmd, ['api', '--help'], {
+              const authCheck = spawn(getSpawnCommand(claudeCmd), ['api', '--help'], getSpawnOptions(claudeCmd, {
                 cwd: project.path,
                 env: claudeEnv,
-                shell: false
-              });
+              }));
 
               authCheck.on('close', (authCode: number | null) => {
                 resolve({
@@ -756,12 +755,11 @@ ${existingVars['GRAPHITI_DB_PATH'] ? `GRAPHITI_DB_PATH=${existingVars['GRAPHITI_
       try {
         // Run claude setup-token which will open browser for OAuth
         const result = await new Promise<ClaudeAuthResult>((resolve) => {
-          const proc = spawn(claudeCmd, ['setup-token'], {
+          const proc = spawn(getSpawnCommand(claudeCmd), ['setup-token'], getSpawnOptions(claudeCmd, {
             cwd: project.path,
             env: claudeEnv,
-            shell: false,
             stdio: 'inherit' // This allows the terminal to handle the interactive auth
-          });
+          }));
 
           proc.on('close', (code: number | null) => {
             if (code === 0) {

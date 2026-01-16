@@ -172,3 +172,4 @@ logs/security/
 apps/frontend/dist-web/assets/
 code
 tasks
+/shared_docs

@@ -1,6 +1,6 @@
 {
   "name": "auto-claude",
-  "version": "2.7.2",
+  "version": "2.7.4",
   "description": "Autonomous multi-agent coding framework powered by Claude AI",
   "license": "AGPL-3.0",
   "author": "Auto Claude Team",
@@ -49,8 +49,5 @@
   ],
   "devDependencies": {
     "jsdom": "^27.4.0"
-  },
-  "dependencies": {
-    "socat": "^0.0.0"
   }
 }

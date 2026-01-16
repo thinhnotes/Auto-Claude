@@ -174,29 +174,6 @@ export function SectionRouter({
         </SettingsSection>
       );
 
-    case 'azuredevops':
-      return (
-        <SettingsSection
-          title={t('projectSections.azuredevops.integrationTitle')}
-          description={t('projectSections.azuredevops.integrationDescription')}
-        >
-          <InitializationGuard
-            initialized={!!project.autoBuildPath}
-            title={t('projectSections.azuredevops.integrationTitle')}
-            description={t('projectSections.azuredevops.syncDescription')}
-          >
-            <AzureDevOpsIntegration
-              envConfig={envConfig}
-              updateEnvConfig={updateEnvConfig}
-              azureDevOpsConnectionStatus={azureDevOpsConnectionStatus}
-              isCheckingAzureDevOps={isCheckingAzureDevOps}
-              projectId={project.id}
-              projectPath={project.path}
-            />
-          </InitializationGuard>
-        </SettingsSection>
-      );
-
     case 'memory':
       return (
         <SettingsSection

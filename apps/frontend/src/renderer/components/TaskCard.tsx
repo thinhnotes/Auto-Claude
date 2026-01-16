@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback, memo, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Play, Square, Clock, Zap, Target, Shield, Gauge, Palette, FileCode, Bug, Wrench, Loader2, AlertTriangle, RotateCcw, Archive, MoreVertical } from 'lucide-react';
+import { Play, Square, Clock, Zap, Target, Shield, Gauge, Palette, FileCode, Bug, Wrench, Loader2, AlertTriangle, RotateCcw, Archive, GitPullRequest, MoreVertical } from 'lucide-react';
 import { Card, CardContent } from './ui/card';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
@@ -26,7 +26,9 @@ import {
   EXECUTION_PHASE_LABELS,
   EXECUTION_PHASE_BADGE_COLORS,
   TASK_STATUS_COLUMNS,
-  TASK_STATUS_LABELS
+  TASK_STATUS_LABELS,
+  JSON_ERROR_PREFIX,
+  JSON_ERROR_TITLE_SUFFIX
 } from '../../shared/constants';
 import { startTask, stopTask, checkTaskRunning, recoverStuckTask, isIncompleteHumanReview, archiveTasks } from '../stores/task-store';
 import type { Task, TaskCategory, ReviewReason, TaskStatus } from '../../shared/types';
@@ -74,6 +76,7 @@ function taskCardPropsAreEqual(prevProps: TaskCardProps, nextProps: TaskCardProp
     prevTask.metadata?.category === nextTask.metadata?.category &&
     prevTask.metadata?.complexity === nextTask.metadata?.complexity &&
     prevTask.metadata?.archivedAt === nextTask.metadata?.archivedAt &&
+    prevTask.metadata?.prUrl === nextTask.metadata?.prUrl &&
     // Check if any subtask statuses changed (compare all subtasks)
     prevTask.subtasks.every((s, i) => s.status === nextTask.subtasks[i]?.status)
   );
@@ -95,7 +98,7 @@ function taskCardPropsAreEqual(prevProps: TaskCardProps, nextProps: TaskCardProp
 }
 
 export const TaskCard = memo(function TaskCard({ task, onClick, onStatusChange }: TaskCardProps) {
-  const { t } = useTranslation('tasks');
+  const { t } = useTranslation(['tasks', 'errors']);
   const [isStuck, setIsStuck] = useState(false);
   const [isRecovering, setIsRecovering] = useState(false);
   const stuckCheckRef = useRef<{ timeout: NodeJS.Timeout | null; interval: NodeJS.Timeout | null }>({
@@ -112,10 +115,26 @@ export const TaskCard = memo(function TaskCard({ task, onClick, onStatusChange }
 
   // Memoize expensive computations to avoid running on every render
   // Truncate description for card display - full description shown in modal
-  const sanitizedDescription = useMemo(
-    () => task.description ? sanitizeMarkdownForDisplay(task.description, 120) : null,
-    [task.description]
-  );
+  // Handle JSON error tasks with i18n
+  const sanitizedDescription = useMemo(() => {
+    if (!task.description) return null;
+    // Check for JSON error marker and use i18n
+    if (task.description.startsWith(JSON_ERROR_PREFIX)) {
+      const errorMessage = task.description.slice(JSON_ERROR_PREFIX.length);
+      const translatedDesc = t('errors:task.jsonError.description', { error: errorMessage });
+      return sanitizeMarkdownForDisplay(translatedDesc, 120);
+    }
+    return sanitizeMarkdownForDisplay(task.description, 120);
+  }, [task.description, t]);
+
+  // Memoize title with JSON error suffix handling
+  const displayTitle = useMemo(() => {
+    if (task.title.endsWith(JSON_ERROR_TITLE_SUFFIX)) {
+      const baseName = task.title.slice(0, -JSON_ERROR_TITLE_SUFFIX.length);
+      return `${baseName} ${t('errors:task.jsonError.titleSuffix')}`;
+    }
+    return task.title;
+  }, [task.title, t]);
 
   // Memoize relative time (recalculates only when updatedAt changes)
   const relativeTime = useMemo(
@@ -247,6 +266,13 @@ export const TaskCard = memo(function TaskCard({ task, onClick, onStatusChange }
     }
   };
 
+  const handleViewPR = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (task.metadata?.prUrl && window.electronAPI?.openExternal) {
+      window.electronAPI.openExternal(task.metadata.prUrl);
+    }
+  };
+
   const getStatusBadgeVariant = (status: string) => {
     switch (status) {
       case 'in_progress':
@@ -255,6 +281,8 @@ export const TaskCard = memo(function TaskCard({ task, onClick, onStatusChange }
         return 'warning';
       case 'human_review':
         return 'purple';
+      case 'pr_created':
+        return 'success';
       case 'done':
         return 'success';
       default:
@@ -270,6 +298,8 @@ export const TaskCard = memo(function TaskCard({ task, onClick, onStatusChange }
         return t('labels.aiReview');
       case 'human_review':
         return t('labels.needsReview');
+      case 'pr_created':
+        return t('columns.pr_created');
       case 'done':
         return t('status.complete');
       default:
@@ -311,9 +341,9 @@ export const TaskCard = memo(function TaskCard({ task, onClick, onStatusChange }
         {/* Title - full width, no wrapper */}
         <h3
           className="font-semibold text-sm text-foreground line-clamp-2 leading-snug"
-          title={task.title}
+          title={displayTitle}
         >
-          {task.title}
+          {displayTitle}
         </h3>
 
         {/* Description - sanitized to handle markdown content (memoized) */}
@@ -369,15 +399,26 @@ export const TaskCard = memo(function TaskCard({ task, onClick, onStatusChange }
                 {EXECUTION_PHASE_LABELS[executionPhase]}
               </Badge>
             )}
-            {/* Status badge - hide when execution phase badge is showing */}
-            {!hasActiveExecution && (
-              <Badge
-                variant={isStuck ? 'warning' : isIncomplete ? 'warning' : getStatusBadgeVariant(task.status)}
-                className="text-[10px] px-1.5 py-0.5"
-              >
-                {isStuck ? t('labels.needsRecovery') : isIncomplete ? t('labels.needsResume') : getStatusLabel(task.status)}
-              </Badge>
-            )}
+             {/* Status badge - hide when execution phase badge is showing */}
+             {!hasActiveExecution && (
+               <>
+                  {task.status === 'pr_created' ? (
+                    <Badge
+                      variant={getStatusBadgeVariant(task.status)}
+                      className="text-[10px] px-1.5 py-0.5"
+                    >
+                      {getStatusLabel(task.status)}
+                    </Badge>
+                  ) : (
+                   <Badge
+                     variant={isStuck ? 'warning' : isIncomplete ? 'warning' : getStatusBadgeVariant(task.status)}
+                     className="text-[10px] px-1.5 py-0.5"
+                   >
+                     {isStuck ? t('labels.needsRecovery') : isIncomplete ? t('labels.needsResume') : getStatusLabel(task.status)}
+                   </Badge>
+                 )}
+               </>
+             )}
             {/* Review reason badge - explains why task needs human review */}
             {reviewReasonInfo && !isStuck && !isIncomplete && (
               <Badge
@@ -492,6 +533,31 @@ export const TaskCard = memo(function TaskCard({ task, onClick, onStatusChange }
                 <Play className="mr-1.5 h-3 w-3" />
                 {t('actions.resume')}
               </Button>
+            ) : task.status === 'pr_created' ? (
+              <div className="flex gap-1">
+                {task.metadata?.prUrl && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 px-2 cursor-pointer"
+                    onClick={handleViewPR}
+                    title={t('tooltips.viewPR')}
+                  >
+                    <GitPullRequest className="h-3 w-3" />
+                  </Button>
+                )}
+                {!task.metadata?.archivedAt && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 px-2 cursor-pointer"
+                    onClick={handleArchive}
+                    title={t('tooltips.archiveTask')}
+                  >
+                    <Archive className="h-3 w-3" />
+                  </Button>
+                )}
+              </div>
             ) : task.status === 'done' && !task.metadata?.archivedAt ? (
               <Button
                 variant="ghost"

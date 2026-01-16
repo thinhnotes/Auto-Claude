@@ -1,7 +1,48 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useProjectStore } from '../../../stores/project-store';
-import { useTaskStore, checkTaskRunning, isIncompleteHumanReview, getTaskProgress } from '../../../stores/task-store';
-import type { Task, TaskLogs, TaskLogPhase, WorktreeStatus, WorktreeDiff, MergeConflict, MergeStats, GitConflictInfo } from '../../../../shared/types';
+import { checkTaskRunning, isIncompleteHumanReview, getTaskProgress, useTaskStore, loadTasks } from '../../../stores/task-store';
+import type { Task, TaskLogs, TaskLogPhase, WorktreeStatus, WorktreeDiff, MergeConflict, MergeStats, GitConflictInfo, ImageAttachment } from '../../../../shared/types';
+
+/**
+ * Validates task subtasks structure to prevent infinite loops during resume.
+ * Returns true if task has valid subtasks, false otherwise.
+ */
+function validateTaskSubtasks(task: Task): boolean {
+  // Check if subtasks array exists
+  if (!task.subtasks || !Array.isArray(task.subtasks)) {
+    console.warn('[validateTaskSubtasks] Task has no subtasks array:', task.id);
+    return false;
+  }
+
+  // If subtasks array is empty and task is incomplete, it needs plan reload
+  if (task.subtasks.length === 0) {
+    console.warn('[validateTaskSubtasks] Task has empty subtasks array:', task.id);
+    return false;
+  }
+
+  // Validate each subtask has minimum required fields
+  for (let i = 0; i < task.subtasks.length; i++) {
+    const subtask = task.subtasks[i];
+    if (!subtask || typeof subtask !== 'object') {
+      console.warn(`[validateTaskSubtasks] Invalid subtask at index ${i}:`, subtask);
+      return false;
+    }
+
+    // Description is critical - we can't show a subtask without it
+    if (!subtask.description || typeof subtask.description !== 'string' || subtask.description.trim() === '') {
+      console.warn(`[validateTaskSubtasks] Subtask at index ${i} missing description:`, subtask);
+      return false;
+    }
+
+    // ID is required for tracking
+    if (!subtask.id || typeof subtask.id !== 'string') {
+      console.warn(`[validateTaskSubtasks] Subtask at index ${i} missing id:`, subtask);
+      return false;
+    }
+  }
+
+  return true;
+}
 
 export interface UseTaskDetailOptions {
   task: Task;
@@ -9,6 +50,7 @@ export interface UseTaskDetailOptions {
 
 export function useTaskDetail({ task }: UseTaskDetailOptions) {
   const [feedback, setFeedback] = useState('');
+  const [feedbackImages, setFeedbackImages] = useState<ImageAttachment[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [activeTab, setActiveTab] = useState('overview');
   const [isUserScrolledUp, setIsUserScrolledUp] = useState(false);
@@ -34,6 +76,7 @@ export function useTaskDetail({ task }: UseTaskDetailOptions) {
   const [phaseLogs, setPhaseLogs] = useState<TaskLogs | null>(null);
   const [isLoadingLogs, setIsLoadingLogs] = useState(false);
   const [expandedPhases, setExpandedPhases] = useState<Set<TaskLogPhase>>(new Set());
+  const [isLoadingPlan, setIsLoadingPlan] = useState(false);
   const logsEndRef = useRef<HTMLDivElement>(null);
   const logsContainerRef = useRef<HTMLDivElement>(null);
 
@@ -46,6 +89,8 @@ export function useTaskDetail({ task }: UseTaskDetailOptions) {
   } | null>(null);
   const [isLoadingPreview, setIsLoadingPreview] = useState(false);
   const [showConflictDialog, setShowConflictDialog] = useState(false);
+  const [showPRDialog, setShowPRDialog] = useState(false);
+  const [isCreatingPR, setIsCreatingPR] = useState(false);
 
   const selectedProject = useProjectStore((state) => state.getSelectedProject());
   const isRunning = task.status === 'in_progress';
@@ -116,6 +161,11 @@ export function useTaskDetail({ task }: UseTaskDetailOptions) {
       setIsUserScrolledUp(false);
     }
   }, [activeTab]);
+
+  // Reset feedback images when task changes to prevent image leakage between tasks
+  useEffect(() => {
+    setFeedbackImages([]);
+  }, [task.id]);
 
   // Load worktree status when task is in human_review
   useEffect(() => {
@@ -239,6 +289,26 @@ export function useTaskDetail({ task }: UseTaskDetailOptions) {
     });
   }, []);
 
+  // Add a feedback image
+  const addFeedbackImage = useCallback((image: ImageAttachment) => {
+    setFeedbackImages(prev => [...prev, image]);
+  }, []);
+
+  // Add multiple feedback images at once
+  const addFeedbackImages = useCallback((images: ImageAttachment[]) => {
+    setFeedbackImages(prev => [...prev, ...images]);
+  }, []);
+
+  // Remove a feedback image by ID
+  const removeFeedbackImage = useCallback((imageId: string) => {
+    setFeedbackImages(prev => prev.filter(img => img.id !== imageId));
+  }, []);
+
+  // Clear all feedback images
+  const clearFeedbackImages = useCallback(() => {
+    setFeedbackImages([]);
+  }, []);
+
   // Track if we've already loaded preview for this task to prevent infinite loops
   const hasLoadedPreviewRef = useRef<string | null>(null);
 
@@ -250,29 +320,187 @@ export function useTaskDetail({ task }: UseTaskDetailOptions) {
     }
   }, [task.id]);
 
-  // Load merge preview (conflict detection)
+  // Load merge preview (conflict detection) and refresh worktree status
   const loadMergePreview = useCallback(async () => {
     setIsLoadingPreview(true);
+    // Clear any previous workspace error before loading
+    setWorkspaceError(null);
+
     try {
-      const result = await window.electronAPI.mergeWorktreePreview(task.id);
-      if (result.success && result.data?.preview) {
-        setMergePreview(result.data.preview);
+      // Fetch both merge preview and updated worktree status in parallel
+      // This ensures the branch information (currentProjectBranch) is refreshed
+      // when the user clicks the refresh button after switching branches locally
+      // Use Promise.allSettled to handle partial failures - if one API call fails,
+      // the other's result is still processed rather than being discarded
+      const [previewResult, statusResult] = await Promise.allSettled([
+        window.electronAPI.mergeWorktreePreview(task.id),
+        window.electronAPI.getWorktreeStatus(task.id)
+      ]);
+
+      const errors: string[] = [];
+
+      // Process merge preview result if fulfilled
+      if (previewResult.status === 'fulfilled') {
+        const result = previewResult.value;
+        if (result.success && result.data?.preview) {
+          setMergePreview(result.data.preview);
+        } else if (!result.success && result.error) {
+          errors.push(`Merge preview: ${result.error}`);
+        }
+      } else {
+        console.error('[useTaskDetail] Failed to load merge preview:', previewResult.reason);
+        errors.push('Failed to load merge preview');
+      }
+
+      // Update worktree status with fresh branch information if fulfilled
+      if (statusResult.status === 'fulfilled') {
+        const result = statusResult.value;
+        if (result.success && result.data) {
+          setWorktreeStatus(result.data);
+        } else if (!result.success && result.error) {
+          errors.push(`Worktree status: ${result.error}`);
+        }
+      } else {
+        console.error('[useTaskDetail] Failed to load worktree status:', statusResult.reason);
+        errors.push('Failed to load worktree status');
+      }
+
+      // Set workspace error if any API calls failed
+      if (errors.length > 0) {
+        setWorkspaceError(errors.join('; '));
       }
     } catch (err) {
-      console.error('[useTaskDetail] Failed to load merge preview:', err);
+      console.error('[useTaskDetail] Unexpected error in loadMergePreview:', err);
+      setWorkspaceError('An unexpected error occurred while loading workspace information');
     } finally {
       hasLoadedPreviewRef.current = task.id;
       setIsLoadingPreview(false);
     }
   }, [task.id]);
 
+  // Handle "Review Again" - clears staged state and reloads worktree info
+  const handleReviewAgain = useCallback(async () => {
+    // Clear staged success state if it was set in this session
+    setStagedSuccess(null);
+    setStagedProjectPath(undefined);
+    setSuggestedCommitMessage(undefined);
+
+    // Reset merge preview to force re-check
+    setMergePreview(null);
+    hasLoadedPreviewRef.current = null;
+
+    // Reset workspace error state
+    setWorkspaceError(null);
+
+    // Reload worktree status
+    setIsLoadingWorktree(true);
+    try {
+      const [statusResult, diffResult] = await Promise.all([
+        window.electronAPI.getWorktreeStatus(task.id),
+        window.electronAPI.getWorktreeDiff(task.id)
+      ]);
+      if (statusResult.success && statusResult.data) {
+        setWorktreeStatus(statusResult.data);
+      }
+      if (diffResult.success && diffResult.data) {
+        setWorktreeDiff(diffResult.data);
+      }
+
+      // Reload task data from store to reflect cleared staged state
+      // (clearStagedState IPC already invalidated the cache)
+      if (selectedProject) {
+        await loadTasks(selectedProject.id);
+      }
+    } catch (err) {
+      console.error('Failed to reload worktree info:', err);
+    } finally {
+      setIsLoadingWorktree(false);
+    }
+  }, [task.id, selectedProject]);
+
   // NOTE: Merge preview is NO LONGER auto-loaded on modal open.
   // User must click "Check for Conflicts" button to trigger the expensive preview operation.
   // This improves modal open performance significantly (avoids 1-30+ second Python subprocess).
 
+  /**
+   * Reloads implementation plan for an incomplete task to ensure subtasks are properly loaded.
+   * This prevents the "Task Incomplete" infinite loop when resuming stuck tasks.
+   */
+  const reloadPlanForIncompleteTask = useCallback(async (): Promise<boolean> => {
+    if (!selectedProject) {
+      console.error('[reloadPlanForIncompleteTask] No selected project');
+      return false;
+    }
+
+    // Only reload if task is incomplete and subtasks are invalid
+    if (!isIncomplete) {
+      return true; // Not incomplete, no reload needed
+    }
+
+    // Check if subtasks are valid
+    if (validateTaskSubtasks(task)) {
+      console.log('[reloadPlanForIncompleteTask] Subtasks are valid, no reload needed');
+      return true; // Subtasks are valid, proceed
+    }
+
+    console.warn('[reloadPlanForIncompleteTask] Task has invalid subtasks, reloading plan:', {
+      taskId: task.id,
+      specId: task.specId,
+      subtaskCount: task.subtasks?.length || 0
+    });
+
+    setIsLoadingPlan(true);
+    try {
+      // Reload tasks from the project to get fresh implementation plan
+      const result = await window.electronAPI.getTasks(selectedProject.id);
+
+      if (!result.success || !result.data) {
+        console.error('[reloadPlanForIncompleteTask] Failed to reload tasks:', result.error);
+        return false;
+      }
+
+      // Find the updated task in the result
+      const updatedTask = result.data.find(t => t.id === task.id || t.specId === task.specId);
+      if (!updatedTask) {
+        console.error('[reloadPlanForIncompleteTask] Task not found in reloaded tasks');
+        return false;
+      }
+
+      // Validate the reloaded subtasks
+      if (!validateTaskSubtasks(updatedTask)) {
+        console.error('[reloadPlanForIncompleteTask] Reloaded task still has invalid subtasks');
+        return false;
+      }
+
+      console.log('[reloadPlanForIncompleteTask] Successfully reloaded plan with valid subtasks:', {
+        taskId: task.id,
+        subtaskCount: updatedTask.subtasks?.length ?? 0
+      });
+
+      // FIX (PR Review): Update the Zustand store with the reloaded task data
+      // Without this, the UI continues to display stale/invalid subtasks
+      const store = useTaskStore.getState();
+      store.updateTask(task.id, {
+        subtasks: updatedTask.subtasks,
+        title: updatedTask.title,
+        description: updatedTask.description,
+        metadata: updatedTask.metadata,
+        updatedAt: new Date()
+      });
+
+      return true;
+    } catch (err) {
+      console.error('[reloadPlanForIncompleteTask] Error reloading plan:', err);
+      return false;
+    } finally {
+      setIsLoadingPlan(false);
+    }
+  }, [selectedProject, task, isIncomplete]);
+
   return {
     // State
     feedback,
+    feedbackImages,
     isSubmitting,
     activeTab,
     isUserScrolledUp,
@@ -310,9 +538,13 @@ export function useTaskDetail({ task }: UseTaskDetailOptions) {
     mergePreview,
     isLoadingPreview,
     showConflictDialog,
+    showPRDialog,
+    isCreatingPR,
+    isLoadingPlan,
 
     // Setters
     setFeedback,
+    setFeedbackImages,
     setIsSubmitting,
     setActiveTab,
     setIsUserScrolledUp,
@@ -341,10 +573,18 @@ export function useTaskDetail({ task }: UseTaskDetailOptions) {
     setMergePreview,
     setIsLoadingPreview,
     setShowConflictDialog,
+    setShowPRDialog,
+    setIsCreatingPR,
 
     // Handlers
     handleLogsScroll,
     togglePhase,
     loadMergePreview,
+    addFeedbackImage,
+    addFeedbackImages,
+    removeFeedbackImage,
+    clearFeedbackImages,
+    handleReviewAgain,
+    reloadPlanForIncompleteTask,
   };
 }

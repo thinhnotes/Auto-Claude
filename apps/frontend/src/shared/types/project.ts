@@ -214,7 +214,7 @@ export interface GraphitiProviderConfig {
   // OpenRouter (multi-provider aggregator)
   openrouterApiKey?: string;
   openrouterBaseUrl?: string;  // Default: https://openrouter.ai/api/v1
-  openrouterLlmModel?: string;  // LLM model selection (e.g., 'anthropic/claude-3.5-sonnet')
+  openrouterLlmModel?: string;  // LLM model selection (e.g., 'anthropic/claude-sonnet-4')
   openrouterEmbeddingModel?: string;
 
   // Ollama Embeddings (local, no API key required)
@@ -246,12 +246,12 @@ export interface GraphitiMemoryState {
   error_log: Array<{ timestamp: string; error: string }>;
 }
 
-export type MemoryType = 
-  | 'session_insight' 
-  | 'codebase_discovery' 
-  | 'codebase_map' 
-  | 'pattern' 
-  | 'gotcha' 
+export type MemoryType =
+  | 'session_insight'
+  | 'codebase_discovery'
+  | 'codebase_map'
+  | 'pattern'
+  | 'gotcha'
   | 'task_outcome'
   | 'pr_review'
   | 'pr_finding'

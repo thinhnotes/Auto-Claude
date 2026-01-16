@@ -1,11 +1,17 @@
 import { spawn } from 'child_process';
 import path from 'path';
+import { fileURLToPath } from 'url';
 import { existsSync, readFileSync } from 'fs';
 import { app } from 'electron';
+
+// ESM-compatible __dirname
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 import { EventEmitter } from 'events';
 import { AgentState } from './agent-state';
 import { AgentEvents } from './agent-events';
 import { ProcessType, ExecutionProgressData } from './types';
+import type { CompletablePhase } from '../../shared/constants/phase-protocol';
 import { detectRateLimit, createSDKRateLimitInfo, getProfileEnv, detectAuthFailure } from '../rate-limit-detector';
 import { getAPIProfileEnv } from '../services/profile';
 import { projectStore } from '../project-store';
@@ -134,9 +140,26 @@ export class AgentProcessManager {
       }
     }
 
+    // Detect and pass Claude CLI path to Python backend
+    // Common issue: Claude CLI installed via Homebrew at /opt/homebrew/bin/claude (macOS)
+    // or other non-standard locations not in subprocess PATH when app launches from Finder/Dock
+    const claudeCliEnv: Record<string, string> = {};
+    if (!process.env.CLAUDE_CLI_PATH) {
+      try {
+        const claudeInfo = getToolInfo('claude');
+        if (claudeInfo.found && claudeInfo.path) {
+          claudeCliEnv['CLAUDE_CLI_PATH'] = claudeInfo.path;
+          console.log('[AgentProcess] Setting CLAUDE_CLI_PATH:', claudeInfo.path, `(source: ${claudeInfo.source})`);
+        }
+      } catch (error) {
+        console.warn('[AgentProcess] Failed to detect Claude CLI path:', error);
+      }
+    }
+
     return {
       ...augmentedEnv,
       ...gitBashEnv,
+      ...claudeCliEnv,
       ...extraEnv,
       ...profileEnv,
       PYTHONUNBUFFERED: '1',
@@ -293,6 +316,38 @@ export class AgentProcessManager {
       }
     }
     return null;
+  }
+
+  /**
+   * Ensure Python environment is ready before spawning processes.
+   * This is a shared method used by AgentManager and AgentQueueManager
+   * to prevent race conditions where tasks start before venv initialization completes.
+   *
+   * @param context - Context identifier for logging (e.g., 'AgentManager', 'AgentQueue')
+   * @returns Object with ready status and optional error message
+   */
+  async ensurePythonEnvReady(context: string): Promise<{ ready: boolean; error?: string }> {
+    if (pythonEnvManager.isEnvReady()) {
+      return { ready: true };
+    }
+
+    console.log(`[${context}] Python environment not ready, waiting for initialization...`);
+
+    const autoBuildSource = this.getAutoBuildSourcePath();
+    if (!autoBuildSource) {
+      const error = 'auto-build source not found';
+      console.error(`[${context}] Cannot initialize Python - ${error}`);
+      return { ready: false, error };
+    }
+
+    const status = await pythonEnvManager.initialize(autoBuildSource);
+    if (!status.ready) {
+      console.error(`[${context}] Python environment initialization failed:`, status.error);
+      return { ready: false, error: status.error || 'initialization failed' };
+    }
+
+    console.log(`[${context}] Python environment now ready`);
+    return { ready: true };
   }
 
   /**
@@ -454,13 +509,17 @@ export class AgentProcessManager {
     let stdoutBuffer = '';
     let stderrBuffer = '';
     let sequenceNumber = 0;
+    // FIX (ACS-203): Track completed phases to prevent phase overlaps
+    // When a phase completes, it's added to this array before transitioning to the next phase
+    const completedPhases: CompletablePhase[] = [];
 
     this.emitter.emit('execution-progress', taskId, {
       phase: currentPhase,
       phaseProgress: 0,
       overallProgress: this.events.calculateOverallProgress(currentPhase, 0),
       message: isSpecRunner ? 'Starting spec creation...' : 'Starting build process...',
-      sequenceNumber: ++sequenceNumber
+      sequenceNumber: ++sequenceNumber,
+      completedPhases: [...completedPhases]
     });
 
     const isDebug = ['true', '1', 'yes', 'on'].includes(process.env.DEBUG?.toLowerCase() ?? '');
@@ -486,6 +545,21 @@ export class AgentProcessManager {
           console.log(`[PhaseDebug:${taskId}] Phase update: ${currentPhase} -> ${phaseUpdate.phase} (changed: ${phaseChanged})`);
         }
 
+        // FIX (ACS-203): Manage completedPhases when phases transition
+        // When leaving a non-terminal phase (not complete/failed), add it to completedPhases
+        if (phaseChanged && currentPhase !== 'idle' && currentPhase !== phaseUpdate.phase) {
+          // Type guard to narrow currentPhase to CompletablePhase
+          const isCompletablePhase = (phase: ExecutionProgressData['phase']): phase is CompletablePhase => {
+            return ['planning', 'coding', 'qa_review', 'qa_fixing'].includes(phase);
+          };
+          if (isCompletablePhase(currentPhase) && !completedPhases.includes(currentPhase)) {
+            completedPhases.push(currentPhase);
+            if (isDebug) {
+              console.log(`[PhaseDebug:${taskId}] Marked phase as completed:`, { phase: currentPhase, completedPhases });
+            }
+          }
+        }
+
         currentPhase = phaseUpdate.phase;
 
         if (phaseUpdate.currentSubtask) {
@@ -504,7 +578,7 @@ export class AgentProcessManager {
         const overallProgress = this.events.calculateOverallProgress(currentPhase, phaseProgress);
 
         if (isDebug) {
-          console.log(`[PhaseDebug:${taskId}] Emitting execution-progress:`, { phase: currentPhase, phaseProgress, overallProgress });
+          console.log(`[PhaseDebug:${taskId}] Emitting execution-progress:`, { phase: currentPhase, phaseProgress, overallProgress, completedPhases });
         }
 
         this.emitter.emit('execution-progress', taskId, {
@@ -513,7 +587,8 @@ export class AgentProcessManager {
           overallProgress,
           currentSubtask,
           message: lastMessage,
-          sequenceNumber: ++sequenceNumber
+          sequenceNumber: ++sequenceNumber,
+          completedPhases: [...completedPhases]
         });
       }
     };
@@ -585,7 +660,8 @@ export class AgentProcessManager {
           phaseProgress: 0,
           overallProgress: this.events.calculateOverallProgress(currentPhase, phaseProgress),
           message: `Process exited with code ${code}`,
-          sequenceNumber: ++sequenceNumber
+          sequenceNumber: ++sequenceNumber,
+          completedPhases: [...completedPhases]
         });
       }
 
@@ -602,7 +678,8 @@ export class AgentProcessManager {
         phaseProgress: 0,
         overallProgress: 0,
         message: `Error: ${err.message}`,
-        sequenceNumber: ++sequenceNumber
+        sequenceNumber: ++sequenceNumber,
+        completedPhases: [...completedPhases]
       });
 
       this.emitter.emit('error', taskId, err.message);

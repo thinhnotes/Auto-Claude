@@ -1,4 +1,4 @@
-import { AlertCircle, GitMerge, Loader2, Trash2, Check } from 'lucide-react';
+import { AlertCircle, GitMerge, Loader2, Check, RotateCcw } from 'lucide-react';
 import { useState } from 'react';
 import { Button } from '../../ui/button';
 import { persistTaskStatus } from '../../../stores/task-store';
@@ -89,13 +89,16 @@ interface StagedInProjectMessageProps {
   projectPath?: string;
   hasWorktree?: boolean;
   onClose?: () => void;
+  onReviewAgain?: () => void;
 }
 
 /**
  * Displays message when changes have already been staged in the main project
  */
-export function StagedInProjectMessage({ task, projectPath, hasWorktree = false, onClose }: StagedInProjectMessageProps) {
+export function StagedInProjectMessage({ task, projectPath, hasWorktree = false, onClose, onReviewAgain }: StagedInProjectMessageProps) {
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isMarkingDone, setIsMarkingDone] = useState(false);
+  const [isResetting, setIsResetting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const handleDeleteWorktreeAndMarkDone = async () => {
@@ -104,15 +107,22 @@ export function StagedInProjectMessage({ task, projectPath, hasWorktree = false,
 
     try {
       // Call the discard/delete worktree command
-      const result = await window.electronAPI.discardWorktree(task.id);
+      // Pass skipStatusChange=true to prevent backend from resetting to 'backlog'
+      // since we explicitly set status to 'done' immediately after
+      const result = await window.electronAPI.discardWorktree(task.id, true);
 
       if (!result.success) {
         setError(result.error || 'Failed to delete worktree');
         return;
       }
 
-      // Mark task as done
-      await persistTaskStatus(task.id, 'done');
+      // Mark task as done - check result since worktree is already deleted
+      const statusResult = await persistTaskStatus(task.id, 'done');
+      if (!statusResult.success) {
+        // Worktree is already deleted but status update failed - inform user of inconsistent state
+        setError('Worktree deleted but failed to update task status: ' + (statusResult.error || 'Unknown error'));
+        return;
+      }
 
       // Auto-close modal after marking as done
       onClose?.();
@@ -121,6 +131,46 @@ export function StagedInProjectMessage({ task, projectPath, hasWorktree = false,
       setError(err instanceof Error ? err.message : 'Failed to delete worktree');
     } finally {
       setIsDeleting(false);
+    }
+  };
+
+  const handleMarkDoneOnly = async () => {
+    setIsMarkingDone(true);
+    setError(null);
+
+    try {
+      await persistTaskStatus(task.id, 'done');
+      onClose?.();
+    } catch (err) {
+      console.error('Error marking task as done:', err);
+      setError(err instanceof Error ? err.message : 'Failed to mark as done');
+    } finally {
+      setIsMarkingDone(false);
+    }
+  };
+
+  const handleReviewAgain = async () => {
+    if (!onReviewAgain) return;
+    
+    setIsResetting(true);
+    setError(null);
+
+    try {
+      // Clear the staged flag via IPC
+      const result = await window.electronAPI.clearStagedState(task.id);
+      
+      if (!result.success) {
+        setError(result.error || 'Failed to reset staged state');
+        return;
+      }
+
+      // Trigger re-render by calling parent callback
+      onReviewAgain();
+    } catch (err) {
+      console.error('Error resetting staged state:', err);
+      setError(err instanceof Error ? err.message : 'Failed to reset staged state');
+    } finally {
+      setIsResetting(false);
     }
   };
 
@@ -143,12 +193,13 @@ export function StagedInProjectMessage({ task, projectPath, hasWorktree = false,
       </div>
 
       {/* Action buttons */}
-      {hasWorktree && (
-        <div className="flex flex-col gap-2">
-          <div className="flex gap-2">
+      <div className="flex flex-col gap-2">
+        <div className="flex gap-2">
+          {/* Primary action: Mark Done or Delete Worktree & Mark Done */}
+          {hasWorktree ? (
             <Button
               onClick={handleDeleteWorktreeAndMarkDone}
-              disabled={isDeleting}
+              disabled={isDeleting || isMarkingDone || isResetting}
               size="sm"
               variant="default"
               className="flex-1"
@@ -165,15 +216,88 @@ export function StagedInProjectMessage({ task, projectPath, hasWorktree = false,
                 </>
               )}
             </Button>
-          </div>
-          {error && (
-            <p className="text-xs text-destructive">{error}</p>
+          ) : (
+            <Button
+              onClick={handleMarkDoneOnly}
+              disabled={isDeleting || isMarkingDone || isResetting}
+              size="sm"
+              variant="default"
+              className="flex-1"
+            >
+              {isMarkingDone ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Marking done...
+                </>
+              ) : (
+                <>
+                  <Check className="h-4 w-4 mr-2" />
+                  Mark as Done
+                </>
+              )}
+            </Button>
           )}
-          <p className="text-xs text-muted-foreground">
-            This will delete the isolated workspace and mark the task as complete.
-          </p>
         </div>
-      )}
+        
+        {/* Secondary actions row */}
+        <div className="flex gap-2">
+          {/* Mark Done Only (when worktree exists) - allows keeping worktree */}
+          {hasWorktree && (
+            <Button
+              onClick={handleMarkDoneOnly}
+              disabled={isDeleting || isMarkingDone || isResetting}
+              size="sm"
+              variant="outline"
+              className="flex-1"
+            >
+              {isMarkingDone ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Marking done...
+                </>
+              ) : (
+                <>
+                  <Check className="h-4 w-4 mr-2" />
+                  Mark Done Only
+                </>
+              )}
+            </Button>
+          )}
+          
+          {/* Review Again button - only show if worktree exists and callback provided */}
+          {hasWorktree && onReviewAgain && (
+            <Button
+              onClick={handleReviewAgain}
+              disabled={isDeleting || isMarkingDone || isResetting}
+              size="sm"
+              variant="outline"
+              className="flex-1"
+            >
+              {isResetting ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Resetting...
+                </>
+              ) : (
+                <>
+                  <RotateCcw className="h-4 w-4 mr-2" />
+                  Review Again
+                </>
+              )}
+            </Button>
+          )}
+        </div>
+        
+        {error && (
+          <p className="text-xs text-destructive">{error}</p>
+        )}
+        
+        {hasWorktree && (
+          <p className="text-xs text-muted-foreground">
+            "Delete Worktree & Mark Done" cleans up the isolated workspace. "Mark Done Only" keeps it for reference.
+          </p>
+        )}
+      </div>
     </div>
   );
 }
