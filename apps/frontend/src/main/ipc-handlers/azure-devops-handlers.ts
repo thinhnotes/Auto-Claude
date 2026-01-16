@@ -15,6 +15,11 @@ import type {
   AzureDevOpsConfig,
   IPCResult
 } from '../../shared/types';
+import { createContextLogger } from './github/utils/logger';
+import { appLog } from '../app-logger';
+
+// Create context-specific logger for Azure DevOps operations
+const { debug: debugLog } = createContextLogger('AzureDevOps');
 
 /**
  * Helper to make authenticated Azure DevOps API requests
@@ -105,7 +110,7 @@ async function getAzureDevOpsConfig(projectId: string): Promise<AzureDevOpsConfi
       return { enabled: false };
     }
   } catch (error) {
-    console.error('[AzureDevOps] Error getting config:', error);
+    appLog.error('[AzureDevOps] Error getting config:', error);
     return null;
   }
 }
@@ -280,7 +285,7 @@ async function getIterations(projectId: string): Promise<{
       organizationUrl: config.organizationUrl
     };
   } catch (error) {
-    console.error('[AzureDevOps] Error fetching iterations:', error);
+    appLog.error('[AzureDevOps] Error fetching iterations:', error);
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Failed to fetch iterations'
@@ -344,7 +349,7 @@ async function getWorkItemsForIteration(
     // Handle case where path ends with \Area (root area)
     cleanAreaPath = cleanAreaPath.replace(/\\Area$/, '');
 
-    console.log('[AzureDevOps] WIQL paths - iteration:', cleanIterationPath, ', area:', cleanAreaPath);
+    debugLog('WIQL paths - iteration: ' + cleanIterationPath + ', area: ' + cleanAreaPath);
 
     // Build WHERE clause - always filter by iteration, optionally by area
     let whereClause = `[System.IterationPath] UNDER '${cleanIterationPath}'`;
@@ -443,7 +448,7 @@ async function getWorkItemsForIteration(
       workItems
     };
   } catch (error) {
-    console.error('[AzureDevOps] Error fetching work items:', error);
+    appLog.error('[AzureDevOps] Error fetching work items:', error);
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Failed to fetch work items'
@@ -516,7 +521,7 @@ async function getAreas(projectId: string): Promise<{
       areas
     };
   } catch (error) {
-    console.error('[AzureDevOps] Error fetching areas:', error);
+    appLog.error('[AzureDevOps] Error fetching areas:', error);
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Failed to fetch areas'
@@ -534,7 +539,7 @@ export function registerAzureDevOpsHandlers(getMainWindow: () => BrowserWindow |
       const config = await getAzureDevOpsConfig(projectId);
       return { success: true, data: config };
     } catch (error) {
-      console.error('[AzureDevOps] Error getting config:', error);
+      appLog.error('[AzureDevOps] Error getting config:', error);
       return { success: false, error: String(error) };
     }
   });
@@ -545,7 +550,7 @@ export function registerAzureDevOpsHandlers(getMainWindow: () => BrowserWindow |
       const status = await checkConnection(projectId);
       return { success: true, data: status };
     } catch (error) {
-      console.error('[AzureDevOps] Error checking connection:', error);
+      appLog.error('[AzureDevOps] Error checking connection:', error);
       return { success: false, error: String(error) };
     }
   });
@@ -553,16 +558,16 @@ export function registerAzureDevOpsHandlers(getMainWindow: () => BrowserWindow |
   // Get iterations
   ipcMain.handle(IPC_CHANNELS.AZURE_DEVOPS_GET_ITERATIONS, async (_event, projectId: string) => {
     try {
-      console.log('[AzureDevOps] GET_ITERATIONS called with projectId:', projectId);
+      debugLog('GET_ITERATIONS called with projectId: ' + projectId);
       const result = await getIterations(projectId);
       if (result.success && result.iterations) {
         result.iterations.forEach((iter, idx) => {
-          console.log(`  [${idx}] id: ${iter.id}, name: ${iter.name}, path: ${iter.path}, isCurrent: ${iter.isCurrent}`);
+          debugLog(`  [${idx}] id: ${iter.id}, name: ${iter.name}, path: ${iter.path}, isCurrent: ${iter.isCurrent}`);
         });
       }
       return result;
     } catch (error) {
-      console.error('[AzureDevOps] Error getting iterations:', error);
+      appLog.error('[AzureDevOps] Error getting iterations:', error);
       return { success: false, error: String(error) };
     }
   });
@@ -577,7 +582,7 @@ export function registerAzureDevOpsHandlers(getMainWindow: () => BrowserWindow |
       }
       return { success: false, error: result.error };
     } catch (error) {
-      console.error('[AzureDevOps] Error getting current iteration:', error);
+      appLog.error('[AzureDevOps] Error getting current iteration:', error);
       return { success: false, error: String(error) };
     }
   });
@@ -587,12 +592,12 @@ export function registerAzureDevOpsHandlers(getMainWindow: () => BrowserWindow |
     IPC_CHANNELS.AZURE_DEVOPS_GET_WORK_ITEMS,
     async (_event, projectId: string, iterationPath: string, areaPath?: string) => {
       try {
-        console.log('[AzureDevOps] GET_WORK_ITEMS called with:', { projectId, iterationPath, areaPath });
+        debugLog('GET_WORK_ITEMS called with: ' + JSON.stringify({ projectId, iterationPath, areaPath }));
         const result = await getWorkItemsForIteration(projectId, iterationPath, areaPath);
-        console.log('[AzureDevOps] GET_WORK_ITEMS result:', { success: result.success, count: result.workItems?.length });
+        debugLog('GET_WORK_ITEMS result: ' + JSON.stringify({ success: result.success, count: result.workItems?.length }));
         return result;
       } catch (error) {
-        console.error('[AzureDevOps] Error getting work items:', error);
+        appLog.error('[AzureDevOps] Error getting work items:', error);
         return { success: false, error: String(error) };
       }
     }
@@ -601,16 +606,16 @@ export function registerAzureDevOpsHandlers(getMainWindow: () => BrowserWindow |
   // Get areas
   ipcMain.handle(IPC_CHANNELS.AZURE_DEVOPS_GET_AREAS, async (_event, projectId: string) => {
     try {
-      console.log('[AzureDevOps] GET_AREAS called with projectId:', projectId);
+      debugLog('GET_AREAS called with projectId: ' + projectId);
       const result = await getAreas(projectId);
       if (result.success && result.areas) {
         result.areas.forEach((area, idx) => {
-          console.log(`  [${idx}] id: ${area.id}, name: ${area.name}, path: ${area.path}`);
+          debugLog(`  [${idx}] id: ${area.id}, name: ${area.name}, path: ${area.path}`);
         });
       }
       return result;
     } catch (error) {
-      console.error('[AzureDevOps] Error getting areas:', error);
+      appLog.error('[AzureDevOps] Error getting areas:', error);
       return { success: false, error: String(error) };
     }
   });
@@ -646,11 +651,11 @@ export function registerAzureDevOpsHandlers(getMainWindow: () => BrowserWindow |
           }
         };
       } catch (error) {
-        console.error('[AzureDevOps] Error getting work item:', error);
+        appLog.error('[AzureDevOps] Error getting work item:', error);
         return { success: false, error: String(error) };
       }
     }
   );
 
-  console.log('[AzureDevOps] IPC handlers registered');
+  appLog.info('[AzureDevOps] IPC handlers registered');
 }
