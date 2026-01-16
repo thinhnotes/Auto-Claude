@@ -509,20 +509,6 @@ ${existingVars['GRAPHITI_DB_PATH'] ? `GRAPHITI_DB_PATH=${existingVars['GRAPHITI_
         }
       }
 
-      // Log all Azure-related values for debugging
-      console.log('[ENV] Azure DevOps Config:', {
-        [AZURE_DEVOPS_ENV_KEYS.ENABLED]: vars[AZURE_DEVOPS_ENV_KEYS.ENABLED],
-        [AZURE_DEVOPS_ENV_KEYS.ORGANIZATION_URL]: vars[AZURE_DEVOPS_ENV_KEYS.ORGANIZATION_URL],
-        [AZURE_DEVOPS_ENV_KEYS.PROJECT]: vars[AZURE_DEVOPS_ENV_KEYS.PROJECT],
-        [AZURE_DEVOPS_ENV_KEYS.TEAM]: vars[AZURE_DEVOPS_ENV_KEYS.TEAM],
-        [AZURE_DEVOPS_ENV_KEYS.PAT]: vars[AZURE_DEVOPS_ENV_KEYS.PAT] ? '***SET***' : undefined,
-      });
-      console.log('[ENV] Azure OpenAI Config:', {
-        [AZURE_OPENAI_ENV_KEYS.API_KEY]: vars[AZURE_OPENAI_ENV_KEYS.API_KEY] ? '***SET***' : undefined,
-        [AZURE_OPENAI_ENV_KEYS.BASE_URL]: vars[AZURE_OPENAI_ENV_KEYS.BASE_URL],
-        [AZURE_OPENAI_ENV_KEYS.EMBEDDING_DEPLOYMENT]: vars[AZURE_OPENAI_ENV_KEYS.EMBEDDING_DEPLOYMENT],
-      });
-
       // Git/Worktree config
       if (vars['DEFAULT_BRANCH']) {
         config.defaultBranch = vars['DEFAULT_BRANCH'];
