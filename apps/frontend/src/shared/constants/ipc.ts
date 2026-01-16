@@ -511,5 +511,14 @@ export const IPC_CHANNELS = {
   // Sentry error reporting
   SENTRY_STATE_CHANGED: 'sentry:state-changed',  // Notify main process when setting changes
   GET_SENTRY_DSN: 'sentry:get-dsn',              // Get DSN from main process (env var)
-  GET_SENTRY_CONFIG: 'sentry:get-config'         // Get full Sentry config (DSN + sample rates)
+  GET_SENTRY_CONFIG: 'sentry:get-config',        // Get full Sentry config (DSN + sample rates)
+
+  // Azure DevOps Integration
+  AZURE_DEVOPS_GET_CONFIG: 'azureDevOps:getConfig',
+  AZURE_DEVOPS_GET_ITERATIONS: 'azureDevOps:getIterations',
+  AZURE_DEVOPS_GET_CURRENT_ITERATION: 'azureDevOps:getCurrentIteration',
+  AZURE_DEVOPS_GET_WORK_ITEMS: 'azureDevOps:getWorkItems',
+  AZURE_DEVOPS_GET_WORK_ITEM: 'azureDevOps:getWorkItem',
+  AZURE_DEVOPS_GET_AREAS: 'azureDevOps:getAreas',
+  AZURE_DEVOPS_CHECK_CONNECTION: 'azureDevOps:checkConnection'
 } as const;

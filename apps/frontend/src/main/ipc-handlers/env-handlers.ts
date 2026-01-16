@@ -20,6 +20,22 @@ const GITLAB_ENV_KEYS = {
   AUTO_SYNC: 'GITLAB_AUTO_SYNC'
 } as const;
 
+// Azure DevOps environment variable keys
+const AZURE_DEVOPS_ENV_KEYS = {
+  ENABLED: 'AZURE_DEVOPS_ENABLED',
+  ORGANIZATION_URL: 'AZURE_DEVOPS_ORGANIZATION_URL',
+  PROJECT: 'AZURE_DEVOPS_PROJECT',
+  TEAM: 'AZURE_DEVOPS_TEAM',
+  PAT: 'AZURE_DEVOPS_PAT'
+} as const;
+
+// Azure OpenAI environment variable keys
+const AZURE_OPENAI_ENV_KEYS = {
+  API_KEY: 'AZURE_OPENAI_API_KEY',
+  BASE_URL: 'AZURE_OPENAI_BASE_URL',
+  EMBEDDING_DEPLOYMENT: 'AZURE_OPENAI_EMBEDDING_DEPLOYMENT'
+} as const;
+
 /**
  * Helper to generate .env line (DRY)
  */
@@ -133,6 +149,22 @@ export function registerEnvHandlers(
     if (config.gitlabAutoSync !== undefined) {
       existingVars[GITLAB_ENV_KEYS.AUTO_SYNC] = config.gitlabAutoSync ? 'true' : 'false';
     }
+    // Azure DevOps Integration
+    if (config.azureDevOpsEnabled !== undefined) {
+      existingVars[AZURE_DEVOPS_ENV_KEYS.ENABLED] = config.azureDevOpsEnabled ? 'true' : 'false';
+    }
+    if (config.azureDevOpsOrganizationUrl !== undefined) {
+      existingVars[AZURE_DEVOPS_ENV_KEYS.ORGANIZATION_URL] = config.azureDevOpsOrganizationUrl;
+    }
+    if (config.azureDevOpsProject !== undefined) {
+      existingVars[AZURE_DEVOPS_ENV_KEYS.PROJECT] = config.azureDevOpsProject;
+    }
+    if (config.azureDevOpsTeam !== undefined) {
+      existingVars[AZURE_DEVOPS_ENV_KEYS.TEAM] = config.azureDevOpsTeam;
+    }
+    if (config.azureDevOpsPersonalAccessToken !== undefined) {
+      existingVars[AZURE_DEVOPS_ENV_KEYS.PAT] = config.azureDevOpsPersonalAccessToken;
+    }
     // Git/Worktree Settings
     if (config.defaultBranch !== undefined) {
       existingVars['DEFAULT_BRANCH'] = config.defaultBranch;
@@ -149,9 +181,9 @@ export function registerEnvHandlers(
       if (pc.openaiApiKey) existingVars['OPENAI_API_KEY'] = pc.openaiApiKey;
       if (pc.openaiEmbeddingModel) existingVars['OPENAI_EMBEDDING_MODEL'] = pc.openaiEmbeddingModel;
       // Azure OpenAI Embeddings
-      if (pc.azureOpenaiApiKey) existingVars['AZURE_OPENAI_API_KEY'] = pc.azureOpenaiApiKey;
-      if (pc.azureOpenaiBaseUrl) existingVars['AZURE_OPENAI_BASE_URL'] = pc.azureOpenaiBaseUrl;
-      if (pc.azureOpenaiEmbeddingDeployment) existingVars['AZURE_OPENAI_EMBEDDING_DEPLOYMENT'] = pc.azureOpenaiEmbeddingDeployment;
+      if (pc.azureOpenaiApiKey) existingVars[AZURE_OPENAI_ENV_KEYS.API_KEY] = pc.azureOpenaiApiKey;
+      if (pc.azureOpenaiBaseUrl) existingVars[AZURE_OPENAI_ENV_KEYS.BASE_URL] = pc.azureOpenaiBaseUrl;
+      if (pc.azureOpenaiEmbeddingDeployment) existingVars[AZURE_OPENAI_ENV_KEYS.EMBEDDING_DEPLOYMENT] = pc.azureOpenaiEmbeddingDeployment;
       // Voyage Embeddings
       if (pc.voyageApiKey) existingVars['VOYAGE_API_KEY'] = pc.voyageApiKey;
       if (pc.voyageEmbeddingModel) existingVars['VOYAGE_EMBEDDING_MODEL'] = pc.voyageEmbeddingModel;
@@ -261,6 +293,15 @@ ${envLine(existingVars, GITLAB_ENV_KEYS.PROJECT, 'group/project')}
 ${envLine(existingVars, GITLAB_ENV_KEYS.AUTO_SYNC, 'false')}
 
 # =============================================================================
+# AZURE DEVOPS INTEGRATION (OPTIONAL)
+# =============================================================================
+${existingVars[AZURE_DEVOPS_ENV_KEYS.ENABLED] !== undefined ? `${AZURE_DEVOPS_ENV_KEYS.ENABLED}=${existingVars[AZURE_DEVOPS_ENV_KEYS.ENABLED]}` : `# ${AZURE_DEVOPS_ENV_KEYS.ENABLED}=false`}
+${envLine(existingVars, AZURE_DEVOPS_ENV_KEYS.ORGANIZATION_URL, 'https://dev.azure.com/your-org')}
+${envLine(existingVars, AZURE_DEVOPS_ENV_KEYS.PROJECT, 'your-project')}
+${envLine(existingVars, AZURE_DEVOPS_ENV_KEYS.TEAM, 'your-team')}
+${envLine(existingVars, AZURE_DEVOPS_ENV_KEYS.PAT)}
+
+# =============================================================================
 # GIT/WORKTREE SETTINGS (OPTIONAL)
 # =============================================================================
 # Default base branch for worktree creation
@@ -316,9 +357,9 @@ ${existingVars['OPENAI_API_KEY'] ? `OPENAI_API_KEY=${existingVars['OPENAI_API_KE
 ${existingVars['OPENAI_EMBEDDING_MODEL'] ? `OPENAI_EMBEDDING_MODEL=${existingVars['OPENAI_EMBEDDING_MODEL']}` : '# OPENAI_EMBEDDING_MODEL=text-embedding-3-small'}
 
 # Azure OpenAI Embeddings
-${existingVars['AZURE_OPENAI_API_KEY'] ? `AZURE_OPENAI_API_KEY=${existingVars['AZURE_OPENAI_API_KEY']}` : '# AZURE_OPENAI_API_KEY='}
-${existingVars['AZURE_OPENAI_BASE_URL'] ? `AZURE_OPENAI_BASE_URL=${existingVars['AZURE_OPENAI_BASE_URL']}` : '# AZURE_OPENAI_BASE_URL='}
-${existingVars['AZURE_OPENAI_EMBEDDING_DEPLOYMENT'] ? `AZURE_OPENAI_EMBEDDING_DEPLOYMENT=${existingVars['AZURE_OPENAI_EMBEDDING_DEPLOYMENT']}` : '# AZURE_OPENAI_EMBEDDING_DEPLOYMENT='}
+${existingVars[AZURE_OPENAI_ENV_KEYS.API_KEY] ? `${AZURE_OPENAI_ENV_KEYS.API_KEY}=${existingVars[AZURE_OPENAI_ENV_KEYS.API_KEY]}` : `# ${AZURE_OPENAI_ENV_KEYS.API_KEY}=`}
+${existingVars[AZURE_OPENAI_ENV_KEYS.BASE_URL] ? `${AZURE_OPENAI_ENV_KEYS.BASE_URL}=${existingVars[AZURE_OPENAI_ENV_KEYS.BASE_URL]}` : `# ${AZURE_OPENAI_ENV_KEYS.BASE_URL}=`}
+${existingVars[AZURE_OPENAI_ENV_KEYS.EMBEDDING_DEPLOYMENT] ? `${AZURE_OPENAI_ENV_KEYS.EMBEDDING_DEPLOYMENT}=${existingVars[AZURE_OPENAI_ENV_KEYS.EMBEDDING_DEPLOYMENT]}` : `# ${AZURE_OPENAI_ENV_KEYS.EMBEDDING_DEPLOYMENT}=`}
 
 # Voyage AI Embeddings
 ${existingVars['VOYAGE_API_KEY'] ? `VOYAGE_API_KEY=${existingVars['VOYAGE_API_KEY']}` : '# VOYAGE_API_KEY='}
@@ -372,6 +413,7 @@ ${existingVars['GRAPHITI_DB_PATH'] ? `GRAPHITI_DB_PATH=${existingVars['GRAPHITI_
         linearEnabled: false,
         githubEnabled: false,
         gitlabEnabled: false,
+        azureDevOpsEnabled: false,
         graphitiEnabled: false,
         enableFancyUi: true,
         claudeTokenIsGlobal: false,
@@ -446,6 +488,27 @@ ${existingVars['GRAPHITI_DB_PATH'] ? `GRAPHITI_DB_PATH=${existingVars['GRAPHITI_
         config.gitlabAutoSync = true;
       }
 
+      // Azure DevOps config
+      if (vars[AZURE_DEVOPS_ENV_KEYS.ENABLED]?.toLowerCase() === 'true') {
+        config.azureDevOpsEnabled = true;
+      }
+      if (vars[AZURE_DEVOPS_ENV_KEYS.ORGANIZATION_URL]) {
+        config.azureDevOpsOrganizationUrl = vars[AZURE_DEVOPS_ENV_KEYS.ORGANIZATION_URL];
+      }
+      if (vars[AZURE_DEVOPS_ENV_KEYS.PROJECT]) {
+        config.azureDevOpsProject = vars[AZURE_DEVOPS_ENV_KEYS.PROJECT];
+      }
+      if (vars[AZURE_DEVOPS_ENV_KEYS.TEAM]) {
+        config.azureDevOpsTeam = vars[AZURE_DEVOPS_ENV_KEYS.TEAM];
+      }
+      if (vars[AZURE_DEVOPS_ENV_KEYS.PAT]) {
+        config.azureDevOpsPersonalAccessToken = vars[AZURE_DEVOPS_ENV_KEYS.PAT];
+        // Enable by default if PAT exists
+        if (vars[AZURE_DEVOPS_ENV_KEYS.ENABLED] === undefined) {
+          config.azureDevOpsEnabled = true;
+        }
+      }
+
       // Git/Worktree config
       if (vars['DEFAULT_BRANCH']) {
         config.defaultBranch = vars['DEFAULT_BRANCH'];
@@ -477,7 +540,7 @@ ${existingVars['GRAPHITI_DB_PATH'] ? `GRAPHITI_DB_PATH=${existingVars['GRAPHITI_
 
       // Populate graphitiProviderConfig from .env file (embeddings only - no LLM provider)
       const embeddingProvider = vars['GRAPHITI_EMBEDDER_PROVIDER'];
-      if (embeddingProvider || vars['AZURE_OPENAI_API_KEY'] ||
+      if (embeddingProvider || vars[AZURE_OPENAI_ENV_KEYS.API_KEY] ||
           vars['VOYAGE_API_KEY'] || vars['GOOGLE_API_KEY'] || vars['OLLAMA_BASE_URL']) {
         config.graphitiProviderConfig = {
           embeddingProvider: (embeddingProvider as 'openai' | 'voyage' | 'azure_openai' | 'ollama' | 'google') || 'ollama',
@@ -485,9 +548,9 @@ ${existingVars['GRAPHITI_DB_PATH'] ? `GRAPHITI_DB_PATH=${existingVars['GRAPHITI_
           openaiApiKey: vars['OPENAI_API_KEY'],
           openaiEmbeddingModel: vars['OPENAI_EMBEDDING_MODEL'],
           // Azure OpenAI Embeddings
-          azureOpenaiApiKey: vars['AZURE_OPENAI_API_KEY'],
-          azureOpenaiBaseUrl: vars['AZURE_OPENAI_BASE_URL'],
-          azureOpenaiEmbeddingDeployment: vars['AZURE_OPENAI_EMBEDDING_DEPLOYMENT'],
+          azureOpenaiApiKey: vars[AZURE_OPENAI_ENV_KEYS.API_KEY],
+          azureOpenaiBaseUrl: vars[AZURE_OPENAI_ENV_KEYS.BASE_URL],
+          azureOpenaiEmbeddingDeployment: vars[AZURE_OPENAI_ENV_KEYS.EMBEDDING_DEPLOYMENT],
           // Voyage Embeddings
           voyageApiKey: vars['VOYAGE_API_KEY'],
           voyageEmbeddingModel: vars['VOYAGE_EMBEDDING_MODEL'],

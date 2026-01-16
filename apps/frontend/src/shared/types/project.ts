@@ -318,6 +318,13 @@ export interface ProjectEnvConfig {
   gitlabProject?: string; // Format: group/project or numeric ID
   gitlabAutoSync?: boolean; // Auto-sync issues on project load
 
+  // Azure DevOps Integration
+  azureDevOpsEnabled: boolean;
+  azureDevOpsOrganizationUrl?: string; // e.g., https://dev.azure.com/myorg
+  azureDevOpsProject?: string;
+  azureDevOpsTeam?: string;
+  azureDevOpsPersonalAccessToken?: string;
+
   // Git/Worktree Settings
   defaultBranch?: string; // Base branch for worktree creation (e.g., 'main', 'develop')
 

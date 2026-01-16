@@ -470,3 +470,95 @@ export interface RoadmapProviderConfig {
  * Canny-specific status values
  */
 export type CannyStatus = 'open' | 'under review' | 'planned' | 'in progress' | 'complete' | 'closed';
+
+// ============================================
+// Azure DevOps Integration Types
+// ============================================
+
+export interface AzureDevOpsIteration {
+  id: string;
+  name: string;
+  path: string;
+  startDate?: string;
+  finishDate?: string;
+  state?: 'past' | 'current' | 'future';
+  /** Convenience flag indicating this is the current iteration */
+  isCurrent?: boolean;
+  attributes?: {
+    startDate?: string;
+    finishDate?: string;
+    timeFrame?: 'past' | 'current' | 'future';
+  };
+}
+
+export interface AzureDevOpsWorkItem {
+  id: number;
+  rev: number;
+  title: string;
+  description?: string;
+  acceptanceCriteria?: string;
+  design?: string;
+  state: string;
+  workItemType: string;
+  assignedTo?: {
+    displayName: string;
+    uniqueName: string;
+    imageUrl?: string;
+  };
+  createdDate: string;
+  changedDate: string;
+  priority?: number;
+  tags?: string[];
+  iterationPath?: string;
+  areaPath?: string;
+  url: string;
+  htmlUrl?: string;
+  parentId?: number;
+  effort?: number;
+  storyPoints?: number;
+  remainingWork?: number;
+  originalEstimate?: number;
+  completedWork?: number;
+}
+
+export interface AzureDevOpsBoardColumn {
+  id: string;
+  name: string;
+  stateMappings: Record<string, string>;
+  isSplit?: boolean;
+  itemLimit?: number;
+  columnType?: 'incoming' | 'inProgress' | 'outgoing';
+}
+
+export interface AzureDevOpsTeam {
+  id: string;
+  name: string;
+  description?: string;
+  url?: string;
+}
+
+export interface AzureDevOpsProject {
+  id: string;
+  name: string;
+  description?: string;
+  url?: string;
+  state?: string;
+}
+
+export interface AzureDevOpsSyncStatus {
+  connected: boolean;
+  organizationUrl?: string;
+  project?: string;
+  team?: string;
+  workItemCount?: number;
+  lastSyncedAt?: string;
+  error?: string;
+}
+
+export interface AzureDevOpsConfig {
+  enabled: boolean;
+  organizationUrl?: string;
+  project?: string;
+  team?: string;
+  personalAccessToken?: string;
+}

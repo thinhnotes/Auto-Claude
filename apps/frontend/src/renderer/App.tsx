@@ -41,6 +41,7 @@ import { GitHubIssues } from './components/GitHubIssues';
 import { GitLabIssues } from './components/GitLabIssues';
 import { GitHubPRs } from './components/github-prs';
 import { GitLabMergeRequests } from './components/gitlab-merge-requests';
+import { AzureDevOpsBoard } from './components/azure-devops-board';
 import { Changelog } from './components/Changelog';
 import { Worktrees } from './components/Worktrees';
 import { AgentTools } from './components/AgentTools';
@@ -878,6 +879,15 @@ export function App() {
                 )}
                 {activeView === 'worktrees' && (activeProjectId || selectedProjectId) && (
                   <Worktrees projectId={activeProjectId || selectedProjectId!} />
+                )}
+                {activeView === 'azure-devops-board' && (activeProjectId || selectedProjectId) && (
+                  <AzureDevOpsBoard
+                    onNavigateToTask={handleGoToTask}
+                    onOpenSettings={() => {
+                      setSettingsInitialProjectSection('azuredevops');
+                      setIsSettingsDialogOpen(true);
+                    }}
+                  />
                 )}
                 {activeView === 'agent-tools' && <AgentTools />}
               </>

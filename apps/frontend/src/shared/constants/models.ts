@@ -15,23 +15,18 @@ export const AVAILABLE_MODELS = [
   { value: 'haiku', label: 'Claude Haiku 4.5' }
 ] as const;
 
-// Default model IDs (can be overridden via VITE_ANTHROPIC_DEFAULT_*_MODEL env vars)
-// Use import.meta.env for Vite compatibility in both Electron and Web
+// Default model IDs (can be overridden via ANTHROPIC_DEFAULT_*_MODEL env vars)
+// In renderer process, process.env is not available, so we use fallback values
 const getEnvVar = (key: string, fallback: string): string => {
-  // Check Vite env first (works in renderer/web)
-  if (typeof import.meta !== 'undefined' && import.meta.env?.[key]) {
-    return import.meta.env[key] as string;
-  }
-  // Fallback for Node.js environment (Electron main process)
-  if (typeof process !== 'undefined' && process.env?.[key]) {
+  if (typeof process !== 'undefined' && process.env && process.env[key]) {
     return process.env[key] as string;
   }
   return fallback;
 };
 
-const DEFAULT_OPUS_MODEL = getEnvVar('VITE_ANTHROPIC_DEFAULT_OPUS_MODEL', 'claude-opus-4-5-20251101');
-const DEFAULT_SONNET_MODEL = getEnvVar('VITE_ANTHROPIC_DEFAULT_SONNET_MODEL', 'claude-sonnet-4-5-202509291');
-const DEFAULT_HAIKU_MODEL = getEnvVar('VITE_ANTHROPIC_DEFAULT_HAIKU_MODEL', 'claude-haiku-4-5-20251001');
+const DEFAULT_OPUS_MODEL = getEnvVar('ANTHROPIC_DEFAULT_OPUS_MODEL', 'claude-opus-4-5-20251101');
+const DEFAULT_SONNET_MODEL = getEnvVar('ANTHROPIC_DEFAULT_SONNET_MODEL', 'claude-sonnet-4-5-20250929');
+const DEFAULT_HAIKU_MODEL = getEnvVar('ANTHROPIC_DEFAULT_HAIKU_MODEL', 'claude-haiku-4-5-20251001');
 
 // Maps model shorthand to actual Claude model IDs
 export const MODEL_ID_MAP: Record<string, string> = {

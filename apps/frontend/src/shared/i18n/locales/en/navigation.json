@@ -16,6 +16,7 @@
     "gitlabIssues": "GitLab Issues",
     "gitlabMRs": "GitLab MRs",
     "worktrees": "Worktrees",
+    "azureDevOpsBoard": "Azure DevOps Board",
     "agentTools": "MCP Overview"
   },
   "actions": {

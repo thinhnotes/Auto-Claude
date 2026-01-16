@@ -20,7 +20,8 @@ import {
   Sparkles,
   GitBranch,
   HelpCircle,
-  Wrench
+  Wrench,
+  LayoutDashboard
 } from 'lucide-react';
 import { Button } from './ui/button';
 import { ScrollArea } from './ui/scroll-area';
@@ -52,7 +53,7 @@ import { RateLimitIndicator } from './RateLimitIndicator';
 import { ClaudeCodeStatusBadge } from './ClaudeCodeStatusBadge';
 import type { Project, AutoBuildVersionInfo, GitStatus, ProjectEnvConfig } from '../../shared/types';
 
-export type SidebarView = 'kanban' | 'terminals' | 'roadmap' | 'context' | 'ideation' | 'github-issues' | 'gitlab-issues' | 'github-prs' | 'gitlab-merge-requests' | 'changelog' | 'insights' | 'worktrees' | 'agent-tools';
+export type SidebarView = 'kanban' | 'terminals' | 'roadmap' | 'context' | 'ideation' | 'github-issues' | 'gitlab-issues' | 'github-prs' | 'gitlab-merge-requests' | 'changelog' | 'insights' | 'worktrees' | 'azure-devops-board' | 'agent-tools';
 
 interface SidebarProps {
   onSettingsClick: () => void;
@@ -93,6 +94,11 @@ const gitlabNavItems: NavItem[] = [
   { id: 'gitlab-merge-requests', labelKey: 'navigation:items.gitlabMRs', icon: GitMerge, shortcut: 'R' }
 ];
 
+// Azure DevOps nav items shown when Azure DevOps is enabled
+const azureDevOpsNavItems: NavItem[] = [
+  { id: 'azure-devops-board', labelKey: 'navigation:items.azureDevOpsBoard', icon: LayoutDashboard, shortcut: 'Z' }
+];
+
 export function Sidebar({
   onSettingsClick,
   onNewTaskClick,
@@ -104,6 +110,7 @@ export function Sidebar({
   const selectedProjectId = useProjectStore((state) => state.selectedProjectId);
   const selectProject = useProjectStore((state) => state.selectProject);
   const settings = useSettingsStore((state) => state.settings);
+  const envConfigVersion = useSettingsStore((state) => state.envConfigVersion);
 
   const [showAddProjectModal, setShowAddProjectModal] = useState(false);
   const [showInitDialog, setShowInitDialog] = useState(false);
@@ -116,6 +123,7 @@ export function Sidebar({
   const selectedProject = projects.find((p) => p.id === selectedProjectId);
 
   // Load env config when project changes to check GitHub/GitLab enabled state
+  // Also reload when envConfigVersion changes (after saving settings)
   useEffect(() => {
     const loadEnvConfig = async () => {
       if (selectedProject?.autoBuildPath) {
@@ -134,9 +142,9 @@ export function Sidebar({
       }
     };
     loadEnvConfig();
-  }, [selectedProject?.id, selectedProject?.autoBuildPath]);
+  }, [selectedProject?.id, selectedProject?.autoBuildPath, envConfigVersion]);
 
-  // Compute visible nav items based on GitHub/GitLab enabled state
+  // Compute visible nav items based on GitHub/GitLab/Azure DevOps enabled state
   const visibleNavItems = useMemo(() => {
     const items = [...baseNavItems];
 
@@ -148,8 +156,12 @@ export function Sidebar({
       items.push(...gitlabNavItems);
     }
 
+    if (envConfig?.azureDevOpsEnabled) {
+      items.push(...azureDevOpsNavItems);
+    }
+
     return items;
-  }, [envConfig?.githubEnabled, envConfig?.gitlabEnabled]);
+  }, [envConfig?.githubEnabled, envConfig?.gitlabEnabled, envConfig?.azureDevOpsEnabled]);
 
   // Keyboard shortcuts
   useEffect(() => {
