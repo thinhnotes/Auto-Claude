@@ -10,6 +10,7 @@ import json
 import logging
 import os
 import signal
+import shutil
 import subprocess
 import sys
 from datetime import datetime
@@ -497,6 +498,42 @@ async def get_task_plan(project_id: str, spec_id: str) -> dict[str, Any]:
     
     logger.info(f"📋 [get_task_plan] Returning plan with {len(plan.get('phases', []))} phases")
     return {"success": True, "data": plan}
+
+
+@router.delete("/tasks/{task_id}")
+async def delete_task(task_id: str) -> dict[str, Any]:
+    """Delete a task and its spec directory."""
+    func_name = "delete_task"
+    timestamp = datetime.utcnow().isoformat()
+
+    logger.info(f"🗑️ [{func_name}] START at {timestamp} for task_id={task_id}")
+
+    _cleanup_finished_tasks()
+
+    project_id, folder = parse_task_id(task_id)
+    project_path = get_project_path(project_id)
+
+    spec_dir = find_spec(project_path, folder)
+    if not spec_dir:
+        logger.warning(f"🗑️ [{func_name}] Task not found: {folder}")
+        raise HTTPException(status_code=404, detail="Task not found")
+
+    if task_id in running_tasks:
+        pid = running_tasks[task_id]["pid"]
+        if _is_process_running(pid):
+            logger.info(f"🗑️ [{func_name}] Task is running with PID {pid}")
+            return {"success": False, "error": "Cannot delete a running task. Stop the task first."}
+        del running_tasks[task_id]
+        _save_running_tasks()
+
+    try:
+        logger.info(f"🗑️ [{func_name}] Deleting spec dir: {spec_dir}")
+        shutil.rmtree(spec_dir, ignore_errors=False)
+        log_file_operation(func_name, "delete", spec_dir)
+        return {"success": True}
+    except Exception as exc:
+        logger.error(f"🗑️ [{func_name}] Failed to delete spec dir: {exc}", exc_info=True)
+        return {"success": False, "error": str(exc)}
 
 
 @router.post("/tasks/{task_id}/start")
