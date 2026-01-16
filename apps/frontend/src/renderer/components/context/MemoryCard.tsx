@@ -131,9 +131,10 @@ export function MemoryCard({ memory }: MemoryCardProps) {
     return <PRReviewCard memory={memory} />;
   }
 
-  const Icon = memoryTypeIcons[memory.type] || memoryTypeIcons.session_insight;
-  const typeColor = memoryTypeColors[memory.type] || '';
-  const typeLabel = memoryTypeLabels[memory.type] || memory.type.replace(/_/g, ' ');
+  const memoryType = memory.type || 'session_insight';
+  const Icon = memoryTypeIcons[memoryType] || memoryTypeIcons.session_insight;
+  const typeColor = memoryTypeColors[memoryType] || '';
+  const typeLabel = memoryTypeLabels[memoryType] || memoryType.replace(/_/g, ' ');
 
   const sessionLabel = memory.session_number
     ? `Session #${memory.session_number}`

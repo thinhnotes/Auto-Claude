@@ -74,6 +74,10 @@ export interface TaskAPI {
   unwatchTaskLogs: (specId: string) => Promise<IPCResult>;
   onTaskLogsChanged: (callback: (specId: string, logs: TaskLogs) => void) => () => void;
   onTaskLogsStream: (callback: (specId: string, chunk: TaskLogStreamChunk) => void) => () => void;
+
+  // Task Progress Polling (for subtasks auto-refresh in web mode)
+  watchTaskProgress?: (projectId: string, specId: string) => Promise<IPCResult>;
+  unwatchTaskProgress?: (specId: string) => Promise<IPCResult>;
 }
 
 export const createTaskAPI = (): TaskAPI => ({

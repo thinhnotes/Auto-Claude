@@ -3,11 +3,13 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self' https://fonts.googleapis.com https://fonts.gstatic.com; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: blob: https://*.githubusercontent.com https://*.supabase.co; connect-src 'self' https://*.ingest.us.sentry.io" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self' https://fonts.googleapis.com https://fonts.gstatic.com; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: blob: https://*.githubusercontent.com https://*.supabase.co; connect-src 'self' http://127.0.0.1:8000 http://localhost:8000 ws://127.0.0.1:8000 ws://localhost:8000 http://192.168.1.*:8000 ws://192.168.1.*:8000 http://*.local:8000 ws://*.local:8000 http://*.notesvnn.click ws://*.notesvnn.click https://*.notesvnn.click wss://*.notesvnn.click https://*.ingest.us.sentry.io" />
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
     <title>Auto Claude</title>
+    <!-- Runtime environment configuration (replaced by docker-entrypoint.sh) -->
+    <script src="/env-config.js"></script>
   </head>
   <body class="antialiased">
     <div id="root"></div>

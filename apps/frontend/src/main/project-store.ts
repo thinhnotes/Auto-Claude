@@ -490,8 +490,9 @@ export class ProjectStore {
           stagedAt,
           location, // Add location metadata (main vs worktree)
           specsPath: specPath, // Add full path to specs directory
-          createdAt: new Date(plan?.created_at || Date.now()),
-          updatedAt: new Date(plan?.updated_at || Date.now())
+          // Parse timestamps as UTC (ISO strings from backend are in UTC but may lack 'Z' suffix)
+          createdAt: new Date(this.parseUtcTimestamp(plan?.created_at) || Date.now()),
+          updatedAt: new Date(this.parseUtcTimestamp(plan?.updated_at) || Date.now())
         });
       } catch (error) {
         // Log error but continue processing other specs
@@ -809,6 +810,27 @@ export class ProjectStore {
     this.invalidateTasksCache(projectId);
 
     return !hasErrors;
+  }
+
+  /**
+   * Parse a timestamp string as UTC.
+   * Backend stores timestamps as ISO strings in UTC but may lack the 'Z' suffix.
+   * JavaScript's Date() interprets strings without timezone as local time, causing
+   * incorrect relative time display (e.g., showing "6h ago" for just-created tasks).
+   *
+   * @param timestamp ISO timestamp string (e.g., "2026-01-12T09:21:43.328646")
+   * @returns Timestamp string with 'Z' suffix if needed, or undefined if input is falsy
+   */
+  private parseUtcTimestamp(timestamp: string | undefined): string | undefined {
+    if (!timestamp) return undefined;
+
+    // If timestamp already has timezone info (Z or +/-offset), return as-is
+    if (timestamp.endsWith('Z') || /[+-]\d{2}:\d{2}$/.test(timestamp)) {
+      return timestamp;
+    }
+
+    // Append 'Z' to indicate UTC
+    return timestamp + 'Z';
   }
 }
 

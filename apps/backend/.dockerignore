@@ -1,0 +1,15 @@
+__pycache__
+*.pyc
+*.pyo
+.venv
+venv
+.env
+.env.local
+*.log
+.git
+.pytest_cache
+.mypy_cache
+*.egg-info
+.auto-claude
+specs
+tests

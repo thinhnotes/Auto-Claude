@@ -230,6 +230,9 @@ Title:`;
   private createGenerationScript(prompt: string): string {
     // Escape the prompt for Python string - use JSON.stringify for safe escaping
     const escapedPrompt = JSON.stringify(prompt);
+    // Get model from env var or use default
+    const haikuModel = process.env.ANTHROPIC_DEFAULT_HAIKU_MODEL || 'claude-haiku-4-5-20251001';
+    const escapedModel = JSON.stringify(haikuModel);
 
     return `
 import asyncio
@@ -244,7 +247,7 @@ async def generate_title():
         # Create a minimal client for simple text generation (no tools needed)
         client = ClaudeSDKClient(
             options=ClaudeAgentOptions(
-                model="claude-haiku-4-5",
+                model=${escapedModel},
                 system_prompt="You generate short, concise task titles (3-7 words). Output ONLY the title, nothing else. No quotes, no explanation, no preamble.",
                 max_turns=1,
             )
