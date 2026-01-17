@@ -380,6 +380,7 @@ async function getWorkItemsForIteration(
         rev: number;
         url: string;
         fields: {
+          'System.Id': number;
           'System.Title': string;
           'System.Description'?: string;
           'Microsoft.VSTS.Common.AcceptanceCriteria'?: string;
@@ -402,6 +403,7 @@ async function getWorkItemsForIteration(
           'Microsoft.VSTS.Scheduling.RemainingWork'?: number;
           'Microsoft.VSTS.Scheduling.OriginalEstimate'?: number;
           'Microsoft.VSTS.Scheduling.CompletedWork'?: number;
+          [key: string]: any;
         };
         _links?: {
           html?: { href: string };
@@ -426,7 +428,7 @@ async function getWorkItemsForIteration(
       createdDate: wi.fields['System.CreatedDate'],
       changedDate: wi.fields['System.ChangedDate'],
       priority: wi.fields['Microsoft.VSTS.Common.Priority'],
-      tags: wi.fields['System.Tags']?.split(';').map(t => t.trim()).filter(Boolean),
+      tags: wi.fields['System.Tags'],
       iterationPath: wi.fields['System.IterationPath'],
       areaPath: wi.fields['System.AreaPath'],
       url: wi.url,
@@ -435,7 +437,8 @@ async function getWorkItemsForIteration(
       effort: wi.fields['Microsoft.VSTS.Scheduling.Effort'],
       remainingWork: wi.fields['Microsoft.VSTS.Scheduling.RemainingWork'],
       originalEstimate: wi.fields['Microsoft.VSTS.Scheduling.OriginalEstimate'],
-      completedWork: wi.fields['Microsoft.VSTS.Scheduling.CompletedWork']
+      completedWork: wi.fields['Microsoft.VSTS.Scheduling.CompletedWork'],
+      fields: wi.fields
     }));
 
     return {

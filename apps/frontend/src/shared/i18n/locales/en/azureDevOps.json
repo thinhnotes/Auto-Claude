@@ -73,6 +73,11 @@
     "testConnection": "Test Connection",
     "save": "Save",
     "connected": "Connected",
-    "disconnected": "Disconnected"
+    "disconnected": "Disconnected",
+    "checkingConnection": "Checking connection...",
+    "testing": "Testing...",
+    "connectionSuccessful": "Connection successful!",
+    "connectionFailed": "Connection failed. Check your settings.",
+    "patHelperText": "Create a PAT with Work Items (Read) scope at your Azure DevOps organization settings."
   }
 }

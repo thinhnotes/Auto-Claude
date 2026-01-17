@@ -51,6 +51,7 @@ export function WorkItemDetailDialog({
   const stateColor = STATE_COLORS[workItem.state] || 'bg-gray-500/20 text-gray-400 border-gray-500/30';
   const priorityInfo = workItem.priority ? PRIORITY_LABELS[workItem.priority] : null;
   const effort = workItem.storyPoints ?? workItem.effort;
+  const tags = workItem.tags?.split(';').map(t => t.trim()).filter(Boolean) || [];
 
   const handleConvert = () => {
     onConvertToKanban(workItem);
@@ -114,10 +115,10 @@ export function WorkItemDetailDialog({
             </div>
 
             {/* Tags */}
-            {workItem.tags && workItem.tags.length > 0 && (
+            {tags.length > 0 && (
               <div className="flex flex-wrap gap-2">
                 <Tag className="h-4 w-4 text-muted-foreground" />
-                {workItem.tags.map((tag) => (
+                {tags.map((tag) => (
                   <Badge
                     key={tag}
                     variant="outline"

@@ -85,7 +85,6 @@ export function AzureDevOpsBoard({ onNavigateToTask, onOpenSettings }: AzureDevO
         {
           azureDevOpsWorkItemId: workItem.id,
           azureDevOpsUrl: workItem.htmlUrl || workItem.url,
-          azureDevOpsType: workItem.workItemType,
           acceptanceCriteria: workItem.acceptanceCriteria ? [stripHtmlTags(workItem.acceptanceCriteria)] : undefined
         }
       );

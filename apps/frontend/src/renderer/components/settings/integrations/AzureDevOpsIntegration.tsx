@@ -108,7 +108,7 @@ export function AzureDevOpsIntegration({
         {isCheckingAzureDevOps ? (
           <>
             <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-            <span className="text-sm text-muted-foreground">Checking connection...</span>
+            <span className="text-sm text-muted-foreground">{t('settings.checkingConnection')}</span>
           </>
         ) : isConnected ? (
           <>
@@ -180,7 +180,7 @@ export function AzureDevOpsIntegration({
           onChange={(value) => handlePatChange(value)}
         />
         <p className="text-xs text-muted-foreground">
-          Create a PAT with <strong>Work Items (Read)</strong> scope at your Azure DevOps organization settings.
+          {t('settings.patHelperText')}
         </p>
       </div>
 
@@ -196,7 +196,7 @@ export function AzureDevOpsIntegration({
           {isTestingConnection ? (
             <>
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              Testing...
+              {t('settings.testing')}
             </>
           ) : (
             <>
@@ -209,14 +209,14 @@ export function AzureDevOpsIntegration({
         {connectionTestResult === 'success' && (
           <div className="flex items-center gap-2 text-green-600">
             <CheckCircle2 className="h-4 w-4" />
-            <span className="text-sm">Connection successful!</span>
+            <span className="text-sm">{t('settings.connectionSuccessful')}</span>
           </div>
         )}
 
         {connectionTestResult === 'error' && (
           <div className="flex items-center gap-2 text-red-600">
             <AlertCircle className="h-4 w-4" />
-            <span className="text-sm">Connection failed. Check your settings.</span>
+            <span className="text-sm">{t('settings.connectionFailed')}</span>
           </div>
         )}
       </div>

@@ -35,6 +35,9 @@ function workItemCardPropsAreEqual(
     return true;
   }
   
+  const prevTags = prev.tags?.split(';').filter(Boolean) || [];
+  const nextTags = next.tags?.split(';').filter(Boolean) || [];
+  
   return (
     prev.id === next.id &&
     prev.rev === next.rev &&
@@ -42,7 +45,7 @@ function workItemCardPropsAreEqual(
     prev.state === next.state &&
     prev.assignedTo?.displayName === next.assignedTo?.displayName &&
     prev.priority === next.priority &&
-    prev.tags?.length === next.tags?.length
+    prevTags.length === nextTags.length
   );
 }
 
@@ -50,6 +53,7 @@ export const WorkItemCard = memo(function WorkItemCard({ workItem, onClick }: Wo
   const typeConfig = getWorkItemTypeConfig(workItem.workItemType);
   const TypeIcon = typeConfig.icon;
   const priorityConfig = workItem.priority ? PRIORITY_CONFIG[workItem.priority] : null;
+  const tags = workItem.tags?.split(';').map(t => t.trim()).filter(Boolean) || [];
   
   return (
     <Card
@@ -82,9 +86,9 @@ export const WorkItemCard = memo(function WorkItemCard({ workItem, onClick }: Wo
         </h3>
         
         {/* Tags */}
-        {workItem.tags && workItem.tags.length > 0 && (
+        {tags.length > 0 && (
           <div className="mt-2 flex flex-wrap gap-1">
-            {workItem.tags.slice(0, 3).map((tag) => (
+            {tags.slice(0, 3).map((tag) => (
               <Badge
                 key={tag}
                 variant="secondary"
@@ -93,12 +97,12 @@ export const WorkItemCard = memo(function WorkItemCard({ workItem, onClick }: Wo
                 {tag}
               </Badge>
             ))}
-            {workItem.tags.length > 3 && (
+            {tags.length > 3 && (
               <Badge
                 variant="secondary"
                 className="text-[10px] px-1.5 py-0 bg-muted/50"
               >
-                +{workItem.tags.length - 3}
+                +{tags.length - 3}
               </Badge>
             )}
           </div>
