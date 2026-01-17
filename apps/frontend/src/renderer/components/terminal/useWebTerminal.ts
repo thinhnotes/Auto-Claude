@@ -57,9 +57,22 @@ function getApiBaseUrl(): string {
 
 /**
  * Get the WebSocket base URL for terminal connections
+ * In web mode, WebSocket needs to connect directly to the backend,
+ * not through Vite proxy which doesn't handle WebSocket upgrades
  */
 function getWsBaseUrl(): string {
-  return getApiBaseUrl().replace('http', 'ws');
+  // Check if we have an explicit API URL
+  const apiBase = getApiBaseUrl();
+  
+  // If apiBase is empty (using Vite proxy), we need to explicitly point to backend
+  if (!apiBase || apiBase === '') {
+    // Assume backend is on port 8000 (same host as frontend)
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    return `${protocol}//${window.location.hostname}:8000`;
+  }
+  
+  // Otherwise convert the API base URL to WebSocket
+  return apiBase.replace('http', 'ws');
 }
 
 export function useWebTerminal({
@@ -79,14 +92,24 @@ export function useWebTerminal({
 
   // Create terminal and connect WebSocket
   const createTerminal = useCallback(async () => {
-    if (!isWebMode()) return;
-    if (isCreating || wsRef.current) return;
+    if (!isWebMode()) {
+      console.log('[WebTerminal] Not in web mode, skipping');
+      return;
+    }
+    if (isCreating || wsRef.current) {
+      console.log('[WebTerminal] Already creating or connected, skipping');
+      return;
+    }
     
+    console.log('[WebTerminal] Creating terminal...', { cwd, cols, rows });
     setIsCreating(true);
     
     try {
       // Create terminal on backend
-      const response = await fetch(`${getApiBaseUrl()}/api/terminals`, {
+      const apiUrl = `${getApiBaseUrl()}/api/terminals`;
+      console.log('[WebTerminal] POST', apiUrl);
+      
+      const response = await fetch(apiUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -102,6 +125,7 @@ export function useWebTerminal({
       }
       
       const result = await response.json();
+      console.log('[WebTerminal] Backend response:', result);
       
       if (!result.success || !result.data) {
         throw new Error(result.error || 'Failed to create terminal');
@@ -112,6 +136,7 @@ export function useWebTerminal({
       
       // Connect WebSocket
       const wsUrl = `${getWsBaseUrl()}/api/terminals/${backendTerminalId}/ws`;
+      console.log('[WebTerminal] Connecting WebSocket:', wsUrl);
       const ws = new WebSocket(wsUrl);
       
       ws.onopen = () => {
@@ -231,18 +256,9 @@ export function useWebTerminal({
     };
   }, [xterm, cols, rows, createTerminal]);
 
-  // Handle xterm input
-  useEffect(() => {
-    if (!xterm || !isConnected) return;
-    
-    const disposable = xterm.onData((data) => {
-      sendInput(data);
-    });
-    
-    return () => {
-      disposable.dispose();
-    };
-  }, [xterm, isConnected, sendInput]);
+  // Note: We don't handle xterm.onData here because useXterm already does it
+  // useXterm calls window.electronAPI.sendTerminalInput which in web mode
+  // uses the WebSocket stored in __webTerminals
 
   // Handle resize
   useEffect(() => {

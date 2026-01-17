@@ -12,6 +12,7 @@ import { TerminalHeader } from './terminal/TerminalHeader';
 import { CreateWorktreeDialog } from './terminal/CreateWorktreeDialog';
 import { useXterm } from './terminal/useXterm';
 import { usePtyProcess } from './terminal/usePtyProcess';
+import { useWebTerminal } from './terminal/useWebTerminal';
 import { useTerminalEvents } from './terminal/useTerminalEvents';
 import { useAutoNaming } from './terminal/useAutoNaming';
 import { useTerminalFileDrop } from './terminal/useTerminalFileDrop';
@@ -134,15 +135,19 @@ export function Terminal({
     return null;
   }, [readyDimensions, cols, rows]);
 
-  // Create PTY process - only when we have valid dimensions
-  const { prepareForRecreate, resetForRecreate } = usePtyProcess({
+  // Detect web mode
+  const isWebMode = typeof window !== 'undefined' && 
+    !('electronAPI' in window && (window as any).electronAPI?.isElectron);
+
+  // Create PTY process (Electron) or WebSocket terminal (Web) - only when we have valid dimensions
+  const ptyProcess = usePtyProcess({
     terminalId: id,
     cwd: effectiveCwd,
     projectPath,
     cols: ptyDimensions?.cols ?? 80,
     rows: ptyDimensions?.rows ?? 24,
-    // Only allow PTY creation when dimensions are ready
-    skipCreation: !ptyDimensions,
+    // Only allow PTY creation when dimensions are ready and NOT in web mode
+    skipCreation: !ptyDimensions || isWebMode,
     // Pass recreation ref to coordinate with deliberate terminal destruction/recreation
     isRecreatingRef,
     onCreated: () => {
@@ -152,20 +157,56 @@ export function Terminal({
       writeln(`\r\n\x1b[31mError: ${error}\x1b[0m`);
     },
   });
-
-  // Handle terminal events
-  useTerminalEvents({
+  
+  // Web terminal connection
+  const webTerminal = useWebTerminal({
     terminalId: id,
-    // Pass recreation ref to skip auto-removal during deliberate terminal recreation
-    isRecreatingRef,
-    onOutput: (data) => {
-      write(data);
+    xterm: isWebMode ? _xtermRef.current : null,
+    cwd: effectiveCwd,
+    cols: ptyDimensions?.cols ?? 80,
+    rows: ptyDimensions?.rows ?? 24,
+    onCreated: () => {
+      isCreatedRef.current = true;
+    },
+    onError: (error) => {
+      writeln(`\r\n\x1b[31mError: ${error}\x1b[0m`);
     },
     onExit: (exitCode) => {
       isCreatedRef.current = false;
       writeln(`\r\n\x1b[90mProcess exited with code ${exitCode}\x1b[0m`);
     },
   });
+  
+  // Use the appropriate handler
+  const { prepareForRecreate, resetForRecreate } = isWebMode 
+    ? { prepareForRecreate: () => {}, resetForRecreate: () => {} }
+    : ptyProcess;
+
+  // Handle terminal events (only for Electron mode, web mode handles it in useWebTerminal)
+  useEffect(() => {
+    if (isWebMode) return; // Skip in web mode
+    
+    const cleanup = window.electronAPI.onTerminalOutput((termId, data) => {
+      if (termId === id) {
+        write(data);
+      }
+    });
+    
+    return cleanup;
+  }, [id, write, isWebMode]);
+  
+  useEffect(() => {
+    if (isWebMode) return; // Skip in web mode
+    
+    const cleanup = window.electronAPI.onTerminalExit((termId, exitCode) => {
+      if (termId === id) {
+        isCreatedRef.current = false;
+        writeln(`\r\n\x1b[90mProcess exited with code ${exitCode}\x1b[0m`);
+      }
+    });
+    
+    return cleanup;
+  }, [id, writeln, isWebMode]);
 
   // Focus terminal when it becomes active
   useEffect(() => {

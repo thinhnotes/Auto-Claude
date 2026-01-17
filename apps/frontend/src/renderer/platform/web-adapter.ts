@@ -518,13 +518,32 @@ export function createWebAdapter(): AppAPI {
         });
       }
     },
-    invokeClaudeInTerminal: unsupportedVoid('invokeClaudeInTerminal'),
+    invokeClaudeInTerminal: async (terminalId: string, taskId?: string) => {
+      // In web mode, send a command to invoke Claude via the terminal WebSocket
+      const terminalInfo = (window as any).__webTerminals?.[terminalId];
+      if (terminalInfo?.ws && terminalInfo.ws.readyState === WebSocket.OPEN) {
+        // Send the claude command through the terminal
+        terminalInfo.ws.send('claude\r');
+        return { success: true };
+      }
+      return { success: false, error: 'Terminal not connected' };
+    },
     generateTerminalName: async () => ({
       success: true,
       data: `Terminal ${Date.now()}`,
     }),
     setTerminalTitle: unsupportedVoid('setTerminalTitle'),
-    setTerminalWorktreeConfig: unsupportedVoid('setTerminalWorktreeConfig'),
+    setTerminalWorktreeConfig: async (terminalId: string, config: any) => {
+      // Store worktree config for this terminal
+      if (!(window as any).__webTerminals) {
+        (window as any).__webTerminals = {};
+      }
+      if (!(window as any).__webTerminals[terminalId]) {
+        (window as any).__webTerminals[terminalId] = {};
+      }
+      (window as any).__webTerminals[terminalId].worktreeConfig = config;
+      return { success: true };
+    },
 
     // Terminal session management
     getTerminalSessions: async () => {
@@ -551,7 +570,20 @@ export function createWebAdapter(): AppAPI {
       }
       return { success: true, data: [] };
     },
-    restoreTerminalSession: unsupported('restoreTerminalSession'),
+    restoreTerminalSession: async (sessionId: string) => {
+      // In web mode, we can't restore PTY sessions, but we can create a new terminal
+      // with the same working directory if the session info is available
+      console.log('[Web Mode] Terminal session restore requested:', sessionId);
+      
+      // Return success with data.success format expected by the component
+      return {
+        success: true,
+        data: {
+          success: false,
+          error: 'Terminal session restoration is not supported in web mode. Please create a new terminal.',
+        },
+      };
+    },
     clearTerminalSessions: async () => {
       // Close all terminals
       const result = await apiRequest<Array<{ id: string }>>('/api/terminals');
