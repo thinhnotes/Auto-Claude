@@ -57,22 +57,20 @@ function getApiBaseUrl(): string {
 
 /**
  * Get the WebSocket base URL for terminal connections
- * In web mode, WebSocket needs to connect directly to the backend,
- * not through Vite proxy which doesn't handle WebSocket upgrades
+ * Uses same-origin WebSocket with /api prefix to work through nginx/vite proxy
  */
 function getWsBaseUrl(): string {
-  // Check if we have an explicit API URL
+  // Check if we have an explicit API URL (e.g., Docker runtime config)
   const apiBase = getApiBaseUrl();
   
-  // If apiBase is empty (using Vite proxy), we need to explicitly point to backend
-  if (!apiBase || apiBase === '') {
-    // Assume backend is on port 8000 (same host as frontend)
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    return `${protocol}//${window.location.hostname}:8000`;
+  // If apiBase is set (external URL), convert to WebSocket protocol
+  if (apiBase && apiBase !== '') {
+    return apiBase.replace(/^http/, 'ws');
   }
   
-  // Otherwise convert the API base URL to WebSocket
-  return apiBase.replace('http', 'ws');
+  // Otherwise use same-origin WebSocket (works with nginx/vite proxy)
+  const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+  return `${protocol}//${window.location.host}`;
 }
 
 export function useWebTerminal({
