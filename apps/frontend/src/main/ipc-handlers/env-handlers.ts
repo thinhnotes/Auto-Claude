@@ -448,6 +448,23 @@ ${existingVars['GRAPHITI_DB_PATH'] ? `GRAPHITI_DB_PATH=${existingVars['GRAPHITI_
         config.gitlabAutoSync = true;
       }
 
+      // Azure DevOps config
+      if (vars['AZURE_DEVOPS_ENABLED']?.toLowerCase() === 'true') {
+        config.azureDevOpsEnabled = true;
+      }
+      if (vars['AZURE_DEVOPS_ORGANIZATION_URL']) {
+        config.azureDevOpsOrganizationUrl = vars['AZURE_DEVOPS_ORGANIZATION_URL'];
+      }
+      if (vars['AZURE_DEVOPS_PROJECT']) {
+        config.azureDevOpsProject = vars['AZURE_DEVOPS_PROJECT'];
+      }
+      if (vars['AZURE_DEVOPS_TEAM']) {
+        config.azureDevOpsTeam = vars['AZURE_DEVOPS_TEAM'];
+      }
+      if (vars['AZURE_DEVOPS_PAT']) {
+        config.azureDevOpsPersonalAccessToken = vars['AZURE_DEVOPS_PAT'];
+      }
+
       // Git/Worktree config
       if (vars['DEFAULT_BRANCH']) {
         config.defaultBranch = vars['DEFAULT_BRANCH'];
