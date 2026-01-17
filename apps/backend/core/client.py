@@ -345,17 +345,6 @@ def clear_claude_cli_cache() -> None:
     logger.debug("Claude CLI cache cleared")
 
 
-from agents.tools_pkg import (
-    CONTEXT7_TOOLS,
-    ELECTRON_TOOLS,
-    GRAPHITI_MCP_TOOLS,
-    LINEAR_TOOLS,
-    PUPPETEER_TOOLS,
-    create_auto_claude_mcp_server,
-    get_allowed_tools,
-    get_required_mcp_servers,
-    is_tools_available,
-)
 from claude_agent_sdk import ClaudeAgentOptions, ClaudeSDKClient
 from claude_agent_sdk.types import HookMatcher
 from core.auth import get_sdk_env_vars, require_auth_token
@@ -709,6 +698,14 @@ def create_client(
     oauth_token = require_auth_token()
     # Ensure SDK can access it via its expected env var
     os.environ["CLAUDE_CODE_OAUTH_TOKEN"] = oauth_token
+
+    # Lazy import to avoid circular dependency
+    from agents.tools_pkg import (
+        create_auto_claude_mcp_server,
+        get_allowed_tools,
+        get_required_mcp_servers,
+        is_tools_available,
+    )
 
     # Collect env vars to pass to SDK (ANTHROPIC_BASE_URL, etc.)
     sdk_env = get_sdk_env_vars()

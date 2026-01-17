@@ -20,10 +20,6 @@ import { useTerminalFileDrop } from './terminal/useTerminalFileDrop';
 const MIN_COLS = 10;
 const MIN_ROWS = 3;
 
-// Minimum dimensions to prevent PTY creation with invalid sizes
-const MIN_COLS = 10;
-const MIN_ROWS = 3;
-
 export function Terminal({
   id,
   cwd,

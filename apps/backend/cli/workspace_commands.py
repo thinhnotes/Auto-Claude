@@ -9,6 +9,7 @@ import json
 import subprocess
 import sys
 from pathlib import Path
+from typing import TypedDict
 
 # Ensure parent directory is in path for imports (before other imports)
 _PARENT_DIR = Path(__file__).parent.parent
@@ -23,8 +24,19 @@ from core.workspace.git_utils import (
     get_merge_base,
     is_lock_file,
 )
-from core.worktree import PushAndCreatePRResult as CreatePRResult
 from core.worktree import WorktreeManager
+
+
+class CreatePRResult(TypedDict, total=False):
+    """Result from PR creation operation"""
+    success: bool
+    pr_url: str | None
+    already_exists: bool
+    error: str | None
+    message: str | None
+    pushed: bool
+    remote: str
+    branch: str
 from debug import debug_warning
 from ui import (
     Icons,

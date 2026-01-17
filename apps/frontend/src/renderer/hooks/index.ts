@@ -8,4 +8,3 @@ export {
   type AgentSettingsSource,
 } from './useResolvedAgentSettings';
 export { useVirtualizedTree } from './useVirtualizedTree';
-export { useClaudeLoginTerminal } from './useClaudeLoginTerminal';

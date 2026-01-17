@@ -126,15 +126,6 @@ export function PRDetail({
   const [isApprovingWorkflow, setIsApprovingWorkflow] = useState<number | null>(null);
   const [workflowsExpanded, setWorkflowsExpanded] = useState(true);
 
-  // Merge readiness state (real-time validation of AI verdict freshness)
-  const [mergeReadiness, setMergeReadiness] = useState<MergeReadiness | null>(null);
-  const mergeReadinessAbortRef = useRef<AbortController | null>(null);
-
-  // Workflows awaiting approval state (for fork PRs)
-  const [workflowsAwaiting, setWorkflowsAwaiting] = useState<WorkflowsAwaitingApprovalResult | null>(null);
-  const [isApprovingWorkflow, setIsApprovingWorkflow] = useState<number | null>(null);
-  const [workflowsExpanded, setWorkflowsExpanded] = useState(true);
-
   // Generate stable IDs for accessibility
   const cleanReviewErrorDetailsId = useId();
 

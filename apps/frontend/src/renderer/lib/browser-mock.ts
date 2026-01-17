@@ -8,6 +8,19 @@
 
 import type { ElectronAPI } from '../../shared/types';
 import { createWebAdapter } from '../platform/web-adapter';
+import {
+  projectMock,
+  taskMock,
+  workspaceMock,
+  terminalMock,
+  claudeProfileMock,
+  contextMock,
+  integrationMock,
+  changelogMock,
+  insightsMock,
+  infrastructureMock,
+  settingsMock
+} from './mocks';
 
 /**
  * Check if we're running in Electron (without circular dependency)
