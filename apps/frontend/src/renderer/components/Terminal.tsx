@@ -16,6 +16,7 @@ import { useWebTerminal } from './terminal/useWebTerminal';
 import { useTerminalEvents } from './terminal/useTerminalEvents';
 import { useAutoNaming } from './terminal/useAutoNaming';
 import { useTerminalFileDrop } from './terminal/useTerminalFileDrop';
+import { isWeb } from '../platform';
 
 // Minimum dimensions to prevent PTY creation with invalid sizes
 const MIN_COLS = 10;
@@ -41,6 +42,9 @@ export function Terminal({
   // Track deliberate terminal recreation (e.g., worktree switching)
   // This prevents exit handlers from triggering auto-removal during controlled recreation
   const isRecreatingRef = useRef(false);
+  
+  // Check if running in web mode
+  const isWebMode = isWeb();
 
   // Worktree dialog state
   const [showWorktreeDialog, setShowWorktreeDialog] = useState(false);
@@ -135,11 +139,7 @@ export function Terminal({
     return null;
   }, [readyDimensions, cols, rows]);
 
-  // Detect web mode
-  const isWebMode = typeof window !== 'undefined' && 
-    !('electronAPI' in window && (window as any).electronAPI?.isElectron);
-
-  // Create PTY process (Electron) or WebSocket terminal (Web) - only when we have valid dimensions
+  // Create PTY process - only when we have valid dimensions
   const ptyProcess = usePtyProcess({
     terminalId: id,
     cwd: effectiveCwd,

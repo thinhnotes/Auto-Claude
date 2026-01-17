@@ -301,6 +301,10 @@ const browserMockAPI: ElectronAPI = {
     success: false,
     error: 'Not available in browser mode'
   }),
+  listOtherWorktrees: async () => ({
+    success: true,
+    data: []
+  }),
 
   // MCP Server Health Check Operations
   checkMcpHealth: async (server) => ({
@@ -335,7 +339,32 @@ const browserMockAPI: ElectronAPI = {
   openLogsFolder: async () => ({ success: false, error: 'Not available in browser mode' }),
   copyDebugInfo: async () => ({ success: false, error: 'Not available in browser mode' }),
   getRecentErrors: async () => [],
-  listLogFiles: async () => []
+  listLogFiles: async () => [],
+
+  // Task Git Operations
+  getTaskGitChanges: async () => ({ 
+    success: true, 
+    data: { 
+      files: [], 
+      summary: { 
+        totalFiles: 0,
+        added: 0, 
+        modified: 0, 
+        deleted: 0,
+        totalAdditions: 0,
+        totalDeletions: 0
+      },
+      hasWorktree: false
+    } 
+  }),
+  getTaskFileDiff: async () => ({ 
+    success: true, 
+    data: { 
+      diff: '', 
+      filePath: '',
+      baseBranch: ''
+    } 
+  })
 };
 function isRunningInElectron(): boolean {
   return (

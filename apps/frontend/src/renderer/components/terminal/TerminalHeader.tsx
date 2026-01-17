@@ -197,25 +197,6 @@ export function TerminalHeader({
             )}
           </Button>
         )}
-        {/* Expand/collapse button */}
-        {onToggleExpand && (
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-6 w-6 hover:bg-muted"
-            onClick={(e) => {
-              e.stopPropagation();
-              onToggleExpand();
-            }}
-            title={isExpanded ? t('terminal:expand.collapse') : t('terminal:expand.expand')}
-          >
-            {isExpanded ? (
-              <Minimize2 className="h-3.5 w-3.5" />
-            ) : (
-              <Maximize2 className="h-3.5 w-3.5" />
-            )}
-          </Button>
-        )}
         <Button
           variant="ghost"
           size="icon"

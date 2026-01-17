@@ -83,6 +83,7 @@ export const IPC_CHANNELS = {
   TERMINAL_WORKTREE_CREATE: 'terminal:worktreeCreate',
   TERMINAL_WORKTREE_REMOVE: 'terminal:worktreeRemove',
   TERMINAL_WORKTREE_LIST: 'terminal:worktreeList',
+  TERMINAL_WORKTREE_LIST_OTHER: 'terminal:worktreeListOther',
 
   // Terminal events (main -> renderer)
   TERMINAL_OUTPUT: 'terminal:output',
@@ -513,6 +514,15 @@ export const IPC_CHANNELS = {
   CLAUDE_CODE_GET_INSTALLATIONS: 'claudeCode:getInstallations',
   CLAUDE_CODE_SET_ACTIVE_PATH: 'claudeCode:setActivePath',
 
+  // Azure DevOps integration
+  AZURE_DEVOPS_GET_CONFIG: 'azureDevOps:getConfig',
+  AZURE_DEVOPS_CHECK_CONNECTION: 'azureDevOps:checkConnection',
+  AZURE_DEVOPS_GET_ITERATIONS: 'azureDevOps:getIterations',
+  AZURE_DEVOPS_GET_CURRENT_ITERATION: 'azureDevOps:getCurrentIteration',
+  AZURE_DEVOPS_GET_WORK_ITEMS: 'azureDevOps:getWorkItems',
+  AZURE_DEVOPS_GET_WORK_ITEM: 'azureDevOps:getWorkItem',
+  AZURE_DEVOPS_GET_AREAS: 'azureDevOps:getAreas',
+
   // MCP Server health checks
   MCP_CHECK_HEALTH: 'mcp:checkHealth',           // Quick connectivity check
   MCP_TEST_CONNECTION: 'mcp:testConnection',     // Full MCP protocol test
@@ -520,14 +530,5 @@ export const IPC_CHANNELS = {
   // Sentry error reporting
   SENTRY_STATE_CHANGED: 'sentry:state-changed',  // Notify main process when setting changes
   GET_SENTRY_DSN: 'sentry:get-dsn',              // Get DSN from main process (env var)
-  GET_SENTRY_CONFIG: 'sentry:get-config',        // Get full Sentry config (DSN + sample rates)
-
-  // Azure DevOps Integration
-  AZURE_DEVOPS_GET_CONFIG: 'azureDevOps:getConfig',
-  AZURE_DEVOPS_GET_ITERATIONS: 'azureDevOps:getIterations',
-  AZURE_DEVOPS_GET_CURRENT_ITERATION: 'azureDevOps:getCurrentIteration',
-  AZURE_DEVOPS_GET_WORK_ITEMS: 'azureDevOps:getWorkItems',
-  AZURE_DEVOPS_GET_WORK_ITEM: 'azureDevOps:getWorkItem',
-  AZURE_DEVOPS_GET_AREAS: 'azureDevOps:getAreas',
-  AZURE_DEVOPS_CHECK_CONNECTION: 'azureDevOps:checkConnection'
+  GET_SENTRY_CONFIG: 'sentry:get-config'         // Get full Sentry config (DSN + sample rates)
 } as const;

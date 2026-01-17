@@ -10,9 +10,6 @@ interface SettingsState {
   isLoading: boolean;
   error: string | null;
 
-  // Trigger for sidebar to reload env config
-  envConfigVersion: number;
-
   // API Profile state
   profiles: APIProfile[];
   activeProfileId: string | null;
@@ -28,12 +25,15 @@ interface SettingsState {
   modelsError: string | null;
   discoveredModels: Map<string, ModelInfo[]>; // Cache key -> models mapping
 
+  // Environment config versioning for refresh
+  envConfigVersion: number;
+  triggerEnvConfigRefresh: () => void;
+
   // Actions
   setSettings: (settings: AppSettings) => void;
   updateSettings: (updates: Partial<AppSettings>) => void;
   setLoading: (loading: boolean) => void;
   setError: (error: string | null) => void;
-  triggerEnvConfigRefresh: () => void;
 
   // Profile actions
   setProfiles: (profiles: APIProfile[], activeProfileId: string | null) => void;
@@ -47,13 +47,10 @@ interface SettingsState {
   discoverModels: (baseUrl: string, apiKey: string, signal?: AbortSignal) => Promise<ModelInfo[] | null>;
 }
 
-export const useSettingsStore = create<SettingsState>((set) => ({
+export const useSettingsStore = create<SettingsState>((set, get) => ({
   settings: DEFAULT_APP_SETTINGS as AppSettings,
   isLoading: true,  // Start as true since we load settings on app init
   error: null,
-
-  // Env config version for triggering sidebar refresh
-  envConfigVersion: 0,
 
   // API Profile state
   profiles: [],
@@ -70,6 +67,10 @@ export const useSettingsStore = create<SettingsState>((set) => ({
   modelsError: null,
   discoveredModels: new Map<string, ModelInfo[]>(),
 
+  // Environment config versioning
+  envConfigVersion: 0,
+  triggerEnvConfigRefresh: () => set({ envConfigVersion: get().envConfigVersion + 1 }),
+
   setSettings: (settings) => set({ settings }),
 
   updateSettings: (updates) =>
@@ -80,8 +81,6 @@ export const useSettingsStore = create<SettingsState>((set) => ({
   setLoading: (isLoading) => set({ isLoading }),
 
   setError: (error) => set({ error }),
-
-  triggerEnvConfigRefresh: () => set((state) => ({ envConfigVersion: state.envConfigVersion + 1 })),
 
   // Profile actions
   setProfiles: (profiles, activeProfileId) => set({ profiles, activeProfileId }),

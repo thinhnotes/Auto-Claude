@@ -971,12 +971,6 @@ class GitHubOrchestrator:
         elif is_branch_behind:
             blockers.append(BRANCH_BEHIND_BLOCKER_MSG)
 
-        # CRITICAL: Merge conflicts block merging - check first
-        if has_merge_conflicts:
-            blockers.append(
-                "Merge Conflicts: PR has conflicts with base branch that must be resolved"
-            )
-
         # Count by severity
         critical = [f for f in findings if f.severity == ReviewSeverity.CRITICAL]
         high = [f for f in findings if f.severity == ReviewSeverity.HIGH]

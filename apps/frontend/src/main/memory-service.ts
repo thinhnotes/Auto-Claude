@@ -120,6 +120,68 @@ function getQueryScriptPath(): string | null {
 }
 
 /**
+ * Get the backend venv Python path.
+ * The backend venv has real_ladybug installed (required for memory operations).
+ * Falls back to getConfiguredPythonPath() for packaged apps.
+ */
+function getBackendPythonPath(): string {
+  // For packaged apps, use the bundled Python which has real_ladybug in site-packages
+  if (app.isPackaged) {
+    const fallbackPython = getConfiguredPythonPath();
+    console.log(`[MemoryService] Using bundled Python for packaged app: ${fallbackPython}`);
+    return fallbackPython;
+  }
+
+  // Development mode: Find the backend venv which has real_ladybug installed
+  const possibleBackendPaths = [
+    path.resolve(__dirname, '..', '..', '..', 'backend'),
+    path.resolve(app.getAppPath(), '..', 'backend'),
+    path.resolve(process.cwd(), 'apps', 'backend')
+  ];
+
+  for (const backendPath of possibleBackendPaths) {
+    // Check for backend venv Python (has real_ladybug installed)
+    const venvPython = process.platform === 'win32'
+      ? path.join(backendPath, '.venv', 'Scripts', 'python.exe')
+      : path.join(backendPath, '.venv', 'bin', 'python');
+
+    if (fs.existsSync(venvPython)) {
+      console.log(`[MemoryService] Using backend venv Python: ${venvPython}`);
+      return venvPython;
+    }
+  }
+
+  // Fall back to configured Python path
+  const fallbackPython = getConfiguredPythonPath();
+  console.log(`[MemoryService] Backend venv not found, falling back to: ${fallbackPython}`);
+  return fallbackPython;
+}
+
+/**
+ * Get the Python environment variables for memory queries.
+ * This ensures real_ladybug can be found in both dev and packaged modes.
+ */
+function getMemoryPythonEnv(): Record<string, string> {
+  // Start with the standard Python environment from the manager
+  const baseEnv = pythonEnvManager.getPythonEnv();
+
+  // For packaged apps, ensure PYTHONPATH includes bundled site-packages
+  // even if the manager hasn't been fully initialized
+  if (app.isPackaged) {
+    const bundledSitePackages = path.join(process.resourcesPath, 'python-site-packages');
+    if (fs.existsSync(bundledSitePackages)) {
+      // Merge paths: bundled site-packages takes precedence
+      const existingPath = baseEnv.PYTHONPATH || '';
+      baseEnv.PYTHONPATH = existingPath
+        ? `${bundledSitePackages}${path.delimiter}${existingPath}`
+        : bundledSitePackages;
+    }
+  }
+
+  return baseEnv;
+}
+
+/**
  * Execute a Python memory query command
  */
 async function executeQuery(
@@ -566,6 +628,50 @@ export class MemoryService {
       success: true,
       message: `Connected to LadybugDB with ${dbCount} databases`,
     };
+  }
+
+  /**
+   * Add an episode to the memory database
+   *
+   * This allows the Electron app to save memories (like PR review insights)
+   * directly to LadybugDB without going through the full Graphiti system.
+   *
+   * @param name Episode name/title
+   * @param content Episode content (will be JSON stringified if object)
+   * @param episodeType Type of episode (session_insight, pattern, gotcha, task_outcome, pr_review)
+   * @param groupId Optional group ID for namespacing
+   * @returns Promise with the created episode info
+   */
+  async addEpisode(
+    name: string,
+    content: string | object,
+    episodeType: string = 'session_insight',
+    groupId?: string
+  ): Promise<{ success: boolean; id?: string; error?: string }> {
+    // Stringify content if it's an object
+    const contentStr = typeof content === 'object' ? JSON.stringify(content) : content;
+
+    const args = [
+      this.config.dbPath,
+      this.config.database,
+      '--name', name,
+      '--content', contentStr,
+      '--type', episodeType,
+    ];
+
+    if (groupId) {
+      args.push('--group-id', groupId);
+    }
+
+    const result = await executeQuery('add-episode', args);
+
+    if (!result.success) {
+      console.error('Failed to add episode:', result.error);
+      return { success: false, error: result.error };
+    }
+
+    const data = result.data as { id: string; name: string; type: string; timestamp: string };
+    return { success: true, id: data.id };
   }
 
   /**

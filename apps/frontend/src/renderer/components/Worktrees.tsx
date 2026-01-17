@@ -52,17 +52,9 @@ import {
 } from './ui/alert-dialog';
 import { useProjectStore } from '../stores/project-store';
 import { useTaskStore } from '../stores/task-store';
-import { isWeb as isWebPlatform } from '../platform';
-import type {
-  IPCResult,
-  WorktreeListItem,
-  WorktreeListResult,
-  WorktreeMergeResult,
-  WorktreeDiscardResult,
-  TerminalWorktreeConfig,
-} from '../../shared/types';
-import type {  WorktreeStatus, Task, WorktreeCreatePROptions, WorktreeCreatePRResult } from '../../shared/types';
+import type { WorktreeListItem, WorktreeMergeResult, TerminalWorktreeConfig, WorktreeStatus, Task, WorktreeCreatePROptions, WorktreeCreatePRResult, IPCResult, WorktreeListResult, WorktreeDiscardResult } from '../../shared/types';
 import { CreatePRDialog } from './task-detail/task-review/CreatePRDialog';
+import { isWeb as isWebPlatform } from '../platform';
 
 interface WorktreesProps {
   projectId: string;
@@ -366,7 +358,7 @@ export function Worktrees({ projectId }: WorktreesProps) {
     } finally {
       setIsLoading(false);
     }
-  }, [projectId, selectedProject, isWeb]);
+  }, [projectId, selectedProject]);
 
   // Load on mount and when project changes
   useEffect(() => {
@@ -638,7 +630,6 @@ export function Worktrees({ projectId }: WorktreesProps) {
                 </h3>
                 {worktrees.map((worktree) => {
                   const task = findTaskForWorktree(worktree.specName);
-                  const canMerge = canOperateWorktree(task);
                   return (
                     <Card key={worktree.specName} className="overflow-hidden">
                       <CardHeader className="pb-3">

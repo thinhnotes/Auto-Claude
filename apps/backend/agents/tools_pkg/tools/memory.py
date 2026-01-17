@@ -26,6 +26,110 @@ except ImportError:
     SDK_TOOLS_AVAILABLE = False
     tool = None
 
+logger = logging.getLogger(__name__)
+
+
+async def _save_to_graphiti_async(
+    spec_dir: Path,
+    project_dir: Path,
+    save_type: str,
+    data: dict,
+) -> bool:
+    """
+    Save data to Graphiti/LadybugDB (async implementation).
+
+    Args:
+        spec_dir: Spec directory for GraphitiMemory initialization
+        project_dir: Project root directory
+        save_type: Type of save - 'discovery', 'gotcha', or 'pattern'
+        data: Data to save
+
+    Returns:
+        True if save succeeded, False otherwise
+    """
+    try:
+        # Use centralized helper for GraphitiMemory instantiation
+        # The helper handles enablement checks internally
+        from memory.graphiti_helpers import get_graphiti_memory
+
+        memory = get_graphiti_memory(spec_dir, project_dir)
+        if memory is None:
+            return False
+
+        try:
+            if save_type == "discovery":
+                # Save as codebase discovery
+                # Format: {file_path: description}
+                result = await memory.save_codebase_discoveries(
+                    {data["file_path"]: data["description"]}
+                )
+            elif save_type == "gotcha":
+                # Save as gotcha
+                gotcha_text = data["gotcha"]
+                if data.get("context"):
+                    gotcha_text += f" (Context: {data['context']})"
+                result = await memory.save_gotcha(gotcha_text)
+            elif save_type == "pattern":
+                # Save as pattern
+                result = await memory.save_pattern(data["pattern"])
+            else:
+                result = False
+            return result
+        finally:
+            # Always close the memory connection (swallow exceptions to avoid overriding)
+            try:
+                await memory.close()
+            except Exception as e:
+                logger.debug(
+                    "Failed to close Graphiti memory connection", exc_info=True
+                )
+
+    except Exception as e:
+        logger.warning(f"Failed to save to Graphiti: {e}")
+        return False
+
+
+def _save_to_graphiti_sync(
+    spec_dir: Path,
+    project_dir: Path,
+    save_type: str,
+    data: dict,
+) -> bool:
+    """
+    Save data to Graphiti/LadybugDB (synchronous wrapper for sync contexts only).
+
+    NOTE: This should only be called from synchronous code. For async callers,
+    use _save_to_graphiti_async() directly to ensure proper resource cleanup.
+
+    Args:
+        spec_dir: Spec directory for GraphitiMemory initialization
+        project_dir: Project root directory
+        save_type: Type of save - 'discovery', 'gotcha', or 'pattern'
+        data: Data to save
+
+    Returns:
+        True if save succeeded, False otherwise
+    """
+    try:
+        # Check if we're already in an async context
+        try:
+            asyncio.get_running_loop()
+            # We're in an async context - caller should use _save_to_graphiti_async
+            # Log a warning and return False to avoid the resource leak bug
+            logger.warning(
+                "_save_to_graphiti_sync called from async context. "
+                "Use _save_to_graphiti_async instead for proper cleanup."
+            )
+            return False
+        except RuntimeError:
+            # No running loop - safe to create one
+            return asyncio.run(
+                _save_to_graphiti_async(spec_dir, project_dir, save_type, data)
+            )
+    except Exception as e:
+        logger.warning(f"Failed to save to Graphiti: {e}")
+        return False
+
 
 def create_memory_tools(spec_dir: Path, project_dir: Path) -> list:
     """

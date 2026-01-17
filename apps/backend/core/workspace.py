@@ -256,8 +256,8 @@ def merge_existing_build(
                 ai_assisted = stats.get("ai_assisted", 0) > 0
                 direct_copy = stats.get("direct_copy", False)
 
-                if had_conflicts or files_merged or ai_assisted:
-                    # Git conflicts were resolved OR path-mapped files were AI merged
+                if had_conflicts or ai_assisted or direct_copy:
+                    # AI resolved conflicts, assisted with merges, or direct copy was used
                     # Changes are already written and staged - no need for git merge
                     _print_merge_success(
                         no_commit, stats, spec_name=spec_name, keep_worktree=True
@@ -2018,81 +2018,42 @@ async def _merge_file_with_ai_async(
                 task.spec_name,
             )
 
-            # Call Claude Haiku for fast merge
-            try:
-                from core.simple_client import create_simple_client
-            except ImportError:
-                return ParallelMergeResult(
-                    file_path=task.file_path,
-                    merged_content=None,
-                    success=False,
-                    error="core.simple_client not available",
-                )
-
-            client = create_simple_client(
-                agent_type="merge_resolver",
-                model="claude-haiku-4-5-20251001",
-                system_prompt=AI_MERGE_SYSTEM_PROMPT,
-                max_thinking_tokens=1024,  # Low thinking for speed
+            # Call Claude Haiku for fast merge first, then fallback to Sonnet if it fails
+            # This two-tier approach matches the chat agent's success rate
+            # - Tier 1: Haiku (fast, handles simple merges)
+            # - Tier 2: Sonnet (more capable, handles complex merges)
+            debug(MODULE, f"Attempting AI merge for {task.file_path} with Haiku (fast)")
+            success, merged_content, error = await _attempt_ai_merge(
+                task,
+                prompt,
+                model=MERGE_FAST_MODEL,
+                max_thinking_tokens=MERGE_FAST_THINKING,
             )
 
-            response_text = ""
-            async with client:
-                await client.query(prompt)
-
-                async for msg in client.receive_response():
-                    msg_type = type(msg).__name__
-                    if msg_type == "AssistantMessage" and hasattr(msg, "content"):
-                        for block in msg.content:
-                            if hasattr(block, "text"):
-                                response_text += block.text
-
-            if response_text:
-                # Strip any code fences the model might have added
-                merged_content = _strip_code_fences(response_text.strip())
-
-                # VALIDATION: Check if AI returned natural language instead of code
-                # This catches cases where AI says "I need to see more..." instead of merging
-                natural_language_patterns = [
-                    "I need to",
-                    "Let me",
-                    "I cannot",
-                    "I'm unable",
-                    "The file appears",
-                    "I don't have",
-                    "Unfortunately",
-                    "I apologize",
-                ]
-                first_line = merged_content.split("\n")[0] if merged_content else ""
-                if any(pattern in first_line for pattern in natural_language_patterns):
-                    debug_warning(
-                        MODULE,
-                        f"AI returned natural language instead of code for {task.file_path}: {first_line[:100]}",
-                    )
-                    return ParallelMergeResult(
-                        file_path=task.file_path,
-                        merged_content=None,
-                        success=False,
-                        error=f"AI returned explanation instead of code: {first_line[:80]}...",
-                    )
-
-                # VALIDATION: Run syntax check on the merged content
-                is_valid, syntax_error = _validate_merged_syntax(
-                    task.file_path, merged_content, task.project_dir
+            if success and merged_content:
+                debug(MODULE, f"Haiku merged {task.file_path} successfully")
+                return ParallelMergeResult(
+                    file_path=task.file_path,
+                    merged_content=merged_content,
+                    success=True,
+                    was_auto_merged=False,
                 )
-                if not is_valid:
-                    debug_warning(
-                        MODULE,
-                        f"AI merge produced invalid syntax for {task.file_path}: {syntax_error}",
-                    )
-                    return ParallelMergeResult(
-                        file_path=task.file_path,
-                        merged_content=None,
-                        success=False,
-                        error=f"AI merge produced invalid syntax: {syntax_error}",
-                    )
 
-                debug(MODULE, f"AI merged {task.file_path} successfully")
+            # Haiku failed, retry with Sonnet (more capable model)
+            debug_warning(
+                MODULE,
+                f"Haiku merge failed for {task.file_path}: {error}, retrying with Sonnet...",
+            )
+            print(muted(f"    Retrying {task.file_path} with more capable AI model..."))
+            success, merged_content, error = await _attempt_ai_merge(
+                task,
+                prompt,
+                model=MERGE_CAPABLE_MODEL,
+                max_thinking_tokens=MERGE_COMPLEX_THINKING,
+            )
+
+            if success and merged_content:
+                debug(MODULE, f"Sonnet merged {task.file_path} successfully")
                 return ParallelMergeResult(
                     file_path=task.file_path,
                     merged_content=merged_content,

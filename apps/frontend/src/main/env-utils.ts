@@ -12,7 +12,34 @@
 import * as os from 'os';
 import * as path from 'path';
 import * as fs from 'fs';
-import { execFileSync } from 'child_process';
+import { promises as fsPromises } from 'fs';
+import { execFileSync, execFile } from 'child_process';
+import { promisify } from 'util';
+import { getSentryEnvForSubprocess } from './sentry';
+import { isWindows, isUnix, getPathDelimiter } from './platform';
+
+const execFileAsync = promisify(execFile);
+
+/**
+ * Check if a path exists asynchronously (non-blocking)
+ *
+ * Uses fs.promises.access which is non-blocking, unlike fs.existsSync.
+ *
+ * @param filePath - The path to check
+ * @returns Promise resolving to true if path exists, false otherwise
+ */
+export async function existsAsync(filePath: string): Promise<boolean> {
+  try {
+    await fsPromises.access(filePath);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+// Cache for npm global prefix to avoid repeated async calls
+let npmGlobalPrefixCache: string | null | undefined = undefined;
+let npmGlobalPrefixCachePromise: Promise<string | null> | null = null;
 
 /**
  * Get npm global prefix directory dynamically
@@ -35,7 +62,8 @@ function getNpmGlobalPrefix(): string | null {
       encoding: 'utf-8',
       timeout: 3000,
       windowsHide: true,
-      shell: process.platform === 'win32', // Enable shell on Windows for .cmd resolution
+      cwd: os.homedir(), // Run from home dir to avoid ENOWORKSPACES error in monorepos
+      shell: isWindows(), // Enable shell on Windows for .cmd resolution
     }).trim();
 
     if (!rawPrefix) {
@@ -169,17 +197,28 @@ function buildPathsToAdd(
  */
 export function getAugmentedEnv(additionalPaths?: string[]): Record<string, string> {
   const env = { ...process.env } as Record<string, string>;
-  const platform = process.platform as 'darwin' | 'linux' | 'win32';
-  const pathSeparator = platform === 'win32' ? ';' : ':';
+  const pathSeparator = getPathDelimiter();
 
-  // Get platform-specific paths
-  const platformPaths = COMMON_BIN_PATHS[platform] || [];
+  // Get all candidate paths (platform + additional)
+  const candidatePaths = getExpandedPlatformPaths(additionalPaths);
 
-  // Expand home directory in paths
-  const homeDir = os.homedir();
-  const expandedPaths = platformPaths.map(p =>
-    p.startsWith('~') ? p.replace('~', homeDir) : p
-  );
+  // Ensure PATH has essential system directories when launched from Finder/Dock.
+  // When Electron launches from GUI (not terminal), PATH might be empty or minimal.
+  // The Claude Agent SDK needs /usr/bin/security to access macOS Keychain.
+  let currentPath = env.PATH || '';
+
+  // On macOS/Linux, ensure basic system paths are always present
+  if (isUnix()) {
+    const pathSetForEssentials = new Set(currentPath.split(pathSeparator).filter(Boolean));
+    const missingEssentials = ESSENTIAL_SYSTEM_PATHS.filter(p => !pathSetForEssentials.has(p));
+
+    if (missingEssentials.length > 0) {
+      // Append essential paths if missing (append, not prepend, to respect user's PATH)
+      currentPath = currentPath
+        ? `${currentPath}${pathSeparator}${missingEssentials.join(pathSeparator)}`
+        : missingEssentials.join(pathSeparator);
+    }
+  }
 
   // Collect paths to add (only if they exist and aren't already in PATH)
   const currentPathSet = new Set(currentPath.split(pathSeparator).filter(Boolean));
@@ -197,9 +236,12 @@ export function getAugmentedEnv(additionalPaths?: string[]): Record<string, stri
   const pathsToAdd = buildPathsToAdd(candidatePaths, currentPathSet, existingPaths, npmPrefix);
 
   // Prepend new paths to PATH (prepend so they take priority)
-  if (pathsToAdd.length > 0) {
-    env.PATH = [...pathsToAdd, currentPath].filter(Boolean).join(pathSeparator);
-  }
+  env.PATH = [...pathsToAdd, currentPath].filter(Boolean).join(pathSeparator);
+
+  // Add Sentry environment variables for Python subprocesses
+  // These are embedded at build time and need to be passed explicitly
+  const sentryEnv = getSentryEnvForSubprocess();
+  Object.assign(env, sentryEnv);
 
   return env;
 }
@@ -244,4 +286,273 @@ export function findExecutable(command: string): string | null {
  */
 export function isCommandAvailable(command: string): boolean {
   return findExecutable(command) !== null;
+}
+
+// ============================================================================
+// ASYNC VERSIONS - Non-blocking alternatives for Electron main process
+// ============================================================================
+
+/**
+ * Get npm global prefix directory asynchronously (non-blocking)
+ *
+ * Uses caching to avoid repeated subprocess calls. Safe to call from
+ * Electron main process without blocking the event loop.
+ *
+ * @returns Promise resolving to npm global binaries directory, or null
+ */
+async function getNpmGlobalPrefixAsync(): Promise<string | null> {
+  // Return cached value if available
+  if (npmGlobalPrefixCache !== undefined) {
+    return npmGlobalPrefixCache;
+  }
+
+  // If a fetch is already in progress, wait for it
+  if (npmGlobalPrefixCachePromise) {
+    return npmGlobalPrefixCachePromise;
+  }
+
+  // Start the async fetch
+  npmGlobalPrefixCachePromise = (async () => {
+    try {
+      const npmCommand = isWindows() ? 'npm.cmd' : 'npm';
+
+      const { stdout } = await execFileAsync(npmCommand, ['config', 'get', 'prefix', '--location=global'], {
+        encoding: 'utf-8',
+        timeout: 3000,
+        windowsHide: true,
+        cwd: os.homedir(), // Run from home dir to avoid ENOWORKSPACES error in monorepos
+        shell: isWindows(),
+      });
+
+      const rawPrefix = stdout.trim();
+      if (!rawPrefix) {
+        npmGlobalPrefixCache = null;
+        return null;
+      }
+
+      const binPath = isWindows()
+        ? rawPrefix
+        : path.join(rawPrefix, 'bin');
+
+      const normalizedPath = path.normalize(binPath);
+      npmGlobalPrefixCache = await existsAsync(normalizedPath) ? normalizedPath : null;
+      return npmGlobalPrefixCache;
+    } catch (error) {
+      console.warn(`[env-utils] Failed to get npm global prefix: ${error}`);
+      npmGlobalPrefixCache = null;
+      return null;
+    } finally {
+      npmGlobalPrefixCachePromise = null;
+    }
+  })();
+
+  return npmGlobalPrefixCachePromise;
+}
+
+/**
+ * Get augmented environment asynchronously (non-blocking)
+ *
+ * Same as getAugmentedEnv but uses async npm prefix detection.
+ * Safe to call from Electron main process without blocking.
+ *
+ * @param additionalPaths - Optional array of additional paths to include
+ * @returns Promise resolving to environment object with augmented PATH
+ */
+export async function getAugmentedEnvAsync(additionalPaths?: string[]): Promise<Record<string, string>> {
+  const env = { ...process.env } as Record<string, string>;
+  const pathSeparator = getPathDelimiter();
+
+  // Get all candidate paths (platform + additional)
+  const candidatePaths = getExpandedPlatformPaths(additionalPaths);
+
+  // Ensure essential system paths are present (for macOS Keychain access)
+  let currentPath = env.PATH || '';
+
+  if (isUnix()) {
+    const pathSetForEssentials = new Set(currentPath.split(pathSeparator).filter(Boolean));
+    const missingEssentials = ESSENTIAL_SYSTEM_PATHS.filter(p => !pathSetForEssentials.has(p));
+
+    if (missingEssentials.length > 0) {
+      currentPath = currentPath
+        ? `${currentPath}${pathSeparator}${missingEssentials.join(pathSeparator)}`
+        : missingEssentials.join(pathSeparator);
+    }
+  }
+
+  // Collect paths to add (only if they exist and aren't already in PATH)
+  const currentPathSet = new Set(currentPath.split(pathSeparator).filter(Boolean));
+
+  // Check existence asynchronously in parallel for performance
+  const pathChecks = await Promise.all(
+    candidatePaths.map(async (p) => ({ path: p, exists: await existsAsync(p) }))
+  );
+  const existingPaths = new Set(
+    pathChecks.filter(({ exists }) => exists).map(({ path: p }) => p)
+  );
+
+  // Get npm global prefix dynamically (async - non-blocking)
+  const npmPrefix = await getNpmGlobalPrefixAsync();
+  if (npmPrefix && await existsAsync(npmPrefix)) {
+    existingPaths.add(npmPrefix);
+  }
+
+  // Build final paths to add using shared helper
+  const pathsToAdd = buildPathsToAdd(candidatePaths, currentPathSet, existingPaths, npmPrefix);
+
+  // Prepend new paths to PATH (prepend so they take priority)
+  env.PATH = [...pathsToAdd, currentPath].filter(Boolean).join(pathSeparator);
+
+  // Add Sentry environment variables for Python subprocesses
+  // These are embedded at build time and need to be passed explicitly
+  const sentryEnv = getSentryEnvForSubprocess();
+  Object.assign(env, sentryEnv);
+
+  return env;
+}
+
+/**
+ * Find the full path to an executable asynchronously (non-blocking)
+ *
+ * Same as findExecutable but uses async environment augmentation.
+ *
+ * @param command - The command name to find (e.g., 'gh', 'git')
+ * @returns Promise resolving to the full path to the executable, or null
+ */
+export async function findExecutableAsync(command: string): Promise<string | null> {
+  const env = await getAugmentedEnvAsync();
+  const pathSeparator = getPathDelimiter();
+  const pathDirs = (env.PATH || '').split(pathSeparator);
+
+  const extensions = isWindows()
+    ? ['.exe', '.cmd', '.bat', '.ps1', '']
+    : [''];
+
+  for (const dir of pathDirs) {
+    for (const ext of extensions) {
+      const fullPath = path.join(dir, command + ext);
+      if (await existsAsync(fullPath)) {
+        return fullPath;
+      }
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Clear the npm global prefix cache
+ *
+ * Call this if npm configuration changes and you need fresh detection.
+ */
+export function clearNpmPrefixCache(): void {
+  npmGlobalPrefixCache = undefined;
+  npmGlobalPrefixCachePromise = null;
+}
+
+/**
+ * Determine if a command requires shell execution on Windows
+ *
+ * Windows .cmd and .bat files MUST be executed through shell, while .exe files
+ * can be executed directly. This function checks the file extension to determine
+ * the correct execution method.
+ *
+ * @param command - The command path to check
+ * @returns true if shell is required (Windows .cmd/.bat), false otherwise
+ *
+ * @example
+ * ```typescript
+ * shouldUseShell('D:\\nodejs\\claude.cmd')                // true
+ * shouldUseShell('C:\\Program Files\\nodejs\\claude.cmd')  // true
+ * shouldUseShell('C:\\Windows\\System32\\git.exe')         // false
+ * shouldUseShell('/usr/local/bin/claude')                  // false (non-Windows)
+ * ```
+ */
+export function shouldUseShell(command: string): boolean {
+  // Only Windows needs special handling for .cmd/.bat files
+  if (isUnix()) {
+    return false;
+  }
+
+  const trimmed = command.trim();
+  const unquoted =
+    trimmed.startsWith('"') && trimmed.endsWith('"') ? trimmed.slice(1, -1) : trimmed;
+
+  // Check if command ends with .cmd or .bat (case-insensitive)
+  return /\.(cmd|bat)$/i.test(unquoted);
+}
+
+/**
+ * Get spawn options with correct shell setting for Windows compatibility
+ *
+ * Provides a consistent way to create spawn options that work across platforms.
+ * Handles the shell requirement for Windows .cmd/.bat files automatically.
+ *
+ * For .cmd/.bat files on Windows, returns options that tell the caller to use
+ * proper quoting for paths with spaces.
+ *
+ * @param command - The command path to execute
+ * @param baseOptions - Base spawn options to merge with (optional)
+ * @returns Spawn options with correct shell setting
+ *
+ * @example
+ * ```typescript
+ * const opts = getSpawnOptions(claudeCmd, { cwd: '/project', env: {...} });
+ * spawn(getSpawnCommand(claudeCmd), ['--version'], opts);
+ * ```
+ */
+export function getSpawnOptions(
+  command: string,
+  baseOptions?: {
+    cwd?: string;
+    env?: Record<string, string>;
+    timeout?: number;
+    windowsHide?: boolean;
+    stdio?: 'inherit' | 'pipe' | Array<'inherit' | 'pipe'>;
+  }
+): {
+  cwd?: string;
+  env?: Record<string, string>;
+  shell: boolean;
+  timeout?: number;
+  windowsHide?: boolean;
+  stdio?: 'inherit' | 'pipe' | Array<'inherit' | 'pipe'>;
+} {
+  return {
+    ...baseOptions,
+    shell: shouldUseShell(command),
+  };
+}
+
+/**
+ * Get the properly quoted command for use with spawn()
+ *
+ * For .cmd/.bat files on Windows with shell:true, the command path must be
+ * quoted to handle paths containing spaces correctly (e.g., C:\Users\OXFAM MONS\...).
+ *
+ * @param command - The command path to execute
+ * @returns The command (quoted if needed for .cmd/.bat files on Windows)
+ *
+ * @example
+ * ```typescript
+ * const cmd = getSpawnCommand(claudeCmd); // "C:\Users\OXFAM MONS\...\claude.cmd"
+ * const opts = getSpawnOptions(claudeCmd, { cwd: '/project', env: {...} });
+ * spawn(cmd, ['--version'], opts);
+ * ```
+ */
+export function getSpawnCommand(command: string): string {
+  // For .cmd/.bat files on Windows, quote the command to handle spaces
+  // The shell will parse the quoted path correctly
+  const trimmed = command.trim();
+  if (shouldUseShell(trimmed)) {
+    // Idempotent if already quoted
+    if (trimmed.startsWith('"') && trimmed.endsWith('"')) {
+      return trimmed;
+    }
+    return `"${trimmed}"`;
+  }
+  // For non-.cmd/.bat files, strip quotes if present (defensive: no double quotes with shell:false)
+  if (trimmed.startsWith('"') && trimmed.endsWith('"')) {
+    return trimmed.slice(1, -1);
+  }
+  return trimmed;
 }

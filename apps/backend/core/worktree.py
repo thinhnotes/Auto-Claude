@@ -24,6 +24,122 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
+from typing import TypedDict, TypeVar
+
+from core.gh_executable import get_gh_executable, invalidate_gh_cache
+from core.git_executable import get_git_executable, run_git
+from debug import debug_warning
+
+T = TypeVar("T")
+
+
+def _is_retryable_network_error(stderr: str) -> bool:
+    """Check if an error is a retryable network/connection issue."""
+    stderr_lower = stderr.lower()
+    return any(
+        term in stderr_lower
+        for term in ["connection", "network", "timeout", "reset", "refused"]
+    )
+
+
+def _is_retryable_http_error(stderr: str) -> bool:
+    """
+    Check if an HTTP error is retryable (5xx errors, timeouts).
+    Excludes auth errors (401, 403) and client errors (404, 422).
+    """
+    stderr_lower = stderr.lower()
+    # Check for HTTP 5xx errors (server errors are retryable)
+    if re.search(r"http[s]?\s*5\d{2}", stderr_lower):
+        return True
+    # Check for HTTP timeout patterns
+    if "http" in stderr_lower and "timeout" in stderr_lower:
+        return True
+    return False
+
+
+def _with_retry(
+    operation: Callable[[], tuple[bool, T | None, str]],
+    max_retries: int = 3,
+    is_retryable: Callable[[str], bool] | None = None,
+    on_retry: Callable[[int, str], None] | None = None,
+) -> tuple[T | None, str]:
+    """
+    Execute an operation with retry logic.
+
+    Args:
+        operation: Function that returns a tuple of (success: bool, result: T | None, error: str).
+                   On success (success=True), result contains the value and error is empty.
+                   On failure (success=False), result is None and error contains the message.
+        max_retries: Maximum number of retry attempts
+        is_retryable: Function to check if error is retryable based on error message
+        on_retry: Optional callback called before each retry with (attempt, error)
+
+    Returns:
+        Tuple of (result, last_error) where result is T on success, None on failure
+    """
+    last_error = ""
+
+    for attempt in range(1, max_retries + 1):
+        try:
+            success, result, error = operation()
+            if success:
+                return result, ""
+
+            last_error = error
+
+            # Check if error is retryable
+            if is_retryable and attempt < max_retries and is_retryable(error):
+                if on_retry:
+                    on_retry(attempt, error)
+                backoff = 2 ** (attempt - 1)
+                time.sleep(backoff)
+                continue
+
+            break
+
+        except subprocess.TimeoutExpired:
+            last_error = "Operation timed out"
+            if attempt < max_retries:
+                if on_retry:
+                    on_retry(attempt, last_error)
+                backoff = 2 ** (attempt - 1)
+                time.sleep(backoff)
+                continue
+            break
+
+    return None, last_error
+
+
+class PushBranchResult(TypedDict, total=False):
+    """Result of pushing a branch to remote."""
+
+    success: bool
+    branch: str
+    remote: str
+    error: str
+
+
+class PullRequestResult(TypedDict, total=False):
+    """Result of creating a pull request."""
+
+    success: bool
+    pr_url: str | None  # None when PR was created but URL couldn't be extracted
+    already_exists: bool
+    error: str
+    message: str
+
+
+class PushAndCreatePRResult(TypedDict, total=False):
+    """Result of push_and_create_pr operation."""
+
+    success: bool
+    pushed: bool
+    remote: str
+    branch: str
+    pr_url: str | None  # None when PR was created but URL couldn't be extracted
+    already_exists: bool
+    error: str
+    message: str
 
 from core.git_executable import run_git
 
@@ -205,8 +321,19 @@ class WorktreeManager:
     # ==================== Per-Spec Worktree Methods ====================
 
     def get_worktree_path(self, spec_name: str) -> Path:
-        """Get the worktree path for a spec."""
-        return self.worktrees_dir / spec_name
+        """Get the worktree path for a spec (checks new and legacy locations)."""
+        # New path first (.auto-claude/worktrees/tasks/)
+        new_path = self.worktrees_dir / spec_name
+        if new_path.exists():
+            return new_path
+
+        # Legacy fallback (.worktrees/ instead of .auto-claude/worktrees/tasks/)
+        legacy_path = self.project_dir / ".worktrees" / spec_name
+        if legacy_path.exists():
+            return legacy_path
+
+        # Return new path as default for creation
+        return new_path
 
     def get_branch_name(self, spec_name: str) -> str:
         """Get the branch name for a spec."""
@@ -501,11 +628,27 @@ class WorktreeManager:
         else:
             print(f"Merging {info.branch} into {target_branch}...")
 
-        # Switch to base branch in main project
-        result = self._run_git(["checkout", self.base_branch])
-        if result.returncode != 0:
-            print(f"Error: Could not checkout base branch: {result.stderr}")
-            return False
+        # Switch to base branch in main project, but skip if already on it
+        # This avoids triggering git hooks unnecessarily
+        current_branch = self._get_current_branch()
+        if current_branch != self.base_branch:
+            result = self._run_git(["checkout", self.base_branch])
+            if result.returncode != 0:
+                # Check if this is a hook failure vs actual checkout failure
+                # Hook failures still change the branch but return non-zero
+                new_branch = self._get_current_branch()
+                if new_branch == self.base_branch:
+                    # Branch did change - likely a hook failure, continue with merge
+                    stderr_msg = result.stderr[:100] if result.stderr else "<no stderr>"
+                    debug_warning(
+                        "worktree",
+                        f"Checkout succeeded but hook returned non-zero: {stderr_msg}",
+                    )
+                else:
+                    # Actual checkout failure
+                    stderr_msg = result.stderr[:100] if result.stderr else "<no stderr>"
+                    print(f"Error: Could not checkout base branch: {stderr_msg}")
+                    return False
 
         # Merge the spec branch
         merge_args = ["merge", "--no-ff", info.branch]
@@ -708,81 +851,569 @@ class WorktreeManager:
 
         return commands
 
-    # ==================== Backward Compatibility ====================
-    # These methods provide backward compatibility with the old single-worktree API
-
-    def get_staging_path(self) -> Path | None:
-        """
-        Backward compatibility: Get path to any existing spec worktree.
-        Prefer using get_worktree_path(spec_name) instead.
-        """
-        worktrees = self.list_all_worktrees()
-        if worktrees:
-            return worktrees[0].path
-        return None
-
-    def get_staging_info(self) -> WorktreeInfo | None:
-        """
-        Backward compatibility: Get info about any existing spec worktree.
-        Prefer using get_worktree_info(spec_name) instead.
-        """
-        worktrees = self.list_all_worktrees()
-        if worktrees:
-            return worktrees[0]
-        return None
-
-    def merge_staging(self, delete_after: bool = True) -> bool:
-        """
-        Backward compatibility: Merge first found worktree.
-        Prefer using merge_worktree(spec_name) instead.
-        """
-        worktrees = self.list_all_worktrees()
-        if worktrees:
-            return self.merge_worktree(worktrees[0].spec_name, delete_after)
-        return False
-
-    def remove_staging(self, delete_branch: bool = True) -> None:
-        """
-        Backward compatibility: Remove first found worktree.
-        Prefer using remove_worktree(spec_name) instead.
-        """
-        worktrees = self.list_all_worktrees()
-        if worktrees:
-            self.remove_worktree(worktrees[0].spec_name, delete_branch)
-
-    def get_or_create_staging(self, spec_name: str) -> WorktreeInfo:
-        """
-        Backward compatibility: Alias for get_or_create_worktree.
-        """
-        return self.get_or_create_worktree(spec_name)
-
-    def staging_exists(self) -> bool:
-        """
-        Backward compatibility: Check if any spec worktree exists.
-        Prefer using worktree_exists(spec_name) instead.
-        """
-        return len(self.list_all_worktrees()) > 0
-
-    def commit_in_staging(self, message: str) -> bool:
-        """
-        Backward compatibility: Commit in first found worktree.
-        Prefer using commit_in_worktree(spec_name, message) instead.
-        """
-        worktrees = self.list_all_worktrees()
-        if worktrees:
-            return self.commit_in_worktree(worktrees[0].spec_name, message)
-        return False
-
-    def has_uncommitted_changes(self, in_staging: bool = False) -> bool:
+    def has_uncommitted_changes(self, spec_name: str | None = None) -> bool:
         """Check if there are uncommitted changes."""
-        worktrees = self.list_all_worktrees()
-        if in_staging and worktrees:
-            cwd = worktrees[0].path
-        else:
-            cwd = None
+        cwd = None
+        if spec_name:
+            worktree_path = self.get_worktree_path(spec_name)
+            if worktree_path.exists():
+                cwd = worktree_path
         result = self._run_git(["status", "--porcelain"], cwd=cwd)
         return bool(result.stdout.strip())
 
+    # ==================== PR Creation Methods ====================
 
-# Keep STAGING_WORKTREE_NAME for backward compatibility in imports
-STAGING_WORKTREE_NAME = "auto-claude"
+    def push_branch(self, spec_name: str, force: bool = False) -> PushBranchResult:
+        """
+        Push a spec's branch to the remote origin with retry logic.
+
+        Args:
+            spec_name: The spec folder name
+            force: Whether to force push (use with caution)
+
+        Returns:
+            PushBranchResult with keys:
+                - success: bool
+                - branch: str (branch name)
+                - remote: str (if successful)
+                - error: str (if failed)
+        """
+        info = self.get_worktree_info(spec_name)
+        if not info:
+            return PushBranchResult(
+                success=False,
+                error=f"No worktree found for spec: {spec_name}",
+            )
+
+        # Push the branch to origin
+        push_args = ["push", "-u", "origin", info.branch]
+        if force:
+            push_args.insert(1, "--force")
+
+        def do_push() -> tuple[bool, PushBranchResult | None, str]:
+            """Execute push operation for retry wrapper."""
+            try:
+                git_executable = get_git_executable()
+                result = subprocess.run(
+                    [git_executable] + push_args,
+                    cwd=info.path,
+                    capture_output=True,
+                    text=True,
+                    encoding="utf-8",
+                    errors="replace",
+                    timeout=self.GIT_PUSH_TIMEOUT,
+                )
+
+                if result.returncode == 0:
+                    return (
+                        True,
+                        PushBranchResult(
+                            success=True,
+                            branch=info.branch,
+                            remote="origin",
+                        ),
+                        "",
+                    )
+                return (False, None, result.stderr)
+            except FileNotFoundError:
+                return (False, None, "git executable not found")
+
+        max_retries = 3
+        result, last_error = _with_retry(
+            operation=do_push,
+            max_retries=max_retries,
+            is_retryable=_is_retryable_network_error,
+        )
+
+        if result:
+            return result
+
+        # Handle timeout error message
+        if last_error == "Operation timed out":
+            return PushBranchResult(
+                success=False,
+                branch=info.branch,
+                error=f"Push timed out after {max_retries} attempts.",
+            )
+
+        return PushBranchResult(
+            success=False,
+            branch=info.branch,
+            error=f"Failed to push branch: {last_error}",
+        )
+
+    def create_pull_request(
+        self,
+        spec_name: str,
+        target_branch: str | None = None,
+        title: str | None = None,
+        draft: bool = False,
+    ) -> PullRequestResult:
+        """
+        Create a GitHub pull request for a spec's branch using gh CLI with retry logic.
+
+        Args:
+            spec_name: The spec folder name
+            target_branch: Target branch for PR (defaults to base_branch)
+            title: PR title (defaults to spec name)
+            draft: Whether to create as draft PR
+
+        Returns:
+            PullRequestResult with keys:
+                - success: bool
+                - pr_url: str (if created)
+                - already_exists: bool (if PR already exists)
+                - error: str (if failed)
+        """
+        info = self.get_worktree_info(spec_name)
+        if not info:
+            return PullRequestResult(
+                success=False,
+                error=f"No worktree found for spec: {spec_name}",
+            )
+
+        target = target_branch or self.base_branch
+        pr_title = title or f"auto-claude: {spec_name}"
+
+        # Get PR body from spec.md if available
+        pr_body = self._extract_spec_summary(spec_name)
+
+        # Find gh executable before attempting PR creation
+        gh_executable = get_gh_executable()
+        if not gh_executable:
+            return PullRequestResult(
+                success=False,
+                error="GitHub CLI (gh) not found. Install from https://cli.github.com/",
+            )
+
+        # Build gh pr create command
+        gh_args = [
+            gh_executable,
+            "pr",
+            "create",
+            "--base",
+            target,
+            "--head",
+            info.branch,
+            "--title",
+            pr_title,
+            "--body",
+            pr_body,
+        ]
+        if draft:
+            gh_args.append("--draft")
+
+        def is_pr_retryable(stderr: str) -> bool:
+            """Check if PR creation error is retryable (network or HTTP 5xx)."""
+            return _is_retryable_network_error(stderr) or _is_retryable_http_error(
+                stderr
+            )
+
+        def do_create_pr() -> tuple[bool, PullRequestResult | None, str]:
+            """Execute PR creation for retry wrapper."""
+            try:
+                result = subprocess.run(
+                    gh_args,
+                    cwd=info.path,
+                    capture_output=True,
+                    text=True,
+                    encoding="utf-8",
+                    errors="replace",
+                    timeout=self.GH_CLI_TIMEOUT,
+                )
+
+                # Check for "already exists" case (success, no retry needed)
+                if result.returncode != 0 and "already exists" in result.stderr.lower():
+                    existing_url = self._get_existing_pr_url(spec_name, target)
+                    result_dict = PullRequestResult(
+                        success=True,
+                        pr_url=existing_url,
+                        already_exists=True,
+                    )
+                    if existing_url is None:
+                        result_dict["message"] = (
+                            "PR already exists but URL could not be retrieved"
+                        )
+                    return (True, result_dict, "")
+
+                if result.returncode == 0:
+                    # Extract PR URL from output
+                    pr_url: str | None = result.stdout.strip()
+                    if not pr_url.startswith("http"):
+                        # Try to find URL in output
+                        # Use general pattern to support GitHub Enterprise instances
+                        # Matches any HTTPS URL with /pull/<number> path
+                        match = re.search(r"https://[^\s]+/pull/\d+", result.stdout)
+                        if match:
+                            pr_url = match.group(0)
+                        else:
+                            # Invalid output - no valid URL found
+                            pr_url = None
+
+                    return (
+                        True,
+                        PullRequestResult(
+                            success=True,
+                            pr_url=pr_url,
+                            already_exists=False,
+                        ),
+                        "",
+                    )
+
+                return (False, None, result.stderr)
+
+            except FileNotFoundError:
+                # gh CLI not installed - not retryable, raise to exit retry loop
+                raise
+
+        max_retries = 3
+        try:
+            result, last_error = _with_retry(
+                operation=do_create_pr,
+                max_retries=max_retries,
+                is_retryable=is_pr_retryable,
+            )
+
+            if result:
+                return result
+
+            # Handle timeout error message
+            if last_error == "Operation timed out":
+                return PullRequestResult(
+                    success=False,
+                    error=f"PR creation timed out after {max_retries} attempts.",
+                )
+
+            return PullRequestResult(
+                success=False,
+                error=f"Failed to create PR: {last_error}",
+            )
+
+        except FileNotFoundError:
+            # Cached gh path became invalid - clear cache so next call re-discovers
+            invalidate_gh_cache()
+            return PullRequestResult(
+                success=False,
+                error="gh CLI not found. Install from https://cli.github.com/",
+            )
+
+    def _extract_spec_summary(self, spec_name: str) -> str:
+        """Extract a summary from spec.md for PR body."""
+        worktree_path = self.get_worktree_path(spec_name)
+        spec_path = worktree_path / ".auto-claude" / "specs" / spec_name / "spec.md"
+
+        if not spec_path.exists():
+            # Try project spec path
+            spec_path = (
+                self.project_dir / ".auto-claude" / "specs" / spec_name / "spec.md"
+            )
+
+        if not spec_path.exists():
+            return "Auto-generated PR from Auto-Claude build."
+
+        try:
+            content = spec_path.read_text(encoding="utf-8")
+            # Extract first few paragraphs (skip title, get overview)
+            lines = content.split("\n")
+            summary_lines = []
+            in_content = False
+
+            for line in lines:
+                # Skip title headers
+                if line.startswith("# "):
+                    continue
+                # Start capturing after first content line
+                if line.strip() and not line.startswith("#"):
+                    in_content = True
+                if in_content:
+                    if line.startswith("## ") and summary_lines:
+                        break  # Stop at next section
+                    summary_lines.append(line)
+                    if len(summary_lines) >= 10:  # Limit to ~10 lines
+                        break
+
+            summary = "\n".join(summary_lines).strip()
+            if summary:
+                return summary
+        except (OSError, UnicodeDecodeError) as e:
+            # Silently fall back to default - file read errors shouldn't block PR creation
+            debug_warning(
+                "worktree", f"Could not extract spec summary for PR body: {e}"
+            )
+
+        return "Auto-generated PR from Auto-Claude build."
+
+    def _get_existing_pr_url(self, spec_name: str, target_branch: str) -> str | None:
+        """Get the URL of an existing PR for this branch."""
+        info = self.get_worktree_info(spec_name)
+        if not info:
+            return None
+
+        gh_executable = get_gh_executable()
+        if not gh_executable:
+            # gh CLI not found - return None and let caller handle it
+            return None
+
+        try:
+            result = subprocess.run(
+                [
+                    gh_executable,
+                    "pr",
+                    "view",
+                    info.branch,
+                    "--json",
+                    "url",
+                    "--jq",
+                    ".url",
+                ],
+                cwd=info.path,
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                timeout=self.GH_QUERY_TIMEOUT,
+            )
+            if result.returncode == 0:
+                return result.stdout.strip()
+        except (
+            subprocess.TimeoutExpired,
+            FileNotFoundError,
+            subprocess.SubprocessError,
+        ) as e:
+            # Silently ignore errors when fetching existing PR URL - this is a best-effort
+            # lookup that may fail due to network issues, missing gh CLI, or auth problems.
+            # Returning None allows the caller to handle missing URLs gracefully.
+            if isinstance(e, FileNotFoundError):
+                invalidate_gh_cache()
+            debug_warning("worktree", f"Could not get existing PR URL: {e}")
+
+        return None
+
+    def push_and_create_pr(
+        self,
+        spec_name: str,
+        target_branch: str | None = None,
+        title: str | None = None,
+        draft: bool = False,
+        force_push: bool = False,
+    ) -> PushAndCreatePRResult:
+        """
+        Push branch and create a pull request in one operation.
+
+        Args:
+            spec_name: The spec folder name
+            target_branch: Target branch for PR (defaults to base_branch)
+            title: PR title (defaults to spec name)
+            draft: Whether to create as draft PR
+            force_push: Whether to force push the branch
+
+        Returns:
+            PushAndCreatePRResult with keys:
+                - success: bool
+                - pr_url: str (if created)
+                - pushed: bool (if push succeeded)
+                - already_exists: bool (if PR already exists)
+                - error: str (if failed)
+        """
+        # Step 1: Push the branch
+        push_result = self.push_branch(spec_name, force=force_push)
+        if not push_result.get("success"):
+            return PushAndCreatePRResult(
+                success=False,
+                pushed=False,
+                error=push_result.get("error", "Push failed"),
+            )
+
+        # Step 2: Create the PR
+        pr_result = self.create_pull_request(
+            spec_name=spec_name,
+            target_branch=target_branch,
+            title=title,
+            draft=draft,
+        )
+
+        # Combine results
+        return PushAndCreatePRResult(
+            success=pr_result.get("success", False),
+            pushed=True,
+            remote=push_result.get("remote"),
+            branch=push_result.get("branch"),
+            pr_url=pr_result.get("pr_url"),
+            already_exists=pr_result.get("already_exists", False),
+            error=pr_result.get("error"),
+        )
+
+    # ==================== Worktree Cleanup Methods ====================
+
+    def get_old_worktrees(
+        self, days_threshold: int = 30, include_stats: bool = False
+    ) -> list[WorktreeInfo] | list[str]:
+        """
+        Find worktrees that haven't been modified in the specified number of days.
+
+        Args:
+            days_threshold: Number of days without activity to consider a worktree old (default: 30)
+            include_stats: If True, return full WorktreeInfo objects; if False, return just spec names
+
+        Returns:
+            List of old worktrees (either WorktreeInfo objects or spec names based on include_stats)
+        """
+        old_worktrees = []
+
+        for worktree_info in self.list_all_worktrees():
+            # Skip if we can't determine age
+            if worktree_info.days_since_last_commit is None:
+                continue
+
+            if worktree_info.days_since_last_commit >= days_threshold:
+                if include_stats:
+                    old_worktrees.append(worktree_info)
+                else:
+                    old_worktrees.append(worktree_info.spec_name)
+
+        return old_worktrees
+
+    def cleanup_old_worktrees(
+        self, days_threshold: int = 30, dry_run: bool = False
+    ) -> tuple[list[str], list[str]]:
+        """
+        Remove worktrees that haven't been modified in the specified number of days.
+
+        Args:
+            days_threshold: Number of days without activity to consider a worktree old (default: 30)
+            dry_run: If True, only report what would be removed without actually removing
+
+        Returns:
+            Tuple of (removed_specs, failed_specs) containing spec names
+        """
+        old_worktrees = self.get_old_worktrees(
+            days_threshold=days_threshold, include_stats=True
+        )
+
+        if not old_worktrees:
+            print(f"No worktrees found older than {days_threshold} days.")
+            return ([], [])
+
+        removed = []
+        failed = []
+
+        if dry_run:
+            print(f"\n[DRY RUN] Would remove {len(old_worktrees)} old worktrees:")
+            for info in old_worktrees:
+                print(
+                    f"  - {info.spec_name} (last activity: {info.days_since_last_commit} days ago)"
+                )
+            return ([], [])
+
+        print(f"\nRemoving {len(old_worktrees)} old worktrees...")
+        for info in old_worktrees:
+            try:
+                self.remove_worktree(info.spec_name, delete_branch=True)
+                removed.append(info.spec_name)
+                print(
+                    f"  ✓ Removed {info.spec_name} (last activity: {info.days_since_last_commit} days ago)"
+                )
+            except Exception as e:
+                failed.append(info.spec_name)
+                print(f"  ✗ Failed to remove {info.spec_name}: {e}")
+
+        if removed:
+            print(f"\nSuccessfully removed {len(removed)} worktree(s).")
+        if failed:
+            print(f"Failed to remove {len(failed)} worktree(s).")
+
+        return (removed, failed)
+
+    def get_worktree_count_warning(
+        self, warning_threshold: int = 10, critical_threshold: int = 20
+    ) -> str | None:
+        """
+        Check worktree count and return a warning message if threshold is exceeded.
+
+        Args:
+            warning_threshold: Number of worktrees to trigger a warning (default: 10)
+            critical_threshold: Number of worktrees to trigger a critical warning (default: 20)
+
+        Returns:
+            Warning message string if threshold exceeded, None otherwise
+        """
+        worktrees = self.list_all_worktrees()
+        count = len(worktrees)
+
+        if count >= critical_threshold:
+            old_worktrees = self.get_old_worktrees(days_threshold=30)
+            old_count = len(old_worktrees)
+            return (
+                f"CRITICAL: {count} worktrees detected! "
+                f"Consider cleaning up old worktrees ({old_count} are 30+ days old). "
+                f"Run cleanup to remove stale worktrees."
+            )
+        elif count >= warning_threshold:
+            old_worktrees = self.get_old_worktrees(days_threshold=30)
+            old_count = len(old_worktrees)
+            return (
+                f"WARNING: {count} worktrees detected. "
+                f"{old_count} are 30+ days old and may be safe to clean up."
+            )
+
+        return None
+
+    def print_worktree_summary(self) -> None:
+        """Print a summary of all worktrees with age information."""
+        worktrees = self.list_all_worktrees()
+
+        if not worktrees:
+            print("No worktrees found.")
+            return
+
+        print(f"\n{'=' * 80}")
+        print(f"Worktree Summary ({len(worktrees)} total)")
+        print(f"{'=' * 80}\n")
+
+        # Group by age
+        recent = []  # < 7 days
+        week_old = []  # 7-30 days
+        month_old = []  # 30-90 days
+        very_old = []  # > 90 days
+        unknown_age = []
+
+        for info in worktrees:
+            if info.days_since_last_commit is None:
+                unknown_age.append(info)
+            elif info.days_since_last_commit < 7:
+                recent.append(info)
+            elif info.days_since_last_commit < 30:
+                week_old.append(info)
+            elif info.days_since_last_commit < 90:
+                month_old.append(info)
+            else:
+                very_old.append(info)
+
+        def print_group(title: str, items: list[WorktreeInfo]):
+            if not items:
+                return
+            print(f"{title} ({len(items)}):")
+            for info in sorted(items, key=lambda x: x.spec_name):
+                age_str = (
+                    f"{info.days_since_last_commit}d ago"
+                    if info.days_since_last_commit is not None
+                    else "unknown"
+                )
+                print(f"  - {info.spec_name} (last activity: {age_str})")
+            print()
+
+        print_group("Recent (< 7 days)", recent)
+        print_group("Week Old (7-30 days)", week_old)
+        print_group("Month Old (30-90 days)", month_old)
+        print_group("Very Old (> 90 days)", very_old)
+        print_group("Unknown Age", unknown_age)
+
+        # Print cleanup suggestions
+        if month_old or very_old:
+            total_old = len(month_old) + len(very_old)
+            print(f"{'=' * 80}")
+            print(
+                f"💡 Suggestion: {total_old} worktree(s) are 30+ days old and may be safe to clean up."
+            )
+            print("   Review these worktrees and run cleanup if no longer needed.")
+            print(f"{'=' * 80}\n")

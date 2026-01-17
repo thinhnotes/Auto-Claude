@@ -1,4 +1,31 @@
-import { app, BrowserWindow, shell, nativeImage } from 'electron';
+// Load .env file FIRST before any other imports that might use process.env
+import { config } from 'dotenv';
+import { resolve, dirname } from 'path';
+import { fileURLToPath } from 'url';
+import { existsSync } from 'fs';
+
+// ESM-compatible __dirname
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
+// Load .env from apps/frontend directory
+// In development: __dirname is out/main (compiled), so go up 2 levels
+// In production: app resources directory
+const possibleEnvPaths = [
+  resolve(__dirname, '../../.env'),           // Development: out/main -> apps/frontend/.env
+  resolve(__dirname, '../../../.env'),        // Alternative: might be in different location
+  resolve(process.cwd(), 'apps/frontend/.env'), // Fallback: from workspace root
+];
+
+for (const envPath of possibleEnvPaths) {
+  if (existsSync(envPath)) {
+    config({ path: envPath });
+    console.log(`[dotenv] Loaded environment from: ${envPath}`);
+    break;
+  }
+}
+
+import { app, BrowserWindow, shell, nativeImage, session, screen } from 'electron';
 import { join } from 'path';
 import { accessSync, readFileSync, writeFileSync, rmSync } from 'fs';
 import { electronApp, optimizer, is } from '@electron-toolkit/utils';
@@ -327,23 +354,6 @@ app.whenReady().then(() => {
 
   // Create window
   createWindow();
-
-  // Pre-warm CLI tool cache in background (non-blocking)
-  // This ensures CLI detection is done before user needs it
-  // Include all commonly used tools to prevent sync blocking on first use
-  setImmediate(() => {
-    preWarmToolCache(['claude', 'git', 'gh', 'python']).catch((error) => {
-      console.warn('[main] Failed to pre-warm CLI cache:', error);
-    });
-  });
-
-  // Pre-initialize Claude profile manager in background (non-blocking)
-  // This ensures profile data is loaded before user clicks "Start Claude Code"
-  setImmediate(() => {
-    initializeClaudeProfileManager().catch((error) => {
-      console.warn('[main] Failed to pre-initialize profile manager:', error);
-    });
-  });
 
   // Pre-warm CLI tool cache in background (non-blocking)
   // This ensures CLI detection is done before user needs it

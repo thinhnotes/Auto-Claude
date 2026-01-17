@@ -494,10 +494,46 @@ jobs:
           # Copy binary artifacts (these have unique names per architecture)
           find dist -type f \( -name "*.dmg" -o -name "*.zip" -o -name "*.exe" -o -name "*.AppImage" -o -name "*.deb" -o -name "*.flatpak" -o -name "*.blockmap" \) -exec cp {} release-assets/ \;
 
-          # Validate that at least one artifact was copied
-          artifact_count=$(find release-assets -type f \( -name "*.dmg" -o -name "*.zip" -o -name "*.exe" -o -name "*.AppImage" -o -name "*.deb" -o -name "*.flatpak" \) | wc -l)
-          if [ "$artifact_count" -eq 0 ]; then
-            echo "::error::No build artifacts found! Expected .dmg, .zip, .exe, .AppImage, .deb, or .flatpak files."
+          # Validate that installer files exist
+          installer_count=$(find release-assets -type f \( -name "*.dmg" -o -name "*.zip" -o -name "*.exe" -o -name "*.AppImage" -o -name "*.deb" -o -name "*.flatpak" \) | wc -l)
+          if [ "$installer_count" -eq 0 ]; then
+            echo "::error::No installer artifacts found! Expected .dmg, .zip, .exe, .AppImage, .deb, or .flatpak files."
+            exit 1
+          fi
+
+          echo "Found $installer_count binary artifact(s):"
+          find release-assets -type f \( -name "*.dmg" -o -name "*.zip" -o -name "*.exe" -o -name "*.AppImage" -o -name "*.deb" -o -name "*.flatpak" \) -exec basename {} \;
+
+      # Merge macOS manifests from Intel and ARM64 builds
+      # See: https://github.com/electron-userland/electron-builder/issues/5592
+      - name: Merge macOS manifests
+        uses: ./.github/actions/merge-macos-manifests
+        with:
+          dist-path: dist
+          output-path: release-assets
+          copy-other-manifests: 'true'
+
+      - name: Validate manifests
+        run: |
+          # Validate that electron-updater manifest files are present (required for auto-updates)
+          yml_count=$(find release-assets -type f -name "*.yml" | wc -l)
+          if [ "$yml_count" -eq 0 ]; then
+            echo "::error::No update manifest (.yml) files found! Auto-update will not work."
+            exit 1
+          fi
+
+          echo "Found $yml_count manifest file(s):"
+          find release-assets -type f -name "*.yml" -exec basename {} \;
+
+          # Validate required manifests exist
+          missing=""
+          [ ! -f "release-assets/latest-mac.yml" ] && missing="$missing latest-mac.yml"
+          [ ! -f "release-assets/latest.yml" ] && missing="$missing latest.yml"
+          [ ! -f "release-assets/latest-linux.yml" ] && missing="$missing latest-linux.yml"
+
+          if [ -n "$missing" ]; then
+            echo "::error::Missing required manifests:$missing"
+            echo "::error::Auto-update will fail on affected platforms!"
             exit 1
           fi
 
@@ -533,11 +569,61 @@ jobs:
       - name: Extract changelog from CHANGELOG.md
         if: ${{ github.event_name == 'push' }}
         id: changelog
-        uses: release-drafter/release-drafter@v6
-        with:
-          config-name: release-drafter.yml
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Extract version from tag (v2.7.2 -> 2.7.2)
+          VERSION=${GITHUB_REF_NAME#v}
+          CHANGELOG_FILE="CHANGELOG.md"
+
+          echo "📋 Extracting release notes for version $VERSION from CHANGELOG.md..."
+
+          if [ ! -f "$CHANGELOG_FILE" ]; then
+            echo "::warning::CHANGELOG.md not found, using minimal release notes"
+            echo "body=Release v$VERSION" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          # Extract changelog section for this version
+          # Looks for "## X.Y.Z" header and captures until next "## " or "---"
+          CHANGELOG_CONTENT=$(awk -v ver="$VERSION" '
+            BEGIN { found=0; content="" }
+            /^## / {
+              if (found) exit
+              # Match version at start of header (e.g., "## 2.7.3 -" or "## 2.7.3")
+              if ($2 == ver || $2 ~ "^"ver"[[:space:]]*-") {
+                found=1
+                next
+              }
+            }
+            /^---$/ { if (found) exit }
+            found { content = content $0 "\n" }
+            END {
+              if (!found) {
+                print "NOT_FOUND"
+                exit 0
+              }
+              # Trim leading/trailing whitespace
+              gsub(/^[[:space:]]+|[[:space:]]+$/, "", content)
+              print content
+            }
+          ' "$CHANGELOG_FILE")
+
+          if [ "$CHANGELOG_CONTENT" = "NOT_FOUND" ] || [ -z "$CHANGELOG_CONTENT" ]; then
+            echo "::warning::Version $VERSION not found in CHANGELOG.md, using minimal release notes"
+            REPO="${{ github.repository }}"
+            CHANGELOG_CONTENT="Release v$VERSION"$'\n\n'"See [CHANGELOG.md](https://github.com/${REPO}/blob/main/CHANGELOG.md) for details."
+          fi
+
+          echo "✅ Extracted changelog content"
+
+          # Save to file first (more reliable for multiline)
+          echo "$CHANGELOG_CONTENT" > changelog-body.md
+
+          # Use file-based output for multiline content
+          {
+            echo "body<<CHANGELOG_EOF"
+            cat changelog-body.md
+            echo "CHANGELOG_EOF"
+          } >> $GITHUB_OUTPUT
 
       - name: Create Release
         if: ${{ github.event_name == 'push' }}
@@ -548,7 +634,9 @@ jobs:
 
             ---
 
-            ${{ steps.virustotal.outputs.vt_results }}
+            **Full Changelog**: https://github.com/${{ github.repository }}/blob/main/CHANGELOG.md
+
+            _VirusTotal scan results will be added automatically after release._
           files: release-assets/*
           draft: false
           prerelease: ${{ contains(github.ref, 'beta') || contains(github.ref, 'alpha') }}

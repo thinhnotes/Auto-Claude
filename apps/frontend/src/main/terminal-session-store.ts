@@ -300,22 +300,6 @@ export class TerminalSessionStore {
   }
 
   /**
-   * Validate worktree config - check if the worktree still exists
-   * Returns undefined if worktree doesn't exist or is invalid
-   */
-  private validateWorktreeConfig(config: TerminalWorktreeConfig | undefined): TerminalWorktreeConfig | undefined {
-    if (!config) return undefined;
-
-    // Check if the worktree path still exists
-    if (!existsSync(config.worktreePath)) {
-      console.warn(`[TerminalSessionStore] Worktree path no longer exists: ${config.worktreePath}, clearing config`);
-      return undefined;
-    }
-
-    return config;
-  }
-
-  /**
    * Get most recent sessions for a project.
    * First checks today, then looks at the most recent date with sessions.
    * When restoring from a previous date, MIGRATES sessions to today to prevent

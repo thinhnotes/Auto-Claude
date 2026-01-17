@@ -16,7 +16,6 @@ import copy
 import json
 import logging
 import os
-import platform
 import shutil
 import subprocess
 import threading
@@ -345,6 +344,17 @@ def clear_claude_cli_cache() -> None:
     logger.debug("Claude CLI cache cleared")
 
 
+from agents.tools_pkg import (
+    CONTEXT7_TOOLS,
+    ELECTRON_TOOLS,
+    GRAPHITI_MCP_TOOLS,
+    LINEAR_TOOLS,
+    PUPPETEER_TOOLS,
+    create_auto_claude_mcp_server,
+    get_allowed_tools,
+    get_required_mcp_servers,
+    is_tools_available,
+)
 from claude_agent_sdk import ClaudeAgentOptions, ClaudeSDKClient
 from claude_agent_sdk.types import HookMatcher
 from core.auth import get_sdk_env_vars, require_auth_token
@@ -1000,11 +1010,6 @@ def create_client(
     else:
         print("   - CLAUDE.md: disabled by project settings")
     print()
-
-    # Resolve model shorthand (sonnet, opus, haiku) to full model ID
-    from phase_config import resolve_model_id
-    resolved_model = resolve_model_id(model)
-    logger.info(f"[create_client] Input model: {model} -> Resolved model: {resolved_model}")
 
     # Find Claude CLI path for SDK
     # This ensures the SDK can find the Claude Code binary even if it's not in PATH

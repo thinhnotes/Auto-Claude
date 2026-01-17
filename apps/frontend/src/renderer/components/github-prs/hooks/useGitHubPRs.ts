@@ -20,11 +20,6 @@ interface UseGitHubPRsOptions {
   isActive?: boolean;
 }
 
-interface UseGitHubPRsOptions {
-  /** Whether the component is currently active/visible */
-  isActive?: boolean;
-}
-
 interface UseGitHubPRsResult {
   prs: PRData[];
   isLoading: boolean;
@@ -209,9 +204,6 @@ export function useGitHubPRs(
               // Note: New commits check is now lazy - only done when user selects a PR
               // or explicitly triggers a check. This significantly speeds up list loading.
             }
-
-            // Note: New commits check is now lazy - only done when user selects a PR
-            // or explicitly triggers a check. This significantly speeds up list loading.
           }
         } else {
           setIsConnected(false);

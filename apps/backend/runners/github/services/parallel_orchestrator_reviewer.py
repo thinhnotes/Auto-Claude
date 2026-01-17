@@ -947,12 +947,6 @@ The SDK will run invoked agents in parallel automatically.
         elif is_branch_behind:
             blockers.append(BRANCH_BEHIND_BLOCKER_MSG)
 
-        # CRITICAL: Merge conflicts block merging - check first
-        if has_merge_conflicts:
-            blockers.append(
-                "Merge Conflicts: PR has conflicts with base branch that must be resolved"
-            )
-
         critical = [f for f in findings if f.severity == ReviewSeverity.CRITICAL]
         high = [f for f in findings if f.severity == ReviewSeverity.HIGH]
         medium = [f for f in findings if f.severity == ReviewSeverity.MEDIUM]
