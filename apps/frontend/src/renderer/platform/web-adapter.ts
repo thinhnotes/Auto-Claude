@@ -602,11 +602,13 @@ export function createWebAdapter(): AppAPI {
     },
     onTerminalTitleChange: unsupportedEvent('onTerminalTitleChange'),
     onTerminalClaudeSession: unsupportedEvent('onTerminalClaudeSession'),
+    onTerminalClaudeExit: unsupportedEvent('onTerminalClaudeExit'),
     onTerminalRateLimit: unsupportedEvent('onTerminalRateLimit'),
     onTerminalOAuthToken: unsupportedEvent('onTerminalOAuthToken'),
     onTerminalAuthCreated: unsupportedEvent('onTerminalAuthCreated'),
     onTerminalClaudeBusy: unsupportedEvent('onTerminalClaudeBusy'),
     onTerminalPendingResume: unsupportedEvent('onTerminalPendingResume'),
+    onTerminalWorktreeConfigChange: unsupportedEvent('onTerminalWorktreeConfigChange'),
 
     // ===================
     // Claude Profile Management (partial web support)
