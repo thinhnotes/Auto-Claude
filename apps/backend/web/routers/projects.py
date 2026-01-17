@@ -619,6 +619,13 @@ class ProjectEnvConfig(BaseModel):
     gitlabProject: Optional[str] = None
     gitlabAutoSync: bool = False
     
+    # Azure DevOps Integration
+    azureDevOpsEnabled: bool = False
+    azureDevOpsOrganizationUrl: Optional[str] = None
+    azureDevOpsProject: Optional[str] = None
+    azureDevOpsTeam: Optional[str] = None
+    azureDevOpsPersonalAccessToken: Optional[str] = None
+    
     # Git/Worktree Settings
     defaultBranch: Optional[str] = None
     

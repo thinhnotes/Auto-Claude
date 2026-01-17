@@ -187,6 +187,8 @@ export interface TaskMetadata {
   githubBatchTheme?: string;  // Theme/title of the GitHub issue batch
   gitlabIssueIid?: number;  // Reference to GitLab issue IID if from GitLab
   gitlabUrl?: string;  // GitLab issue URL
+  azureDevOpsWorkItemId?: number;  // Reference to Azure DevOps work item ID
+  azureDevOpsUrl?: string;  // Azure DevOps work item URL
 
   // Classification
   category?: TaskCategory;
