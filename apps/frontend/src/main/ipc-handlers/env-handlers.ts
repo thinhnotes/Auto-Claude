@@ -21,6 +21,15 @@ const GITLAB_ENV_KEYS = {
   AUTO_SYNC: 'GITLAB_AUTO_SYNC'
 } as const;
 
+// Azure DevOps environment variable keys
+const AZURE_DEVOPS_ENV_KEYS = {
+  ENABLED: 'AZURE_DEVOPS_ENABLED',
+  ORGANIZATION_URL: 'AZURE_DEVOPS_ORGANIZATION_URL',
+  PROJECT: 'AZURE_DEVOPS_PROJECT',
+  TEAM: 'AZURE_DEVOPS_TEAM',
+  PAT: 'AZURE_DEVOPS_PAT'
+} as const;
+
 /**
  * Helper to generate .env line (DRY)
  */
@@ -133,6 +142,22 @@ export function registerEnvHandlers(
     }
     if (config.gitlabAutoSync !== undefined) {
       existingVars[GITLAB_ENV_KEYS.AUTO_SYNC] = config.gitlabAutoSync ? 'true' : 'false';
+    }
+    // Azure DevOps Integration
+    if (config.azureDevOpsEnabled !== undefined) {
+      existingVars[AZURE_DEVOPS_ENV_KEYS.ENABLED] = config.azureDevOpsEnabled ? 'true' : 'false';
+    }
+    if (config.azureDevOpsOrganizationUrl !== undefined) {
+      existingVars[AZURE_DEVOPS_ENV_KEYS.ORGANIZATION_URL] = config.azureDevOpsOrganizationUrl;
+    }
+    if (config.azureDevOpsProject !== undefined) {
+      existingVars[AZURE_DEVOPS_ENV_KEYS.PROJECT] = config.azureDevOpsProject;
+    }
+    if (config.azureDevOpsTeam !== undefined) {
+      existingVars[AZURE_DEVOPS_ENV_KEYS.TEAM] = config.azureDevOpsTeam;
+    }
+    if (config.azureDevOpsPersonalAccessToken !== undefined) {
+      existingVars[AZURE_DEVOPS_ENV_KEYS.PAT] = config.azureDevOpsPersonalAccessToken;
     }
     // Git/Worktree Settings
     if (config.defaultBranch !== undefined) {
@@ -260,6 +285,15 @@ ${envLine(existingVars, GITLAB_ENV_KEYS.INSTANCE_URL, 'https://gitlab.com')}
 ${envLine(existingVars, GITLAB_ENV_KEYS.TOKEN)}
 ${envLine(existingVars, GITLAB_ENV_KEYS.PROJECT, 'group/project')}
 ${envLine(existingVars, GITLAB_ENV_KEYS.AUTO_SYNC, 'false')}
+
+# =============================================================================
+# AZURE DEVOPS INTEGRATION (OPTIONAL)
+# =============================================================================
+${existingVars[AZURE_DEVOPS_ENV_KEYS.ENABLED] !== undefined ? `${AZURE_DEVOPS_ENV_KEYS.ENABLED}=${existingVars[AZURE_DEVOPS_ENV_KEYS.ENABLED]}` : `# ${AZURE_DEVOPS_ENV_KEYS.ENABLED}=false`}
+${envLine(existingVars, AZURE_DEVOPS_ENV_KEYS.ORGANIZATION_URL, 'https://dev.azure.com/organization')}
+${envLine(existingVars, AZURE_DEVOPS_ENV_KEYS.PROJECT)}
+${envLine(existingVars, AZURE_DEVOPS_ENV_KEYS.TEAM)}
+${envLine(existingVars, AZURE_DEVOPS_ENV_KEYS.PAT)}
 
 # =============================================================================
 # GIT/WORKTREE SETTINGS (OPTIONAL)
@@ -449,20 +483,20 @@ ${existingVars['GRAPHITI_DB_PATH'] ? `GRAPHITI_DB_PATH=${existingVars['GRAPHITI_
       }
 
       // Azure DevOps config
-      if (vars['AZURE_DEVOPS_ENABLED']?.toLowerCase() === 'true') {
+      if (vars[AZURE_DEVOPS_ENV_KEYS.ENABLED]?.toLowerCase() === 'true') {
         config.azureDevOpsEnabled = true;
       }
-      if (vars['AZURE_DEVOPS_ORGANIZATION_URL']) {
-        config.azureDevOpsOrganizationUrl = vars['AZURE_DEVOPS_ORGANIZATION_URL'];
+      if (vars[AZURE_DEVOPS_ENV_KEYS.ORGANIZATION_URL]) {
+        config.azureDevOpsOrganizationUrl = vars[AZURE_DEVOPS_ENV_KEYS.ORGANIZATION_URL];
       }
-      if (vars['AZURE_DEVOPS_PROJECT']) {
-        config.azureDevOpsProject = vars['AZURE_DEVOPS_PROJECT'];
+      if (vars[AZURE_DEVOPS_ENV_KEYS.PROJECT]) {
+        config.azureDevOpsProject = vars[AZURE_DEVOPS_ENV_KEYS.PROJECT];
       }
-      if (vars['AZURE_DEVOPS_TEAM']) {
-        config.azureDevOpsTeam = vars['AZURE_DEVOPS_TEAM'];
+      if (vars[AZURE_DEVOPS_ENV_KEYS.TEAM]) {
+        config.azureDevOpsTeam = vars[AZURE_DEVOPS_ENV_KEYS.TEAM];
       }
-      if (vars['AZURE_DEVOPS_PAT']) {
-        config.azureDevOpsPersonalAccessToken = vars['AZURE_DEVOPS_PAT'];
+      if (vars[AZURE_DEVOPS_ENV_KEYS.PAT]) {
+        config.azureDevOpsPersonalAccessToken = vars[AZURE_DEVOPS_ENV_KEYS.PAT];
       }
 
       // Git/Worktree config
