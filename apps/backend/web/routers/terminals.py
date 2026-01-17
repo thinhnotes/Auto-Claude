@@ -34,7 +34,7 @@ logger = logging.getLogger("auto-claude-api")
 @dataclass
 class TerminalSession:
     """Represents an active terminal session."""
-    
+
     id: str
     pid: int
     fd: int
@@ -45,6 +45,7 @@ class TerminalSession:
     rows: int = 24
     name: str = "Terminal"
     is_active: bool = True
+    project_path: Optional[str] = None
 
 
 # Store active terminal sessions
@@ -118,11 +119,19 @@ def resize_pty(fd: int, cols: int, rows: int) -> None:
 
 
 @router.get("/terminals")
-async def list_terminals() -> dict:
-    """List all active terminal sessions."""
+async def list_terminals(projectPath: Optional[str] = None) -> dict:
+    """List all active terminal sessions.
+
+    Args:
+        projectPath: Optional filter to only return terminals for a specific project
+    """
     terminals = []
     for session_id, session in _terminal_sessions.items():
         if session.is_active:
+            # Filter by project path if provided
+            if projectPath and session.project_path != projectPath:
+                continue
+
             terminals.append({
                 "id": session_id,
                 "name": session.name,
@@ -131,15 +140,16 @@ async def list_terminals() -> dict:
                 "cols": session.cols,
                 "rows": session.rows,
                 "connected": session.websocket is not None,
+                "projectPath": session.project_path,
             })
-    
+
     return {"success": True, "data": terminals}
 
 
 @router.post("/terminals")
 async def create_terminal(request: dict) -> dict:
     """Create a new terminal session.
-    
+
     Request body:
         - cwd: Working directory (required)
         - name: Terminal name (optional)
@@ -147,6 +157,7 @@ async def create_terminal(request: dict) -> dict:
         - cols: Terminal width (optional, default 80)
         - rows: Terminal height (optional, default 24)
         - env: Additional environment variables (optional)
+        - projectPath: Project path for filtering (optional)
     """
     cwd = request.get("cwd", str(Path.home()))
     name = request.get("name", "Terminal")
@@ -154,25 +165,26 @@ async def create_terminal(request: dict) -> dict:
     cols = request.get("cols", 80)
     rows = request.get("rows", 24)
     env = request.get("env", {})
-    
+    project_path = request.get("projectPath")
+
     # Validate cwd
     cwd_path = Path(cwd)
     if not cwd_path.exists():
         return {"success": False, "error": f"Directory does not exist: {cwd}"}
-    
+
     if not cwd_path.is_dir():
         return {"success": False, "error": f"Not a directory: {cwd}"}
-    
+
     try:
         # Create PTY process
         if shell is None:
             shell = get_default_shell()
-        
+
         pid, fd = create_pty_process(cwd, shell, env, cols, rows)
-        
+
         # Generate session ID
         session_id = str(uuid.uuid4())
-        
+
         # Store session
         session = TerminalSession(
             id=session_id,
@@ -183,11 +195,12 @@ async def create_terminal(request: dict) -> dict:
             cols=cols,
             rows=rows,
             name=name,
+            project_path=project_path,
         )
         _terminal_sessions[session_id] = session
-        
-        logger.info(f"Created terminal session {session_id} (pid={pid}, shell={shell})")
-        
+
+        logger.info(f"Created terminal session {session_id} (pid={pid}, shell={shell}, project={project_path})")
+
         return {
             "success": True,
             "data": {
@@ -198,6 +211,7 @@ async def create_terminal(request: dict) -> dict:
                 "shell": shell,
                 "cols": cols,
                 "rows": rows,
+                "projectPath": project_path,
             }
         }
     except Exception as e:

@@ -112,6 +112,7 @@ function unsupportedVoid(operation: string): (...args: unknown[]) => void {
 // Track poll timeouts for task logs (using setTimeout for "poll after completion" pattern)
 // This prevents request piling when requests take longer than the poll interval
 const taskLogPolls: Map<string, { timeoutId: ReturnType<typeof setTimeout> | null; cancelled: boolean }> = new Map();
+const taskLogEventSources: Map<string, EventSource> = new Map();
 const taskLogCallbacks: Set<(specId: string, logs: any) => void> = new Set();
 const taskLogUpdatedAt: Map<string, string> = new Map();
 
@@ -448,7 +449,7 @@ export function createWebAdapter(): AppAPI {
     // ===================
     // Terminal Operations (Web Mode - WebSocket PTY)
     // ===================
-    createTerminal: async (options?: { cwd?: string; name?: string; shell?: string; cols?: number; rows?: number }) => {
+    createTerminal: async (options?: { cwd?: string; name?: string; shell?: string; cols?: number; rows?: number; projectPath?: string }) => {
       const result = await apiRequest<{
         id: string;
         pid: number;
@@ -457,6 +458,7 @@ export function createWebAdapter(): AppAPI {
         shell: string;
         cols: number;
         rows: number;
+        projectPath?: string;
       }>('/api/terminals', {
         method: 'POST',
         body: JSON.stringify({
@@ -465,6 +467,7 @@ export function createWebAdapter(): AppAPI {
           shell: options?.shell,
           cols: options?.cols || 80,
           rows: options?.rows || 24,
+          projectPath: options?.projectPath,
         }),
       });
       
@@ -518,16 +521,37 @@ export function createWebAdapter(): AppAPI {
         });
       }
     },
-    invokeClaudeInTerminal: unsupportedVoid('invokeClaudeInTerminal'),
+    invokeClaudeInTerminal: async (terminalId: string, taskId?: string) => {
+      // In web mode, send a command to invoke Claude via the terminal WebSocket
+      const terminalInfo = (window as any).__webTerminals?.[terminalId];
+      if (terminalInfo?.ws && terminalInfo.ws.readyState === WebSocket.OPEN) {
+        // Send the claude command through the terminal
+        terminalInfo.ws.send('claude\r');
+        return { success: true };
+      }
+      return { success: false, error: 'Terminal not connected' };
+    },
     generateTerminalName: async () => ({
       success: true,
       data: `Terminal ${Date.now()}`,
     }),
     setTerminalTitle: unsupportedVoid('setTerminalTitle'),
-    setTerminalWorktreeConfig: unsupportedVoid('setTerminalWorktreeConfig'),
+    setTerminalWorktreeConfig: async (terminalId: string, config: any) => {
+      // Store worktree config for this terminal
+      if (!(window as any).__webTerminals) {
+        (window as any).__webTerminals = {};
+      }
+      if (!(window as any).__webTerminals[terminalId]) {
+        (window as any).__webTerminals[terminalId] = {};
+      }
+      (window as any).__webTerminals[terminalId].worktreeConfig = config;
+      return { success: true };
+    },
 
     // Terminal session management
-    getTerminalSessions: async () => {
+    getTerminalSessions: async (projectPath?: string) => {
+      // In web mode, filter terminals by project path
+      const query = projectPath ? `?projectPath=${encodeURIComponent(projectPath)}` : '';
       const result = await apiRequest<Array<{
         id: string;
         name: string;
@@ -536,8 +560,9 @@ export function createWebAdapter(): AppAPI {
         cols: number;
         rows: number;
         connected: boolean;
-      }>>('/api/terminals');
-      
+        projectPath?: string;
+      }>>(`/api/terminals${query}`);
+
       if (result.success && result.data) {
         return {
           success: true,
@@ -546,12 +571,26 @@ export function createWebAdapter(): AppAPI {
             name: t.name,
             cwd: t.cwd,
             createdAt: new Date().toISOString(),
+            projectPath: t.projectPath,
           })),
         };
       }
       return { success: true, data: [] };
     },
-    restoreTerminalSession: unsupported('restoreTerminalSession'),
+    restoreTerminalSession: async (sessionId: string) => {
+      // In web mode, we can't restore PTY sessions, but we can create a new terminal
+      // with the same working directory if the session info is available
+      console.log('[Web Mode] Terminal session restore requested:', sessionId);
+      
+      // Return success with data.success format expected by the component
+      return {
+        success: true,
+        data: {
+          success: false,
+          error: 'Terminal session restoration is not supported in web mode. Please create a new terminal.',
+        },
+      };
+    },
     clearTerminalSessions: async () => {
       // Close all terminals
       const result = await apiRequest<Array<{ id: string }>>('/api/terminals');
@@ -602,11 +641,13 @@ export function createWebAdapter(): AppAPI {
     },
     onTerminalTitleChange: unsupportedEvent('onTerminalTitleChange'),
     onTerminalClaudeSession: unsupportedEvent('onTerminalClaudeSession'),
+    onTerminalClaudeExit: unsupportedEvent('onTerminalClaudeExit'),
     onTerminalRateLimit: unsupportedEvent('onTerminalRateLimit'),
     onTerminalOAuthToken: unsupportedEvent('onTerminalOAuthToken'),
     onTerminalAuthCreated: unsupportedEvent('onTerminalAuthCreated'),
     onTerminalClaudeBusy: unsupportedEvent('onTerminalClaudeBusy'),
     onTerminalPendingResume: unsupportedEvent('onTerminalPendingResume'),
+    onTerminalWorktreeConfigChange: unsupportedEvent('onTerminalWorktreeConfigChange'),
 
     // ===================
     // Claude Profile Management (partial web support)
