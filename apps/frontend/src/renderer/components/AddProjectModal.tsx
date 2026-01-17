@@ -78,10 +78,15 @@ export function AddProjectModal({ open, onOpenChange, onProjectAdded }: AddProje
           }
           onProjectAdded?.(project, !project.autoBuildPath);
           onOpenChange(false);
+        } else {
+          // Error already shown via toast in addProject
+          // Just show it in the modal too for visibility
+          setError(t('addProject.failedToOpen'));
         }
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : t('addProject.failedToOpen'));
+      const errorMsg = err instanceof Error ? err.message : t('addProject.failedToOpen');
+      setError(errorMsg);
     }
   };
 
@@ -141,9 +146,13 @@ export function AddProjectModal({ open, onOpenChange, onProjectAdded }: AddProje
         }
         onProjectAdded?.(project, true); // New projects always need init
         onOpenChange(false);
+      } else {
+        // Error already shown via toast in addProject
+        setError(t('addProject.failedToCreate'));
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : t('addProject.failedToCreate'));
+      const errorMsg = err instanceof Error ? err.message : t('addProject.failedToCreate');
+      setError(errorMsg);
     } finally {
       setIsCreating(false);
     }

@@ -343,11 +343,36 @@ export async function addProject(projectPath: string): Promise<Project | null> {
       store.openProjectTab(result.data.id);
       return result.data;
     } else {
-      store.setError(result.error || 'Failed to add project');
+      const errorMsg = result.error || 'Failed to add project';
+      store.setError(errorMsg);
+      
+      // Show toast notification for common errors
+      if (errorMsg.includes('does not exist')) {
+        // Import toast dynamically to avoid circular dependencies
+        import('../hooks/use-toast').then(({ toast }) => {
+          toast({
+            title: 'Project Path Not Found',
+            description: errorMsg,
+            variant: 'destructive',
+          });
+        });
+      }
+      
       return null;
     }
   } catch (error) {
-    store.setError(error instanceof Error ? error.message : 'Unknown error');
+    const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+    store.setError(errorMsg);
+    
+    // Show toast for any caught errors
+    import('../hooks/use-toast').then(({ toast }) => {
+      toast({
+        title: 'Failed to Add Project',
+        description: errorMsg,
+        variant: 'destructive',
+      });
+    });
+    
     return null;
   }
 }
