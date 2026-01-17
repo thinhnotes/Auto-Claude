@@ -84,6 +84,32 @@ export const taskMock = {
 
   unwatchTaskLogs: async () => ({ success: true }),
 
+  // Git Operations
+  getTaskGitChanges: async () => ({
+    success: true,
+    data: {
+      files: [],
+      summary: {
+        totalFiles: 0,
+        added: 0,
+        modified: 0,
+        deleted: 0,
+        totalAdditions: 0,
+        totalDeletions: 0
+      },
+      hasWorktree: false
+    }
+  }),
+
+  getTaskFileDiff: async () => ({
+    success: true,
+    data: {
+      diff: '',
+      filePath: '',
+      baseBranch: 'main'
+    }
+  }),
+
   // Event Listeners (no-op in browser)
   onTaskProgress: () => () => {},
   onTaskError: () => () => {},

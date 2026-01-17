@@ -8,6 +8,17 @@
 
 import type { ElectronAPI } from '../../shared/types';
 import { createWebAdapter } from '../platform/web-adapter';
+import { projectMock } from './mocks/project-mock';
+import { taskMock } from './mocks/task-mock';
+import { workspaceMock } from './mocks/workspace-mock';
+import { terminalMock } from './mocks/terminal-mock';
+import { claudeProfileMock } from './mocks/claude-profile-mock';
+import { settingsMock } from './mocks/settings-mock';
+import { contextMock } from './mocks/context-mock';
+import { integrationMock } from './mocks/integration-mock';
+import { changelogMock } from './mocks/changelog-mock';
+import { insightsMock } from './mocks/insights-mock';
+import { infrastructureMock } from './mocks/infrastructure-mock';
 
 /**
  * Check if we're running in Electron (without circular dependency)
