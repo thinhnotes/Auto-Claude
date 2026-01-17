@@ -112,6 +112,7 @@ function unsupportedVoid(operation: string): (...args: unknown[]) => void {
 // Track poll timeouts for task logs (using setTimeout for "poll after completion" pattern)
 // This prevents request piling when requests take longer than the poll interval
 const taskLogPolls: Map<string, { timeoutId: ReturnType<typeof setTimeout> | null; cancelled: boolean }> = new Map();
+const taskLogEventSources: Map<string, EventSource> = new Map();
 const taskLogCallbacks: Set<(specId: string, logs: any) => void> = new Set();
 const taskLogUpdatedAt: Map<string, string> = new Map();
 
@@ -448,7 +449,7 @@ export function createWebAdapter(): AppAPI {
     // ===================
     // Terminal Operations (Web Mode - WebSocket PTY)
     // ===================
-    createTerminal: async (options?: { cwd?: string; name?: string; shell?: string; cols?: number; rows?: number }) => {
+    createTerminal: async (options?: { cwd?: string; name?: string; shell?: string; cols?: number; rows?: number; projectPath?: string }) => {
       const result = await apiRequest<{
         id: string;
         pid: number;
@@ -457,6 +458,7 @@ export function createWebAdapter(): AppAPI {
         shell: string;
         cols: number;
         rows: number;
+        projectPath?: string;
       }>('/api/terminals', {
         method: 'POST',
         body: JSON.stringify({
@@ -465,6 +467,7 @@ export function createWebAdapter(): AppAPI {
           shell: options?.shell,
           cols: options?.cols || 80,
           rows: options?.rows || 24,
+          projectPath: options?.projectPath,
         }),
       });
       
@@ -546,7 +549,9 @@ export function createWebAdapter(): AppAPI {
     },
 
     // Terminal session management
-    getTerminalSessions: async () => {
+    getTerminalSessions: async (projectPath?: string) => {
+      // In web mode, filter terminals by project path
+      const query = projectPath ? `?projectPath=${encodeURIComponent(projectPath)}` : '';
       const result = await apiRequest<Array<{
         id: string;
         name: string;
@@ -555,8 +560,9 @@ export function createWebAdapter(): AppAPI {
         cols: number;
         rows: number;
         connected: boolean;
-      }>>('/api/terminals');
-      
+        projectPath?: string;
+      }>>(`/api/terminals${query}`);
+
       if (result.success && result.data) {
         return {
           success: true,
@@ -565,6 +571,7 @@ export function createWebAdapter(): AppAPI {
             name: t.name,
             cwd: t.cwd,
             createdAt: new Date().toISOString(),
+            projectPath: t.projectPath,
           })),
         };
       }

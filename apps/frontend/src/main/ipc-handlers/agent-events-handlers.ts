@@ -318,17 +318,19 @@ export function registerAgenteventsHandlers(
 
           // Also persist to worktree plan file if it exists
           // This ensures consistency since getTasks() prefers worktree version
-          const worktreePath = findTaskWorktree(project.path, task.specId);
-          if (worktreePath) {
-            const specsBaseDir = getSpecsDir(project.autoBuildPath);
-            const worktreePlanPath = path.join(
-              worktreePath,
-              specsBaseDir,
-              task.specId,
-              AUTO_BUILD_PATHS.IMPLEMENTATION_PLAN
-            );
-            if (existsSync(worktreePlanPath)) {
-              persistPlanStatusSync(worktreePlanPath, newStatus, project.id);
+          try {
+            const worktreePath = findTaskWorktree(project.path, task.specId);
+            if (worktreePath) {
+              const specsBaseDir = getSpecsDir(project.autoBuildPath);
+              const worktreePlanPath = path.join(
+                worktreePath,
+                specsBaseDir,
+                task.specId,
+                AUTO_BUILD_PATHS.IMPLEMENTATION_PLAN
+              );
+              if (existsSync(worktreePlanPath)) {
+                persistPlanStatusSync(worktreePlanPath, newStatus, project.id);
+              }
             }
           } catch (err) {
             // Ignore persistence errors - UI will still work, just might flip on refresh
