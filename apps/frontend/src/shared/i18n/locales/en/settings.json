@@ -486,6 +486,13 @@
       "description": "Select a project from the sidebar to configure its settings."
     }
   },
+  "sidebar": {
+    "collapseSidebar": "Collapse sidebar",
+    "expandSidebar": "Expand sidebar",
+    "toggleSidebar": "Toggle sidebar",
+    "collapsed": "Collapsed",
+    "expanded": "Expanded"
+  },
   "mcp": {
     "title": "MCP Server Overview",
     "titleWithProject": "MCP Server Overview for {{projectName}}",
