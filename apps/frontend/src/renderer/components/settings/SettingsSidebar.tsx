@@ -188,7 +188,7 @@ export function SettingsSidebar({
       <nav
         className={cn(
           'settings-sidebar border-r border-border bg-muted/30 flex flex-col transition-all duration-300 ease-in-out',
-          isCollapsed ? 'w-16' : 'w-80'
+          isCollapsed ? 'w-16 settings-sidebar-collapsed' : 'w-80 settings-sidebar-expanded'
         )}
       >
         {/* Toggle button at top */}

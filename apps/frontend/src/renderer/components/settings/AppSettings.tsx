@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useLocalStorage, useBreakpoint } from '../../hooks';
 import { useTranslation } from 'react-i18next';
 import {
   Settings,
@@ -53,8 +54,11 @@ export function AppSettingsDialog({ open, onOpenChange, initialSection, initialP
   const [appSection, setAppSection] = useState<AppSection>(initialSection || 'appearance');
   const [projectSection, setProjectSection] = useState<ProjectSettingsSection>('general');
 
-  // Sidebar collapse state
-  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  // Sidebar collapse state (persisted to localStorage)
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useLocalStorage('settings-sidebar-collapsed', false);
+
+  // Mobile detection for auto-collapse
+  const isMobile = useBreakpoint('md');
 
   // Navigate to initial section when dialog opens with a specific section
   useEffect(() => {
@@ -68,6 +72,13 @@ export function AppSettingsDialog({ open, onOpenChange, initialSection, initialP
       }
     }
   }, [open, initialSection, initialProjectSection]);
+
+  // Auto-collapse sidebar on mobile when dialog opens
+  useEffect(() => {
+    if (open && isMobile) {
+      setIsSidebarCollapsed(true);
+    }
+  }, [open, isMobile, setIsSidebarCollapsed]);
 
   // Project state
   const projects = useProjectStore((state) => state.projects);
