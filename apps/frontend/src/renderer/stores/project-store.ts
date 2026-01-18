@@ -232,7 +232,7 @@ function saveTabStateToMain(): void {
 }
 
 /**
- * Load projects from main process
+ * Load projects from main process or web API
  */
 export async function loadProjects(): Promise<void> {
   const store = useProjectStore.getState();
@@ -240,20 +240,38 @@ export async function loadProjects(): Promise<void> {
   store.setError(null);
 
   try {
-    // First, load tab state from main process (reliable persistence)
-    const tabStateResult = await window.electronAPI.getTabState();
-    console.log('[ProjectStore] Loaded tab state from main process:', tabStateResult.data);
+    // Check if we're in web mode
+    const isWebMode = typeof window !== 'undefined' && 
+      (window.location?.protocol?.startsWith('http') || 
+       (window as any).electronAPI?.platform === 'web');
 
-    if (tabStateResult.success && tabStateResult.data) {
-      useProjectStore.setState({
-        openProjectIds: tabStateResult.data.openProjectIds || [],
-        activeProjectId: tabStateResult.data.activeProjectId || null,
-        tabOrder: tabStateResult.data.tabOrder || []
-      });
+    let result: { success: boolean; data?: any[]; error?: string };
+
+    if (isWebMode) {
+      // Web mode: load from API
+      console.log('[ProjectStore] Loading projects from web API');
+      const response = await fetch('/api/projects');
+      const apiResult = await response.json();
+      result = apiResult;
+    } else {
+      // Electron mode: load from IPC
+      console.log('[ProjectStore] Loading projects from Electron IPC');
+      
+      // First, load tab state from main process (reliable persistence)
+      const tabStateResult = await window.electronAPI.getTabState();
+      console.log('[ProjectStore] Loaded tab state from main process:', tabStateResult.data);
+
+      if (tabStateResult.success && tabStateResult.data) {
+        useProjectStore.setState({
+          openProjectIds: tabStateResult.data.openProjectIds || [],
+          activeProjectId: tabStateResult.data.activeProjectId || null,
+          tabOrder: tabStateResult.data.tabOrder || []
+        });
+      }
+
+      // Then load projects
+      result = await window.electronAPI.getProjects();
     }
-
-    // Then load projects
-    const result = await window.electronAPI.getProjects();
     console.log('[ProjectStore] getProjects result:', {
       success: result.success,
       projectCount: result.data?.length,

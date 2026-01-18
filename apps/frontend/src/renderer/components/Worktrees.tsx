@@ -119,16 +119,20 @@ export function Worktrees({ projectId }: WorktreesProps) {
   const [mergePreviewSelectedFile, setMergePreviewSelectedFile] = useState<string>('');
   const [mergePreviewLoading, setMergePreviewLoading] = useState(false);
 
-  const normalizeWorktreeItem = (worktree: any): WorktreeListItem => ({
-    specName: worktree.specName ?? worktree.spec_name ?? '',
-    path: worktree.path ?? '',
-    branch: worktree.branch ?? '',
-    baseBranch: worktree.baseBranch ?? worktree.base_branch ?? '',
-    commitCount: worktree.commitCount ?? worktree.commit_count ?? 0,
-    filesChanged: worktree.filesChanged ?? worktree.files_changed ?? 0,
-    additions: worktree.additions ?? 0,
-    deletions: worktree.deletions ?? 0,
-  });
+  const normalizeWorktreeItem = (worktree: any): WorktreeListItem => {
+    const normalized = {
+      specName: worktree.spec_name ?? worktree.specName ?? '',
+      path: worktree.path ?? '',
+      branch: worktree.branch ?? '',
+      baseBranch: worktree.base_branch ?? worktree.baseBranch ?? '',
+      commitCount: worktree.commit_count ?? worktree.commitCount ?? 0,
+      filesChanged: worktree.files_changed ?? worktree.filesChanged ?? 0,
+      additions: worktree.additions ?? 0,
+      deletions: worktree.deletions ?? 0,
+    };
+    console.log('[Worktrees] Normalized worktree:', { original: worktree, normalized });
+    return normalized;
+  };
 
   const listWorktreesWeb = async (id: string): Promise<IPCResult<WorktreeListResult>> => {
     const response = await fetch(`/api/projects/${id}/worktrees`, {
@@ -331,26 +335,41 @@ export function Worktrees({ projectId }: WorktreesProps) {
     setError(null);
 
     try {
-      // Fetch both task worktrees and terminal worktrees in parallel
-      const [taskResult, terminalResult] = await Promise.all([
-        window.electronAPI.listWorktrees(projectId),
-        window.electronAPI.listTerminalWorktrees(selectedProject.path)
-      ]);
+      if (isWeb) {
+        // Web mode: only load from web API
+        console.log('[Worktrees] Loading worktrees from web API for project:', projectId);
+        const taskResult = await listWorktreesWeb(projectId);
+        console.log('[Worktrees] Web API worktrees result:', taskResult);
 
-      console.log('[Worktrees] Task worktrees result:', taskResult);
-      console.log('[Worktrees] Terminal worktrees result:', terminalResult);
-
-      if (taskResult.success && taskResult.data) {
-        setWorktrees(taskResult.data.worktrees);
+        if (taskResult.success && taskResult.data) {
+          setWorktrees(taskResult.data.worktrees);
+        } else {
+          setError(taskResult.error || 'Failed to load worktrees');
+        }
+        // In web mode, we don't have terminal worktrees
+        setTerminalWorktrees([]);
       } else {
-        setError(taskResult.error || 'Failed to load task worktrees');
-      }
+        // Electron mode: fetch both task worktrees and terminal worktrees in parallel
+        const [taskResult, terminalResult] = await Promise.all([
+          window.electronAPI.listWorktrees(projectId),
+          window.electronAPI.listTerminalWorktrees(selectedProject.path)
+        ]);
 
-      if (terminalResult.success && terminalResult.data) {
-        console.log('[Worktrees] Setting terminal worktrees:', terminalResult.data);
-        setTerminalWorktrees(terminalResult.data);
-      } else {
-        console.warn('[Worktrees] Terminal worktrees fetch failed or empty:', terminalResult);
+        console.log('[Worktrees] Task worktrees result:', taskResult);
+        console.log('[Worktrees] Terminal worktrees result:', terminalResult);
+
+        if (taskResult.success && taskResult.data) {
+          setWorktrees(taskResult.data.worktrees);
+        } else {
+          setError(taskResult.error || 'Failed to load task worktrees');
+        }
+
+        if (terminalResult.success && terminalResult.data) {
+          console.log('[Worktrees] Setting terminal worktrees:', terminalResult.data);
+          setTerminalWorktrees(terminalResult.data);
+        } else {
+          console.warn('[Worktrees] Terminal worktrees fetch failed or empty:', terminalResult);
+        }
       }
     } catch (err) {
       console.error('[Worktrees] Error loading worktrees:', err);
@@ -358,7 +377,7 @@ export function Worktrees({ projectId }: WorktreesProps) {
     } finally {
       setIsLoading(false);
     }
-  }, [projectId, selectedProject]);
+  }, [projectId, selectedProject, isWeb]);
 
   // Load on mount and when project changes
   useEffect(() => {
@@ -376,9 +395,24 @@ export function Worktrees({ projectId }: WorktreesProps) {
 
   // Handle merge
   const handleMerge = async () => {
-    if (!selectedWorktree) return;
+    console.log('[Worktrees] handleMerge called');
+    console.log('[Worktrees] selectedWorktree:', selectedWorktree);
+    
+    if (!selectedWorktree) {
+      console.error('[Worktrees] No selectedWorktree!');
+      setMergeResult({
+        success: false,
+        message: 'No worktree selected'
+      });
+      return;
+    }
 
+    console.log('[Worktrees] selectedWorktree.specName:', selectedWorktree.specName);
+    
     const task = findTaskForWorktree(selectedWorktree.specName);
+    console.log('[Worktrees] Found task:', task);
+    console.log('[Worktrees] isWeb:', isWeb);
+    
     if (!task && !isWeb) {
       setError('Task not found for this worktree');
       return;
@@ -389,6 +423,9 @@ export function Worktrees({ projectId }: WorktreesProps) {
       const result = await (isWeb
         ? mergeWorktreeWeb(projectId, selectedWorktree.specName, mergeBaseBranch || selectedWorktree.baseBranch)
         : window.electronAPI.mergeWorktree(task!.id));
+      
+      console.log('[Worktrees] Merge result:', result);
+      
       if (result.success && result.data) {
         setMergeResult(result.data);
         if (result.data.success) {
@@ -402,6 +439,7 @@ export function Worktrees({ projectId }: WorktreesProps) {
         });
       }
     } catch (err) {
+      console.error('[Worktrees] Merge exception:', err);
       setMergeResult({
         success: false,
         message: err instanceof Error ? err.message : 'Merge failed'
@@ -443,6 +481,10 @@ export function Worktrees({ projectId }: WorktreesProps) {
 
   // Open merge dialog
   const openMergeDialog = async (worktree: WorktreeListItem) => {
+    console.log('[Worktrees] openMergeDialog called with:', worktree);
+    console.log('[Worktrees] isWeb:', isWeb);
+    console.log('[Worktrees] projectId:', projectId);
+    
     setSelectedWorktree(worktree);
     setMergeResult(null);
     setMergePreviewCounts(null);
@@ -452,23 +494,31 @@ export function Worktrees({ projectId }: WorktreesProps) {
     setShowMergeDialog(true);
 
     if (isWeb) {
+      console.log('[Worktrees] Opening merge dialog for:', worktree);
       const repoPath = worktree.path || selectedProject?.path || '';
       const [branches, currentBranch] = await Promise.all([
         listBranchesWeb(repoPath),
         getCurrentBranchWeb(repoPath),
       ]);
       const preferred = currentBranch || worktree.baseBranch || branches[0] || '';
+      console.log('[Worktrees] Available branches:', branches);
+      console.log('[Worktrees] Preferred branch:', preferred);
       setAvailableBranches(branches);
       setMergeBaseBranch(preferred);
 
       const preview = await mergeWorktreePreviewWeb(projectId, worktree.specName, preferred);
+      console.log('[Worktrees] Initial preview response:', preview);
+      
       if (preview.success && preview.data?.preview) {
         const files = preview.data.preview.files || [];
+        console.log('[Worktrees] Initial files:', files);
         setMergePreviewFiles(files);
         setMergePreviewCounts({
           commits: preview.data.preview.commit_count ?? worktree.commitCount,
           files: files.length || worktree.filesChanged,
         });
+      } else {
+        console.warn('[Worktrees] Initial preview failed or empty:', preview);
       }
       return;
     }
@@ -505,6 +555,16 @@ export function Worktrees({ projectId }: WorktreesProps) {
   // Handle Create PR
   const handleCreatePR = async (options: WorktreeCreatePROptions): Promise<WorktreeCreatePRResult | null> => {
     if (!prTask) return null;
+
+    // Web mode doesn't support PR creation (requires GitHub authentication)
+    if (isWeb) {
+      return {
+        success: false,
+        error: 'Creating pull requests is not supported in web mode. Please use the desktop app.',
+        prUrl: undefined,
+        alreadyExists: false
+      };
+    }
 
     try {
       const result = await window.electronAPI.createWorktreePR(prTask.id, options);
@@ -844,23 +904,34 @@ export function Worktrees({ projectId }: WorktreesProps) {
                     <Select
                       value={mergeBaseBranch || selectedWorktree.baseBranch}
                       onValueChange={async (value) => {
+                        console.log('[Worktrees] Branch changed to:', value);
                         setMergeBaseBranch(value);
                         setMergePreviewCounts(null);
                         setMergePreviewFiles([]);
                         setMergePreviewDiff('');
                         setMergePreviewSelectedFile('');
-                        const preview = await mergeWorktreePreviewWeb(
-                          projectId,
-                          selectedWorktree.specName,
-                          value
-                        );
-                        if (preview.success && preview.data?.preview) {
-                          const files = preview.data.preview.files || [];
-                          setMergePreviewFiles(files);
-                          setMergePreviewCounts({
-                            commits: preview.data.preview.commit_count ?? selectedWorktree.commitCount,
-                            files: files.length || selectedWorktree.filesChanged,
-                          });
+                        
+                        try {
+                          const preview = await mergeWorktreePreviewWeb(
+                            projectId,
+                            selectedWorktree.specName,
+                            value
+                          );
+                          console.log('[Worktrees] Preview response:', preview);
+                          
+                          if (preview.success && preview.data?.preview) {
+                            const files = preview.data.preview.files || [];
+                            console.log('[Worktrees] Setting files:', files);
+                            setMergePreviewFiles(files);
+                            setMergePreviewCounts({
+                              commits: preview.data.preview.commit_count ?? selectedWorktree.commitCount,
+                              files: files.length || selectedWorktree.filesChanged,
+                            });
+                          } else {
+                            console.warn('[Worktrees] Preview failed or empty:', preview);
+                          }
+                        } catch (err) {
+                          console.error('[Worktrees] Error loading preview:', err);
                         }
                       }}
                     >
