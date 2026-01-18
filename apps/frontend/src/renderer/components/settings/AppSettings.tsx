@@ -3,35 +3,8 @@ import { useTranslation } from 'react-i18next';
 import {
   Settings,
   Save,
-  Loader2,
-  Palette,
-  Bot,
-  FolderOpen,
-  Key,
-  Package,
-  Bell,
-  Settings2,
-  Zap,
-  Github,
-  Database,
-  Sparkles,
-  Monitor,
-  Globe,
-  Code,
-  Bug,
-  Server,
-  Cloud
+  Loader2
 } from 'lucide-react';
-
-// GitLab icon component (lucide-react doesn't have one)
-function GitLabIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="currentColor" role="img" aria-labelledby="gitlab-icon-title">
-      <title id="gitlab-icon-title">GitLab</title>
-      <path d="M22.65 14.39L12 22.13 1.35 14.39a.84.84 0 0 1-.3-.94l1.22-3.78 2.44-7.51A.42.42 0 0 1 4.82 2a.43.43 0 0 1 .58 0 .42.42 0 0 1 .11.18l2.44 7.49h8.1l2.44-7.51A.42.42 0 0 1 18.6 2a.43.43 0 0 1 .58 0 .42.42 0 0 1 .11.18l2.44 7.51L23 13.45a.84.84 0 0 1-.35.94z"/>
-    </svg>
-  );
-}
 import {
   FullScreenDialog,
   FullScreenDialogContent,
@@ -43,7 +16,6 @@ import {
 } from '../ui/full-screen-dialog';
 import { Button } from '../ui/button';
 import { ScrollArea } from '../ui/scroll-area';
-import { cn } from '../../lib/utils';
 import { useSettings } from './hooks/useSettings';
 import { ThemeSettings } from './ThemeSettings';
 import { DisplaySettings } from './DisplaySettings';
@@ -54,8 +26,8 @@ import { AdvancedSettings } from './AdvancedSettings';
 import { DevToolsSettings } from './DevToolsSettings';
 import { DebugSettings } from './DebugSettings';
 import { ProfileList } from './ProfileList';
-import { ProjectSelector } from './ProjectSelector';
-import { ProjectSettingsContent, ProjectSettingsSection } from './ProjectSettingsContent';
+import { ProjectSettingsContent } from './ProjectSettingsContent';
+import { SettingsSidebar, type AppSection, type ProjectSettingsSection } from './SettingsSidebar';
 import { useProjectStore } from '../../stores/project-store';
 import type { UseProjectSettingsReturn } from '../project-settings/hooks/useProjectSettings';
 
@@ -66,37 +38,6 @@ interface AppSettingsDialogProps {
   initialProjectSection?: ProjectSettingsSection;
   onRerunWizard?: () => void;
 }
-
-// App-level settings sections
-export type AppSection = 'appearance' | 'display' | 'language' | 'devtools' | 'agent' | 'paths' | 'integrations' | 'api-profiles' | 'updates' | 'notifications' | 'debug';
-
-interface NavItemConfig<T extends string> {
-  id: T;
-  icon: React.ElementType;
-}
-
-const appNavItemsConfig: NavItemConfig<AppSection>[] = [
-  { id: 'appearance', icon: Palette },
-  { id: 'display', icon: Monitor },
-  { id: 'language', icon: Globe },
-  { id: 'devtools', icon: Code },
-  { id: 'agent', icon: Bot },
-  { id: 'paths', icon: FolderOpen },
-  { id: 'integrations', icon: Key },
-  { id: 'api-profiles', icon: Server },
-  { id: 'updates', icon: Package },
-  { id: 'notifications', icon: Bell },
-  { id: 'debug', icon: Bug }
-];
-
-const projectNavItemsConfig: NavItemConfig<ProjectSettingsSection>[] = [
-  { id: 'general', icon: Settings2 },
-  { id: 'linear', icon: Zap },
-  { id: 'github', icon: Github },
-  { id: 'gitlab', icon: GitLabIcon },
-  { id: 'azure-devops', icon: Cloud },
-  { id: 'memory', icon: Database }
-];
 
 /**
  * Main application settings dialog container
@@ -111,6 +52,9 @@ export function AppSettingsDialog({ open, onOpenChange, initialSection, initialP
   const [activeTopLevel, setActiveTopLevel] = useState<'app' | 'project'>('app');
   const [appSection, setAppSection] = useState<AppSection>(initialSection || 'appearance');
   const [projectSection, setProjectSection] = useState<ProjectSettingsSection>('general');
+
+  // Sidebar collapse state
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
 
   // Navigate to initial section when dialog opens with a specific section
   useEffect(() => {
@@ -223,9 +167,6 @@ export function AppSettingsDialog({ open, onOpenChange, initialSection, initialP
     );
   };
 
-  // Determine if project nav items should be disabled
-  const projectNavDisabled = !selectedProjectId;
-
   return (
     <FullScreenDialog open={open} onOpenChange={(newOpen) => {
       if (!newOpen) {
@@ -249,122 +190,21 @@ export function AppSettingsDialog({ open, onOpenChange, initialSection, initialP
         <FullScreenDialogBody>
           <div className="flex h-full">
             {/* Navigation sidebar */}
-            <nav className="w-80 border-r border-border bg-muted/30 p-4">
-              <ScrollArea className="h-full">
-                <div className="space-y-6">
-                  {/* APPLICATION Section */}
-                  <div>
-                    <h3 className="mb-2 px-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                      {t('tabs.app')}
-                    </h3>
-                    <div className="space-y-1">
-                      {appNavItemsConfig.map((item) => {
-                        const Icon = item.icon;
-                        const isActive = activeTopLevel === 'app' && appSection === item.id;
-                        return (
-                          <button
-                            key={item.id}
-                            onClick={() => {
-                              setActiveTopLevel('app');
-                              setAppSection(item.id);
-                            }}
-                            className={cn(
-                              'w-full flex items-start gap-3 p-3 rounded-lg text-left transition-all',
-                              isActive
-                                ? 'bg-accent text-accent-foreground'
-                                : 'hover:bg-accent/50 text-muted-foreground hover:text-foreground'
-                            )}
-                          >
-                            <Icon className="h-5 w-5 mt-0.5 shrink-0" />
-                            <div className="min-w-0">
-                              <div className="font-medium text-sm">{t(`sections.${item.id}.title`)}</div>
-                              <div className="text-xs text-muted-foreground truncate">{t(`sections.${item.id}.description`)}</div>
-                            </div>
-                          </button>
-                        );
-                      })}
-
-                      {/* Re-run Wizard button */}
-                      {onRerunWizard && (
-                        <button
-                          onClick={() => {
-                            onOpenChange(false);
-                            onRerunWizard();
-                          }}
-                          className={cn(
-                            'w-full flex items-start gap-3 p-3 rounded-lg text-left transition-all mt-2',
-                            'border border-dashed border-muted-foreground/30',
-                            'hover:bg-accent/50 text-muted-foreground hover:text-foreground'
-                          )}
-                        >
-                          <Sparkles className="h-5 w-5 mt-0.5 shrink-0" />
-                          <div className="min-w-0">
-                            <div className="font-medium text-sm">{t('actions.rerunWizard')}</div>
-                            <div className="text-xs text-muted-foreground truncate">{t('actions.rerunWizardDescription')}</div>
-                          </div>
-                        </button>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* PROJECT Section */}
-                  <div>
-                    <h3 className="mb-2 px-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                      {t('tabs.project')}
-                    </h3>
-
-                    {/* Project Selector */}
-                    <div className="px-1 mb-3">
-                      <ProjectSelector
-                        selectedProjectId={selectedProjectId}
-                        onProjectChange={handleProjectChange}
-                      />
-                    </div>
-
-                    {/* Project Nav Items */}
-                    <div className="space-y-1">
-                      {projectNavItemsConfig.map((item) => {
-                        const Icon = item.icon;
-                        const isActive = activeTopLevel === 'project' && projectSection === item.id;
-                        return (
-                          <button
-                            key={item.id}
-                            onClick={() => {
-                              setActiveTopLevel('project');
-                              setProjectSection(item.id);
-                            }}
-                            disabled={projectNavDisabled}
-                            className={cn(
-                              'w-full flex items-start gap-3 p-3 rounded-lg text-left transition-all',
-                              isActive
-                                ? 'bg-accent text-accent-foreground'
-                                : projectNavDisabled
-                                  ? 'opacity-50 cursor-not-allowed text-muted-foreground'
-                                  : 'hover:bg-accent/50 text-muted-foreground hover:text-foreground'
-                            )}
-                          >
-                            <Icon className="h-5 w-5 mt-0.5 shrink-0" />
-                            <div className="min-w-0">
-                              <div className="font-medium text-sm">{t(`projectSections.${item.id}.title`)}</div>
-                              <div className="text-xs text-muted-foreground truncate">{t(`projectSections.${item.id}.description`)}</div>
-                            </div>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Version at bottom */}
-                {version && (
-                  <div className="mt-8 pt-4 border-t border-border">
-                    <p className="text-xs text-muted-foreground text-center">
-                      {t('updates.version')} {version}
-                    </p>
-                  </div>
-                )}
-              </ScrollArea>
-            </nav>
+            <SettingsSidebar
+              isCollapsed={isSidebarCollapsed}
+              onCollapsedChange={setIsSidebarCollapsed}
+              activeTopLevel={activeTopLevel}
+              appSection={appSection}
+              projectSection={projectSection}
+              onAppSectionChange={setAppSection}
+              onProjectSectionChange={setProjectSection}
+              onTopLevelChange={setActiveTopLevel}
+              selectedProjectId={selectedProjectId}
+              onProjectChange={handleProjectChange}
+              version={version}
+              onRerunWizard={onRerunWizard}
+              onClose={() => onOpenChange(false)}
+            />
 
             {/* Main content */}
             <div className="flex-1 overflow-hidden">
@@ -407,3 +247,6 @@ export function AppSettingsDialog({ open, onOpenChange, initialSection, initialP
     </FullScreenDialog>
   );
 }
+
+// Re-export types for backward compatibility
+export type { AppSection };
