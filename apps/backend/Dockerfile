@@ -17,6 +17,14 @@ RUN git config --global --add safe.directory '*' \
 RUN curl -fsSL https://claude.ai/install.sh | bash \
     && ln -sf /root/.local/bin/claude /usr/local/bin/claude
 
+RUN apt-get update && apt-get install openssh-client -y
+
+# Create .ssh directory for SSH keys
+RUN mkdir -p /root/.ssh && chmod 700 /root/.ssh
+
+# Add GitHub to known hosts to avoid host verification prompt
+RUN ssh-keyscan github.com >> /root/.ssh/known_hosts 2>/dev/null || true
+
 # Copy requirements first for better caching
 COPY requirements.txt .
 
@@ -34,6 +42,27 @@ mkdir -p "$HOME" 2>/dev/null || true\n\
 git config --global --add safe.directory "*" 2>/dev/null || true\n\
 git config --global user.email "auto-claude@local" 2>/dev/null || true\n\
 git config --global user.name "Auto Claude" 2>/dev/null || true\n\
+\n\
+# Setup SSH for git operations\n\
+mkdir -p "$HOME/.ssh" && chmod 700 "$HOME/.ssh"\n\
+\n\
+# If SSH_PRIVATE_KEY env variable is set, use it\n\
+if [ ! -z "$SSH_PRIVATE_KEY" ]; then\n\
+  echo "$SSH_PRIVATE_KEY" > "$HOME/.ssh/id_rsa"\n\
+  chmod 600 "$HOME/.ssh/id_rsa"\n\
+  echo "SSH key configured from environment variable"\n\
+fi\n\
+\n\
+# Ensure known_hosts exists with GitHub\n\
+if [ ! -f "$HOME/.ssh/known_hosts" ] || ! grep -q "github.com" "$HOME/.ssh/known_hosts"; then\n\
+  ssh-keyscan github.com >> "$HOME/.ssh/known_hosts" 2>/dev/null || true\n\
+fi\n\
+\n\
+# Start ssh-agent and add key if it exists\n\
+if [ -f "$HOME/.ssh/id_rsa" ]; then\n\
+  eval "$(ssh-agent -s)" > /dev/null\n\
+  ssh-add "$HOME/.ssh/id_rsa" 2>/dev/null || true\n\
+fi\n\
 \n\
 # Configure Claude CLI based on environment variables\n\
 CLAUDE_CONFIG_DIR="$HOME/.config/claude"\n\

@@ -22,6 +22,8 @@ services:
     volumes:
       # Mount the code directory with full read-write access
       - ./code:/home/code:rw
+      # Mount SSH keys from host for git operations
+      - ${HOME}/.ssh:/root/.ssh:ro
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "python", "-c", "import httpx; httpx.get('http://localhost:8000/api/health')"]
