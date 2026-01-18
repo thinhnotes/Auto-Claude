@@ -339,6 +339,64 @@ class CreatePRRequest(BaseModel):
     force_push: bool = False
 
 
+class PublishBranchRequest(BaseModel):
+    """Request model for publishing a branch."""
+    force_push: bool = False
+
+
+@router.post("/projects/{project_id}/worktrees/{spec_name}/publish-branch")
+async def publish_worktree_branch(
+    project_id: str,
+    spec_name: str,
+    request: PublishBranchRequest
+) -> dict:
+    """Push worktree branch to remote."""
+    project_path = get_project_path(project_id)
+    
+    if not project_path.exists():
+        return {"success": False, "error": "Project path not found"}
+    
+    try:
+        manager = WorktreeManager(project_path)
+        
+        # Check if worktree exists
+        info = manager.get_worktree_info(spec_name)
+        if not info:
+            return {"success": False, "error": f"No worktree found for spec: {spec_name}"}
+        
+        # Push branch to remote
+        result = manager.push_branch(spec_name, force=request.force_push)
+        
+        # Convert result to API response
+        if result.get("success"):
+            return {
+                "success": True,
+                "data": {
+                    "success": True,
+                    "remote": result.get("remote"),
+                    "branch": result.get("branch"),
+                    "message": result.get("message", "Branch published successfully")
+                }
+            }
+        else:
+            return {
+                "success": True,
+                "data": {
+                    "success": False,
+                    "error": result.get("error", "Failed to publish branch")
+                }
+            }
+    except Exception as e:
+        logger.error(f"Error publishing branch: {e}", exc_info=True)
+        return {
+            "success": True,
+            "data": {
+                "success": False,
+                "error": str(e)
+            }
+        }
+
+
 @router.post("/projects/{project_id}/worktrees/{spec_name}/create-pr")
 async def create_worktree_pr(
     project_id: str,

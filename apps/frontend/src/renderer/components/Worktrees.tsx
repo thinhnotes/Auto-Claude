@@ -19,7 +19,8 @@ import {
   ChevronRight,
   Check,
   X,
-  Terminal
+  Terminal,
+  Upload
 } from 'lucide-react';
 import { Button } from './ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from './ui/card';
@@ -326,6 +327,10 @@ export function Worktrees({ projectId }: WorktreesProps) {
   const [showCreatePRDialog, setShowCreatePRDialog] = useState(false);
   const [prWorktree, setPrWorktree] = useState<WorktreeListItem | null>(null);
   const [prTask, setPrTask] = useState<Task | null>(null);
+
+  // Publish branch state
+  const [isPublishingBranch, setIsPublishingBranch] = useState(false);
+  const [publishingWorktreeId, setPublishingWorktreeId] = useState<string | null>(null);
 
   // Load worktrees (both task and terminal worktrees)
   const loadWorktrees = useCallback(async () => {
@@ -638,6 +643,50 @@ export function Worktrees({ projectId }: WorktreesProps) {
     }
   };
 
+  // Handle Publish Branch
+  const handlePublishBranch = async (worktree: WorktreeListItem) => {
+    console.log('[Worktrees] Publishing branch for worktree:', worktree.specName);
+    
+    setIsPublishingBranch(true);
+    setPublishingWorktreeId(worktree.specName);
+
+    try {
+      if (isWeb) {
+        // Web mode: use API
+        const response = await fetch(
+          `/api/projects/${projectId}/worktrees/${worktree.specName}/publish-branch`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              force_push: false
+            })
+          }
+        );
+
+        const result = await response.json();
+        
+        if (result.success && result.data?.success) {
+          console.log('[Worktrees] Branch published successfully');
+        } else {
+          console.error('[Worktrees] Failed to publish branch:', result.data?.error || result.error);
+          setError(result.data?.error || result.error || 'Failed to publish branch');
+        }
+      } else {
+        // Electron mode: use IPC
+        // Note: You'll need to add this IPC method to the electron API
+        console.warn('[Worktrees] Publish branch not yet implemented for Electron mode');
+        setError('Publish branch is only available in web mode');
+      }
+    } catch (err) {
+      console.error('[Worktrees] Publish branch error:', err);
+      setError(err instanceof Error ? err.message : 'Failed to publish branch');
+    } finally {
+      setIsPublishingBranch(false);
+      setPublishingWorktreeId(null);
+    }
+  };
+
   // Handle terminal worktree delete
   const handleDeleteTerminalWorktree = async () => {
     if (!terminalWorktreeToDelete || !selectedProject) return;
@@ -799,6 +848,24 @@ export function Worktrees({ projectId }: WorktreesProps) {
                           >
                             <GitMerge className="h-3.5 w-3.5 mr-1.5" />
                             Merge to {worktree.baseBranch}
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handlePublishBranch(worktree)}
+                            disabled={isPublishingBranch && publishingWorktreeId === worktree.specName}
+                          >
+                            {isPublishingBranch && publishingWorktreeId === worktree.specName ? (
+                              <>
+                                <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+                                Publishing...
+                              </>
+                            ) : (
+                              <>
+                                <Upload className="h-3.5 w-3.5 mr-1.5" />
+                                Publish Branch
+                              </>
+                            )}
                           </Button>
                           {task && (
                             <Button
