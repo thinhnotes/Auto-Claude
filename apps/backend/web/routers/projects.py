@@ -727,3 +727,24 @@ async def update_project_env(project_id: str, updates: dict) -> dict:
             }
     
     raise HTTPException(status_code=404, detail="Project not found")
+
+
+@router.patch("/{project_id}/settings")
+async def update_project_settings(project_id: str, settings_updates: dict) -> dict:
+    """Update settings for a specific project."""
+    projects = load_projects()
+    
+    for p in projects:
+        if p.get("id") == project_id:
+            # Update settings in project dict
+            if "settings" not in p:
+                p["settings"] = {}
+            
+            p["settings"].update(settings_updates)
+            
+            # Save updated projects list
+            save_projects(projects)
+            
+            return {"success": True, "data": p["settings"]}
+    
+    raise HTTPException(status_code=404, detail="Project not found")

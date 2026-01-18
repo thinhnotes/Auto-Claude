@@ -556,31 +556,83 @@ export function Worktrees({ projectId }: WorktreesProps) {
   const handleCreatePR = async (options: WorktreeCreatePROptions): Promise<WorktreeCreatePRResult | null> => {
     if (!prTask) return null;
 
-    // Web mode doesn't support PR creation (requires GitHub authentication)
-    if (isWeb) {
-      return {
-        success: false,
-        error: 'Creating pull requests is not supported in web mode. Please use the desktop app.',
-        prUrl: undefined,
-        alreadyExists: false
-      };
-    }
-
     try {
-      const result = await window.electronAPI.createWorktreePR(prTask.id, options);
-      if (result.success && result.data) {
-        if (result.data.success && result.data.prUrl && !result.data.alreadyExists) {
-          // Update task in store
-          useTaskStore.getState().updateTask(prTask.id, {
-            status: 'pr_created',
-            metadata: { ...prTask.metadata, prUrl: result.data.prUrl }
-          });
+      if (isWeb) {
+        // Web mode: use API
+        console.log('[Worktrees] Creating PR via web API');
+        if (!selectedWorktree) {
+          return {
+            success: false,
+            error: 'No worktree selected',
+            prUrl: undefined,
+            alreadyExists: false
+          };
         }
-        return result.data;
+
+        const response = await fetch(
+          `/api/projects/${projectId}/worktrees/${selectedWorktree.specName}/create-pr`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              target_branch: options.targetBranch,
+              title: options.title,
+              draft: options.draft,
+              force_push: options.forcePush
+            })
+          }
+        );
+
+        if (!response.ok) {
+          const error = await response.text();
+          return {
+            success: false,
+            error,
+            prUrl: undefined,
+            alreadyExists: false
+          };
+        }
+
+        const result = await response.json();
+        if (result.success && result.data) {
+          if (result.data.success && result.data.prUrl && !result.data.alreadyExists) {
+            // Update task in store
+            useTaskStore.getState().updateTask(prTask.id, {
+              status: 'pr_created',
+              metadata: { ...prTask.metadata, prUrl: result.data.prUrl }
+            });
+          }
+          return {
+            success: result.data.success,
+            error: result.data.error,
+            prUrl: result.data.prUrl,
+            alreadyExists: result.data.alreadyExists
+          };
+        }
+        return {
+          success: false,
+          error: result.error || 'Failed to create PR',
+          prUrl: undefined,
+          alreadyExists: false
+        };
+      } else {
+        // Electron mode: use IPC
+        const result = await window.electronAPI.createWorktreePR(prTask.id, options);
+        if (result.success && result.data) {
+          if (result.data.success && result.data.prUrl && !result.data.alreadyExists) {
+            // Update task in store
+            useTaskStore.getState().updateTask(prTask.id, {
+              status: 'pr_created',
+              metadata: { ...prTask.metadata, prUrl: result.data.prUrl }
+            });
+          }
+          return result.data;
+        }
+        // Propagate IPC error; let CreatePRDialog use its i18n fallback
+        return { success: false, error: result.error, prUrl: undefined, alreadyExists: false };
       }
-      // Propagate IPC error; let CreatePRDialog use its i18n fallback
-      return { success: false, error: result.error, prUrl: undefined, alreadyExists: false };
     } catch (err) {
+      console.error('[Worktrees] Create PR error:', err);
       // Propagate actual error message; let CreatePRDialog handle i18n fallback for undefined
       return { success: false, error: err instanceof Error ? err.message : undefined, prUrl: undefined, alreadyExists: false };
     }

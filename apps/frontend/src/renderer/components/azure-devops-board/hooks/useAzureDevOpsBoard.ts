@@ -68,6 +68,11 @@ function groupWorkItemsIntoColumns(workItems: AzureDevOpsWorkItem[]): BoardColum
 export function useAzureDevOpsBoard(): UseAzureDevOpsBoardReturn {
   const selectedProjectId = useProjectStore((state) => state.selectedProjectId);
 
+  // Detect web mode
+  const isWeb = typeof window !== 'undefined' && 
+    (window.location?.protocol?.startsWith('http') || 
+     (window as any).electronAPI?.platform === 'web');
+
   const [syncStatus, setSyncStatus] = useState<AzureDevOpsSyncStatus | null>(null);
   const [areas, setAreas] = useState<AzureDevOpsArea[]>([]);
   const [iterations, setIterations] = useState<AzureDevOpsIteration[]>([]);
@@ -80,6 +85,19 @@ export function useAzureDevOpsBoard(): UseAzureDevOpsBoardReturn {
   
   // Use ref to track if initial fetch has been done for current project
   const initialFetchDoneRef = useRef<string | null>(null);
+
+  // If in web mode, set error immediately
+  useEffect(() => {
+    if (isWeb) {
+      setIsLoading(false);
+      setError('Azure DevOps integration is only available in the desktop app. Please download and use the Auto Claude desktop application to access Azure DevOps features.');
+      setSyncStatus({
+        connected: false,
+        error: 'Azure DevOps integration requires the desktop app'
+      });
+      return;
+    }
+  }, [isWeb]);
 
   const fetchAreas = useCallback(async (projectId: string) => {
     try {
@@ -186,6 +204,9 @@ export function useAzureDevOpsBoard(): UseAzureDevOpsBoardReturn {
 
   // Effect for initial project load - only runs when project changes
   useEffect(() => {
+    // Skip in web mode
+    if (isWeb) return;
+    
     if (selectedProjectId && initialFetchDoneRef.current !== selectedProjectId) {
       // Reset state for new project
       setAreas([]);
@@ -202,10 +223,13 @@ export function useAzureDevOpsBoard(): UseAzureDevOpsBoardReturn {
       fetchAreas(selectedProjectId);
       fetchIterations(selectedProjectId);
     }
-  }, [selectedProjectId, fetchAreas, fetchIterations]);
+  }, [selectedProjectId, fetchAreas, fetchIterations, isWeb]);
 
   // Effect for fetching work items when iteration or area changes
   useEffect(() => {
+    // Skip in web mode
+    if (isWeb) return;
+    
     if (selectedProjectId && selectedIterationId) {
       // Find the iteration to get its path (WIQL needs path, not ID)
       const iteration = iterations.find(i => i.id === selectedIterationId);
@@ -214,7 +238,7 @@ export function useAzureDevOpsBoard(): UseAzureDevOpsBoardReturn {
         fetchWorkItems(selectedProjectId, iteration.path, selectedAreaPath);
       }
     }
-  }, [selectedProjectId, selectedIterationId, selectedAreaPath, iterations, fetchWorkItems]);
+  }, [selectedProjectId, selectedIterationId, selectedAreaPath, iterations, fetchWorkItems, isWeb]);
 
   const columns = useMemo(() => groupWorkItemsIntoColumns(workItems), [workItems]);
 
