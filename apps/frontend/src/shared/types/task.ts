@@ -419,6 +419,7 @@ export interface WorktreeCreatePROptions {
   targetBranch?: string;
   title?: string;
   draft?: boolean;
+  forcePush?: boolean;
 }
 
 /**
