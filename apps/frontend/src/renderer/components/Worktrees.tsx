@@ -684,7 +684,6 @@ export function Worktrees({ projectId }: WorktreesProps) {
                             variant="default"
                             size="sm"
                             onClick={() => openMergeDialog(worktree)}
-                            disabled={!task}
                           >
                             <GitMerge className="h-3.5 w-3.5 mr-1.5" />
                             Merge to {worktree.baseBranch}
