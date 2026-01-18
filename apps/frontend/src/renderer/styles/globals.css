@@ -1708,3 +1708,306 @@ body {
 [data-ui-scale="190"] { font-size: 30.4px; }
 [data-ui-scale="195"] { font-size: 31.2px; }
 [data-ui-scale="200"] { font-size: 32px; }
+
+/* ============================================
+   Settings Sidebar - Collapsible Navigation
+   ============================================ */
+
+/* Settings sidebar container with smooth width transition */
+.settings-sidebar {
+  transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  will-change: width;
+  overflow: hidden;
+}
+
+/* Expanded sidebar state */
+.settings-sidebar-expanded {
+  width: 240px;
+}
+
+/* Collapsed sidebar state (icon-only) */
+.settings-sidebar-collapsed {
+  width: 56px;
+}
+
+/* Settings sidebar navigation item */
+.settings-sidebar-nav-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.5rem 0.75rem;
+  border-radius: var(--radius-md);
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.settings-sidebar-nav-item:hover {
+  background-color: var(--muted);
+}
+
+.settings-sidebar-nav-item.active {
+  background-color: var(--accent);
+  color: var(--accent-foreground);
+}
+
+/* Nav item icon with consistent sizing */
+.settings-sidebar-icon {
+  flex-shrink: 0;
+  width: 1.25rem;
+  height: 1.25rem;
+  transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.settings-sidebar-nav-item:hover .settings-sidebar-icon {
+  transform: scale(1.05);
+}
+
+/* Nav item label with fade animation */
+.settings-sidebar-label {
+  opacity: 1;
+  transform: translateX(0);
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+/* Hide label in collapsed state */
+.settings-sidebar-collapsed .settings-sidebar-label {
+  opacity: 0;
+  transform: translateX(-8px);
+  pointer-events: none;
+}
+
+/* Settings sidebar toggle button */
+.settings-sidebar-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: var(--radius-md);
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  cursor: pointer;
+}
+
+.settings-sidebar-toggle:hover {
+  background-color: var(--muted);
+}
+
+.settings-sidebar-toggle:active {
+  transform: scale(0.95);
+}
+
+/* Toggle icon rotation for collapse/expand indication */
+.settings-sidebar-toggle-icon {
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.settings-sidebar-collapsed .settings-sidebar-toggle-icon {
+  transform: rotate(180deg);
+}
+
+/* Settings sidebar section headers */
+.settings-sidebar-section-header {
+  font-size: 0.625rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--muted-foreground);
+  padding: 0.5rem 0.75rem;
+  opacity: 1;
+  transition: opacity 0.2s ease;
+}
+
+.settings-sidebar-collapsed .settings-sidebar-section-header {
+  opacity: 0;
+  height: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
+/* Settings sidebar version display */
+.settings-sidebar-version {
+  font-size: 0.75rem;
+  color: var(--muted-foreground);
+  padding: 0.5rem 0.75rem;
+  opacity: 1;
+  transition: opacity 0.2s ease;
+}
+
+.settings-sidebar-collapsed .settings-sidebar-version {
+  opacity: 0;
+}
+
+/* Settings sidebar divider */
+.settings-sidebar-divider {
+  height: 1px;
+  background: var(--border);
+  margin: 0.5rem 0;
+  transition: margin 0.2s ease;
+}
+
+.settings-sidebar-collapsed .settings-sidebar-divider {
+  margin: 0.5rem 0.5rem;
+}
+
+/* ============================================
+   Settings Content Area - Responsive Layout
+   ============================================ */
+
+.settings-content {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  transition: padding-left 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Content area padding adjustment for collapsed sidebar */
+.settings-content-with-collapsed-sidebar {
+  padding-left: 0;
+}
+
+/* ============================================
+   Mobile Responsive Styles for Settings
+   ============================================ */
+
+/* Mobile breakpoint - 768px and below */
+@media (max-width: 768px) {
+  .settings-sidebar {
+    position: fixed;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    z-index: 40;
+    background-color: var(--sidebar);
+    border-right: 1px solid var(--border);
+    transform: translateX(0);
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+                width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .settings-sidebar-collapsed {
+    transform: translateX(-100%);
+    width: 240px;
+  }
+
+  .settings-sidebar-expanded {
+    transform: translateX(0);
+    width: 240px;
+  }
+
+  /* Mobile overlay backdrop */
+  .settings-sidebar-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 35;
+    background-color: rgba(0, 0, 0, 0.5);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s ease;
+  }
+
+  .settings-sidebar-overlay.active {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  /* Mobile toggle button - always visible */
+  .settings-mobile-toggle {
+    display: flex;
+    position: fixed;
+    left: 1rem;
+    bottom: 1rem;
+    z-index: 50;
+    width: 3rem;
+    height: 3rem;
+    align-items: center;
+    justify-content: center;
+    border-radius: var(--radius-full);
+    background-color: var(--primary);
+    color: var(--primary-foreground);
+    box-shadow: var(--shadow-lg);
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .settings-mobile-toggle:hover {
+    transform: scale(1.05);
+  }
+
+  .settings-mobile-toggle:active {
+    transform: scale(0.95);
+  }
+}
+
+/* Tablet breakpoint - 769px to 1024px */
+@media (min-width: 769px) and (max-width: 1024px) {
+  .settings-sidebar-expanded {
+    width: 200px;
+  }
+}
+
+/* Large desktop - 1440px and above */
+@media (min-width: 1440px) {
+  .settings-sidebar-expanded {
+    width: 280px;
+  }
+}
+
+/* ============================================
+   Settings Dialog Mobile Responsive
+   ============================================ */
+
+/* Full-screen dialog on mobile */
+@media (max-width: 768px) {
+  .settings-dialog-mobile {
+    width: 100vw !important;
+    height: 100vh !important;
+    max-width: 100vw !important;
+    max-height: 100vh !important;
+    border-radius: 0 !important;
+    margin: 0 !important;
+  }
+
+  .settings-dialog-content-mobile {
+    height: 100%;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
+/* ============================================
+   Reduced Motion Support for Settings Sidebar
+   ============================================ */
+
+@media (prefers-reduced-motion: reduce) {
+  .settings-sidebar,
+  .settings-sidebar-nav-item,
+  .settings-sidebar-icon,
+  .settings-sidebar-label,
+  .settings-sidebar-toggle,
+  .settings-sidebar-toggle-icon,
+  .settings-sidebar-section-header,
+  .settings-sidebar-version,
+  .settings-sidebar-divider,
+  .settings-content,
+  .settings-sidebar-overlay,
+  .settings-mobile-toggle {
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* ============================================
+   Settings Sidebar Touch-friendly Styles
+   ============================================ */
+
+/* Larger touch targets on touch devices */
+@media (pointer: coarse) {
+  .settings-sidebar-nav-item {
+    padding: 0.75rem 1rem;
+    min-height: 44px;
+  }
+
+  .settings-sidebar-toggle {
+    width: 2.75rem;
+    height: 2.75rem;
+  }
+}
