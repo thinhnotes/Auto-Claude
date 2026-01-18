@@ -43,6 +43,8 @@ export const IPC_CHANNELS = {
   TASK_ARCHIVE: 'task:archive',
   TASK_UNARCHIVE: 'task:unarchive',
   TASK_CLEAR_STAGED_STATE: 'task:clearStagedState',
+  TASK_GIT_CHANGES: 'task:gitChanges',
+  TASK_FILE_DIFF: 'task:fileDiff',
 
   // Task events (main -> renderer)
   TASK_PROGRESS: 'task:progress',
