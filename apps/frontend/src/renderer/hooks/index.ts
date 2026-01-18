@@ -1,6 +1,7 @@
 // Export all custom hooks
 export { useClaudeLoginTerminal } from './useClaudeLoginTerminal';
 export { useIpcListeners } from './useIpc';
+export { useLocalStorage } from './useLocalStorage';
 export {
   useMediaQuery,
   useBreakpoint,
