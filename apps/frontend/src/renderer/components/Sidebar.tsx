@@ -3,7 +3,6 @@ import { useTranslation } from 'react-i18next';
 import {
   Plus,
   Settings,
-  Trash2,
   LayoutGrid,
   Terminal,
   Map,
@@ -109,7 +108,6 @@ export function Sidebar({
   const { t } = useTranslation(['navigation', 'dialogs', 'common']);
   const projects = useProjectStore((state) => state.projects);
   const selectedProjectId = useProjectStore((state) => state.selectedProjectId);
-  const selectProject = useProjectStore((state) => state.selectProject);
   const settings = useSettingsStore((state) => state.settings);
 
   const [showAddProjectModal, setShowAddProjectModal] = useState(false);
@@ -218,10 +216,6 @@ export function Sidebar({
     };
     checkGit();
   }, [selectedProject]);
-
-  const handleAddProject = () => {
-    setShowAddProjectModal(true);
-  };
 
   const handleProjectAdded = (project: Project, needsInit: boolean) => {
     if (needsInit) {
