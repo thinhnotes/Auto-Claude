@@ -18,11 +18,13 @@ _ENV_FILE = _BACKEND_DIR / ".env"
 if _ENV_FILE.exists():
     try:
         from dotenv import load_dotenv
+
         load_dotenv(_ENV_FILE)
         print(f"[Web API] Loaded .env from {_ENV_FILE}")
     except ImportError:
         # Fallback: manually load .env
         import os
+
         with open(_ENV_FILE) as f:
             for line in f:
                 line = line.strip()
@@ -33,8 +35,8 @@ if _ENV_FILE.exists():
 
 from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 
 # Configure logging
 logging.basicConfig(

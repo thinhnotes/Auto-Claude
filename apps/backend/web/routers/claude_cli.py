@@ -12,7 +12,6 @@ import logging
 import shutil
 import subprocess
 from pathlib import Path
-from typing import Optional
 
 from fastapi import APIRouter
 from pydantic import BaseModel
@@ -23,25 +22,25 @@ logger = logging.getLogger("auto-claude-api")
 
 class ClaudeVersionInfo(BaseModel):
     """Claude Code CLI version information."""
-    
-    installed: Optional[str] = None
+
+    installed: str | None = None
     latest: str = "1.0.0"
     isOutdated: bool = False
-    path: Optional[str] = None
+    path: str | None = None
     detectionResult: dict = {}
 
 
 class ClaudeAuthStatus(BaseModel):
     """Claude authentication status."""
-    
+
     authenticated: bool = False
     tokenSet: bool = False
-    message: Optional[str] = None
+    message: str | None = None
 
 
-def find_claude_cli() -> tuple[Optional[str], Optional[str]]:
+def find_claude_cli() -> tuple[str | None, str | None]:
     """Find the Claude CLI executable and get its version.
-    
+
     Returns:
         Tuple of (path, version) or (None, None) if not found.
     """

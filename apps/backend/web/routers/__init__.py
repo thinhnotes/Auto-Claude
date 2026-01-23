@@ -20,18 +20,18 @@ FastAPI routers for different API endpoints.
 
 import sys
 
-from .projects import router as projects_router
-from .settings import router as settings_router
-from .tasks import router as tasks_router
-from .profiles import router as profiles_router
-from .worktrees import router as worktrees_router
-from .insights import router as insights_router
 from .claude_cli import router as claude_cli_router
 from .context import router as context_router
 from .git import router as git_router
-from .source_env import router as source_env_router
+from .insights import router as insights_router
 from .ollama import router as ollama_router
+from .profiles import router as profiles_router
+from .projects import router as projects_router
 from .roadmap import router as roadmap_router
+from .settings import router as settings_router
+from .source_env import router as source_env_router
+from .tasks import router as tasks_router
+from .worktrees import router as worktrees_router
 
 # Conditionally import terminals router (Unix-only due to pty dependency)
 if sys.platform != 'win32':
