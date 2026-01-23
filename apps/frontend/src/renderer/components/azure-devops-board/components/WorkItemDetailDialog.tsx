@@ -10,6 +10,7 @@ import { Button } from '../../ui/button';
 import { Badge } from '../../ui/badge';
 import { ScrollArea } from '../../ui/scroll-area';
 import type { WorkItemDetailDialogProps } from '../types';
+import { stripHtmlTags } from '../../../../shared/utils/html';
 
 const WORK_ITEM_TYPE_COLORS: Record<string, string> = {
   'Bug': 'bg-red-500/20 text-red-400 border-red-500/30',
@@ -59,11 +60,12 @@ export function WorkItemDetailDialog({
 
   const renderHtmlContent = (content: string | undefined) => {
     if (!content) return null;
+    // Strip HTML tags to prevent XSS - Azure DevOps fields may contain untrusted HTML
+    const sanitizedContent = stripHtmlTags(content);
     return (
-      <div
-        className="prose prose-sm prose-invert max-w-none text-muted-foreground"
-        dangerouslySetInnerHTML={{ __html: content }}
-      />
+      <div className="prose prose-sm prose-invert max-w-none text-muted-foreground whitespace-pre-wrap">
+        {sanitizedContent}
+      </div>
     );
   };
 

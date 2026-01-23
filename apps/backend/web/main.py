@@ -174,9 +174,10 @@ if _STATIC_DIR.exists():
     @app.get("/{full_path:path}")
     async def serve_spa_catchall(full_path: str):
         """Catch-all route for SPA - return index.html for all non-API routes."""
-        # Don't intercept API routes
+        # Don't intercept API routes - return 404
         if full_path.startswith("api/") or full_path.startswith("ws/"):
-            return {"detail": "Not Found"}
+            from fastapi import HTTPException
+            raise HTTPException(status_code=404, detail="Not Found")
         
         # Serve index.html for all other routes (SPA routing)
         index_file = _STATIC_DIR / "index.html"

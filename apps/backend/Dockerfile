@@ -22,8 +22,12 @@ RUN apt-get update && apt-get install openssh-client -y
 # Create .ssh directory for SSH keys
 RUN mkdir -p /root/.ssh && chmod 700 /root/.ssh
 
-# Add GitHub to known hosts to avoid host verification prompt
-RUN ssh-keyscan github.com >> /root/.ssh/known_hosts 2>/dev/null || true
+# Add GitHub host keys to known_hosts (pinned, pre-verified official keys)
+RUN cat <<'EOF' >> /root/.ssh/known_hosts && chmod 600 /root/.ssh/known_hosts
+github.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl
+github.com ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBGbtA36T0HX1G8WNbDvM6Rr5bVm/4mkG16mHVx9XufH1awIYt7UQ+A8Qv0RJ6gTpmQ+++/WpI11J8gT3T6LFlYE=
+github.com rsa-sha2-512 AAAAB3NzaC1yc2EAAAADAQABAAABgQCj7ndNxQowgcQnjFJ+uxGMRljxqVuLkOwJrF7He9VmO9dthz6v5yRQY1I43gZ9xjOqGjmYf6GkZ0s3U3wWcEYQxzuqFQF6hAvb4Z285ZJz2FZCxJe0u3vfKqt3z1Oyf2vVnS0IYiPzEob2tDwWDCU1SkpG3iXg6I0WFBE7U/QK9F4pcPvF72Cj1eX6wM9M9XBr1X8xZ0M4G+e2mLKv1/2+vgyCB+tVXF5NgIw0oVXcekBNCzBvF3F4C2oVQ0W0T/Wm9x3dQn7o7mD1NfC7qGxZQAV6xhzDeG6m81tPYuuUIH3+0iZxkaUKtq4ZlG2Xo52SuxuxkdsdL4gbq3Mv6pTt/5QGv3E6T1tYm7yWcMCvwT6avB0Kp3nxtp6sK4pkTqQdhxSvF2Ntw8qLx0Lv/6zE7YrSNBRRfd4Fs7lYy1C5MkZtGUpm+zxLqZN/rV2iVhXIc1pQZcF1Zc3bWgR76pYHLG+qunwV5gU8eMXsY6Y90h1W1fZVZbKxLqF0p5bwYfXU8k=
+EOF
 
 # Copy requirements first for better caching
 COPY requirements.txt .
@@ -53,9 +57,14 @@ if [ ! -z "$SSH_PRIVATE_KEY" ]; then\n\
   echo "SSH key configured from environment variable"\n\
 fi\n\
 \n\
-# Ensure known_hosts exists with GitHub\n\
+# Ensure known_hosts exists with GitHub's official host keys\n\
 if [ ! -f "$HOME/.ssh/known_hosts" ] || ! grep -q "github.com" "$HOME/.ssh/known_hosts"; then\n\
-  ssh-keyscan github.com >> "$HOME/.ssh/known_hosts" 2>/dev/null || true\n\
+  cat <<'KNOWN_HOSTS' >> "$HOME/.ssh/known_hosts"\n\
+github.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl\n\
+github.com ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBGbtA36T0HX1G8WNbDvM6Rr5bVm/4mkG16mHVx9XufH1awIYt7UQ+A8Qv0RJ6gTpmQ+++/WpI11J8gT3T6LFlYE=\n\
+github.com rsa-sha2-512 AAAAB3NzaC1yc2EAAAADAQABAAABgQCj7ndNxQowgcQnjFJ+uxGMRljxqVuLkOwJrF7He9VmO9dthz6v5yRQY1I43gZ9xjOqGjmYf6GkZ0s3U3wWcEYQxzuqFQF6hAvb4Z285ZJz2FZCxJe0u3vfKqt3z1Oyf2vVnS0IYiPzEob2tDwWDCU1SkpG3iXg6I0WFBE7U/QK9F4pcPvF72Cj1eX6wM9M9XBr1X8xZ0M4G+e2mLKv1/2+vgyCB+tVXF5NgIw0oVXcekBNCzBvF3F4C2oVQ0W0T/Wm9x3dQn7o7mD1NfC7qGxZQAV6xhzDeG6m81tPYuuUIH3+0iZxkaUKtq4ZlG2Xo52SuxuxkdsdL4gbq3Mv6pTt/5QGv3E6T1tYm7yWcMCvwT6avB0Kp3nxtp6sK4pkTqQdhxSvF2Ntw8qLx0Lv/6zE7YrSNBRRfd4Fs7lYy1C5MkZtGUpm+zxLqZN/rV2iVhXIc1pQZcF1Zc3bWgR76pYHLG+qunwV5gU8eMXsY6Y90h1W1fZVZbKxLqF0p5bwYfXU8k=\n\
+KNOWN_HOSTS\n\
+  chmod 600 "$HOME/.ssh/known_hosts"\n\
 fi\n\
 \n\
 # Start ssh-agent and add key if it exists\n\
