@@ -302,7 +302,12 @@ const DroppableColumn = memo(function DroppableColumn({ status, tasks, onTaskCli
     <div
       ref={setNodeRef}
       className={cn(
-        'flex min-w-72 max-w-[30rem] flex-1 flex-col rounded-xl border border-white/5 bg-linear-to-b from-secondary/30 to-transparent backdrop-blur-sm transition-all duration-200',
+        // Responsive column sizing for 16:9 displays:
+        // - min-w-44 (176px) at base for 720p compatibility
+        // - min-w-52 (208px) at md breakpoint for larger displays
+        // - min-w-64 (256px) at lg breakpoint for full-width displays
+        // - max-w adjusted from 30rem to 24rem for better horizontal space utilization
+        'flex min-w-44 md:min-w-52 lg:min-w-64 max-w-96 flex-1 flex-col rounded-xl border border-white/5 bg-linear-to-b from-secondary/30 to-transparent backdrop-blur-sm transition-all duration-200',
         getColumnBorderColor(),
         'border-t-2',
         isOver && 'drop-zone-highlight'
