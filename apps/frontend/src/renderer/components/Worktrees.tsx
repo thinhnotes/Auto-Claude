@@ -26,7 +26,6 @@ import {
   Square
 } from 'lucide-react';
 import { Button } from './ui/button';
-import { Badge } from './ui/badge';
 import { Checkbox } from './ui/checkbox';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from './ui/card';
 import { ScrollArea } from './ui/scroll-area';
@@ -344,6 +343,10 @@ export function Worktrees({ projectId }: WorktreesProps) {
   // Selection state
   const [isSelectionMode, setIsSelectionMode] = useState(false);
   const [selectedWorktreeIds, setSelectedWorktreeIds] = useState<Set<string>>(new Set());
+
+  // Publish branch state
+  const [isPublishingBranch, setIsPublishingBranch] = useState(false);
+  const [publishingWorktreeId, setPublishingWorktreeId] = useState<string | null>(null);
 
   // Selection callbacks
   const toggleWorktree = useCallback((id: string) => {
