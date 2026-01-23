@@ -1676,6 +1676,141 @@ body {
 }
 
 /* ============================================
+   Responsive Breakpoints for 16:9 Widescreen Support
+   ============================================ */
+
+/*
+ * Target resolutions:
+ * - 720p: 1280×720 (~680px usable height with window decorations)
+ * - 1080p: 1920×1080
+ * - 1440p: 2560×1440
+ *
+ * Tailwind default breakpoints reference:
+ * - sm: 640px, md: 768px, lg: 1024px, xl: 1280px, 2xl: 1536px
+ */
+
+/* Short viewport - compact spacing for 720p and below */
+@media (max-height: 720px) {
+  /* Reduce padding and margins for height-constrained displays */
+  .compact-on-short {
+    padding-top: 0.5rem;
+    padding-bottom: 0.5rem;
+  }
+
+  /* Smaller card padding on short displays */
+  .card-compact-short {
+    padding: 0.75rem;
+  }
+
+  /* Reduce vertical gap in flex containers */
+  .gap-compact-short {
+    gap: 0.5rem;
+  }
+
+  /* Smaller text on short displays */
+  .text-compact-short {
+    font-size: 0.75rem;
+    line-height: 1.25rem;
+  }
+}
+
+/* Very short viewport - ultra compact for <600px height */
+@media (max-height: 600px) {
+  .ultra-compact-on-short {
+    padding: 0.25rem;
+  }
+
+  .hide-on-very-short {
+    display: none;
+  }
+}
+
+/* Widescreen aspect ratio - 16:9 or wider */
+@media (min-aspect-ratio: 16/9) {
+  /* Optimize for horizontal space on widescreen */
+  .widescreen-columns {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1rem;
+  }
+
+  /* Wider sidebar content area on widescreen */
+  .widescreen-sidebar-content {
+    max-width: none;
+  }
+}
+
+/* Standard width breakpoints for horizontal scrolling */
+@media (max-width: 1024px) {
+  /* Allow horizontal scroll for Kanban on narrow-ish widths */
+  .kanban-scroll-horizontal {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
+  }
+
+  /* Fade indicator for horizontal scroll */
+  .kanban-scroll-horizontal::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: 40px;
+    background: linear-gradient(to right, transparent, var(--background));
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+  }
+
+  .kanban-scroll-horizontal:not(:hover)::after {
+    opacity: 1;
+  }
+}
+
+/* Large widescreen (1440p and above) */
+@media (min-width: 2560px) {
+  /* Larger comfortable spacing on big displays */
+  .lg-widescreen-spacing {
+    padding: 1.5rem;
+    gap: 1.5rem;
+  }
+}
+
+/* Height-based column layout adjustments */
+@media (min-height: 900px) {
+  /* Allow more items visible in scrollable areas */
+  .taller-scroll-area {
+    max-height: calc(100vh - 200px);
+  }
+}
+
+/* Widescreen with limited height (typical 720p/1080p) */
+@media (min-width: 1280px) and (max-height: 800px) {
+  /* Compact task cards on widescreen with limited height */
+  .task-card-widescreen-compact {
+    padding: 0.625rem;
+  }
+
+  .task-card-widescreen-compact .task-title {
+    font-size: 0.8125rem;
+  }
+
+  .task-card-widescreen-compact .task-meta {
+    font-size: 0.6875rem;
+  }
+}
+
+/* Full HD and above - utilize horizontal space */
+@media (min-width: 1920px) {
+  /* Allow wider columns on 1080p+ displays */
+  .hd-column-width {
+    min-width: 280px;
+    max-width: 400px;
+  }
+}
+
+/* ============================================
    UI Scale System (75% - 200%)
    ============================================ */
 
