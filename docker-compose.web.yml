@@ -17,12 +17,11 @@ services:
       - HOME=/tmp
       # Git config for worktree operations
       - GIT_DISCOVERY_ACROSS_FILESYSTEM=1
-    env_file:
-      - .env.docker
-    environment:
       # Use SSH_PRIVATE_KEY env variable for git operations instead of mounting host SSH directory
       # Set SSH_PRIVATE_KEY in .env.docker with your private key content
       - SSH_PRIVATE_KEY=${SSH_PRIVATE_KEY:-}
+    env_file:
+      - .env.docker
     volumes:
       # Mount the code directory with full read-write access
       - ./code:/home/code:rw
