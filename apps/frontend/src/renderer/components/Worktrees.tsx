@@ -632,23 +632,15 @@ export function Worktrees({ projectId }: WorktreesProps) {
 
   // Handle Create PR
   const handleCreatePR = async (options: WorktreeCreatePROptions): Promise<WorktreeCreatePRResult | null> => {
-    if (!prTask) return null;
+    if (!prTask || !prWorktree) return null;
 
     try {
       if (isWeb) {
         // Web mode: use API
         console.log('[Worktrees] Creating PR via web API');
-        if (!selectedWorktree) {
-          return {
-            success: false,
-            error: 'No worktree selected',
-            prUrl: undefined,
-            alreadyExists: false
-          };
-        }
 
         const response = await fetch(
-          `/api/projects/${projectId}/worktrees/${selectedWorktree.specName}/create-pr`,
+          `/api/projects/${projectId}/worktrees/${prWorktree.specName}/create-pr`,
           {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },

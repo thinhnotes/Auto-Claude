@@ -251,8 +251,15 @@ export async function loadProjects(): Promise<void> {
       // Web mode: load from API
       console.log('[ProjectStore] Loading projects from web API');
       const response = await fetch('/api/projects');
-      const apiResult = await response.json();
-      result = apiResult;
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('[ProjectStore] Failed to load projects from API:', errorText);
+        result = { success: false, error: errorText || `HTTP ${response.status}: ${response.statusText}` };
+      } else {
+        const apiResult = await response.json();
+        result = apiResult;
+      }
     } else {
       // Electron mode: load from IPC
       console.log('[ProjectStore] Loading projects from Electron IPC');

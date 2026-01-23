@@ -1,5 +1,4 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useTranslation } from 'react-i18next';
 import {
   FileCode,
   FilePlus,
@@ -8,7 +7,6 @@ import {
   Loader2,
   AlertCircle,
   RefreshCw,
-  ChevronRight,
   GitBranch,
   Plus,
   Minus
@@ -95,7 +93,6 @@ function DiffViewer({ diff }: { diff: string }) {
     <pre className="text-xs font-mono leading-relaxed">
       {lines.map((line, idx) => {
         let lineClass = 'px-2 py-0.5';
-        let prefix = ' ';
 
         if (line.startsWith('+++') || line.startsWith('---')) {
           lineClass += ' text-muted-foreground bg-muted/30';
@@ -103,10 +100,8 @@ function DiffViewer({ diff }: { diff: string }) {
           lineClass += ' text-purple-400 bg-purple-500/10';
         } else if (line.startsWith('+')) {
           lineClass += ' text-green-400 bg-green-500/10';
-          prefix = '+';
         } else if (line.startsWith('-')) {
           lineClass += ' text-red-400 bg-red-500/10';
-          prefix = '-';
         } else if (line.startsWith('diff --git')) {
           lineClass += ' text-muted-foreground font-medium border-t border-border mt-2 pt-2';
         }
@@ -122,7 +117,6 @@ function DiffViewer({ diff }: { diff: string }) {
 }
 
 export function TaskGitChanges({ task }: TaskGitChangesProps) {
-  const { t } = useTranslation(['tasks']);
   const isWeb =
     isWebPlatform() ||
     (typeof window !== 'undefined' &&

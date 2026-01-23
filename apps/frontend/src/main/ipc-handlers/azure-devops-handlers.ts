@@ -111,45 +111,6 @@ async function getAzureDevOpsConfig(projectId: string): Promise<AzureDevOpsConfi
 }
 
 /**
- * Check Azure DevOps connection status by making a test API call
- */
-async function checkConnection(projectId: string): Promise<AzureDevOpsSyncStatus> {
-  const config = await getAzureDevOpsConfig(projectId);
-
-  if (!config || !config.enabled) {
-    return {
-      connected: false,
-      error: 'Azure DevOps integration is not enabled for this project'
-    };
-  }
-
-  if (!config.organizationUrl || !config.project || !config.personalAccessToken) {
-    return {
-      connected: false,
-      error: 'Azure DevOps configuration is incomplete. Please configure organization URL, project, and PAT.'
-    };
-  }
-
-  try {
-    // Test connection by fetching project info
-    const url = `${config.organizationUrl}/_apis/projects/${encodeURIComponent(config.project)}?api-version=7.0`;
-    await azureDevOpsRequest(url, config.personalAccessToken);
-    
-    return {
-      connected: true,
-      organizationUrl: config.organizationUrl,
-      project: config.project,
-      team: config.team
-    };
-  } catch (error) {
-    return {
-      connected: false,
-      error: error instanceof Error ? error.message : 'Failed to connect to Azure DevOps'
-    };
-  }
-}
-
-/**
  * Get iterations (sprints) for the project/team from Azure DevOps API
  */
 async function getIterations(projectId: string): Promise<{

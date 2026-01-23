@@ -380,20 +380,14 @@ async def publish_worktree_branch(
             }
         else:
             return {
-                "success": True,
-                "data": {
-                    "success": False,
-                    "error": result.get("error", "Failed to publish branch")
-                }
+                "success": False,
+                "error": result.get("error", "Failed to publish branch")
             }
     except Exception as e:
         logger.error(f"Error publishing branch: {e}", exc_info=True)
         return {
-            "success": True,
-            "data": {
-                "success": False,
-                "error": str(e)
-            }
+            "success": False,
+            "error": str(e)
         }
 
 
@@ -441,24 +435,18 @@ async def create_worktree_pr(
             }
         else:
             return {
-                "success": True,
-                "data": {
-                    "success": False,
-                    "error": result.get("error", "Failed to create PR"),
-                    "prUrl": None,
-                    "alreadyExists": False
-                }
+                "success": False,
+                "error": result.get("error", "Failed to create PR"),
+                "prUrl": None,
+                "alreadyExists": False
             }
     except Exception as e:
         logger.error(f"Error creating PR: {e}", exc_info=True)
         return {
-            "success": True,
-            "data": {
-                "success": False,
-                "error": str(e),
-                "prUrl": None,
-                "alreadyExists": False
-            }
+            "success": False,
+            "error": str(e),
+            "prUrl": None,
+            "alreadyExists": False
         }
 
 
