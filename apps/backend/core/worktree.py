@@ -141,8 +141,6 @@ class PushAndCreatePRResult(TypedDict, total=False):
     error: str
     message: str
 
-from core.git_executable import run_git
-
 
 class WorktreeError(Exception):
     """Error during worktree operations."""

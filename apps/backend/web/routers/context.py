@@ -265,10 +265,10 @@ async def refresh_project_index(project_id: str) -> dict:
         # Run analyzer (uses --project-dir, --index, and --output flags)
         result = subprocess.run(
             [
-                python_path, 
-                str(analyzer_path), 
-                "--project-dir", str(project_path), 
-                "--index", 
+                python_path,
+                str(analyzer_path),
+                "--project-dir", str(project_path),
+                "--index",
                 "--output", str(output_path),
                 "--quiet"
             ],

@@ -5,7 +5,6 @@ Auto Claude Web API - Main Application
 FastAPI application with CORS, routers, and WebSocket support.
 """
 
-import asyncio
 import logging
 import sys
 import time
@@ -151,7 +150,9 @@ app.include_router(profiles_router, prefix="/api/profiles", tags=["profiles"])
 app.include_router(worktrees_router, prefix="/api", tags=["worktrees"])
 app.include_router(insights_router, prefix="/api", tags=["insights"])
 app.include_router(claude_cli_router, prefix="/api", tags=["claude-cli"])
-app.include_router(terminals_router, prefix="/api", tags=["terminals"])
+# Only include terminals router on Unix (Windows doesn't support pty/termios)
+if sys.platform != 'win32':
+    app.include_router(terminals_router, prefix="/api", tags=["terminals"])
 app.include_router(context_router, prefix="/api", tags=["context"])
 app.include_router(git_router, prefix="/api", tags=["git"])
 app.include_router(source_env_router, prefix="/api", tags=["source-env"])

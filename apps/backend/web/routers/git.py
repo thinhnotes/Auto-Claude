@@ -5,7 +5,6 @@ Git Router
 API endpoints for Git operations.
 """
 
-import json
 import logging
 import subprocess
 import sys

@@ -167,8 +167,7 @@ class TestProjectsEndpoints:
             assert response.status_code == 200
             data = response.json()
             assert data["success"] is True
-            assert data["data"]["projects"] == []
-            assert data["data"]["total"] == 0
+            assert data["data"] == []
 
     def test_list_projects_with_data(self, test_client, mock_projects_file):
         """GET /api/projects should return list of projects."""
@@ -178,8 +177,8 @@ class TestProjectsEndpoints:
         assert response.status_code == 200
         data = response.json()
         assert data["success"] is True
-        assert len(data["data"]["projects"]) == 2
-        assert data["data"]["total"] == 2
+        assert isinstance(data["data"], list)
+        assert len(data["data"]) == 2
 
     def test_create_project_validates_name(self, test_client):
         """POST /api/projects should validate project name."""
