@@ -76,7 +76,11 @@ def get_insights_dir(project_path: Path) -> Path:
 
 def get_session_file(project_path: Path, session_id: str) -> Path:
     """Get the path to a session file."""
-    return get_insights_dir(project_path) / f"{session_id}.json"
+    from ..utils.security import safe_join_path
+
+    # Safely join path with validation
+    insights_dir = get_insights_dir(project_path)
+    return safe_join_path(insights_dir, f"{session_id}.json")
 
 
 def get_current_session_file(project_path: Path) -> Path:

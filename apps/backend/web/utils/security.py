@@ -3,6 +3,7 @@ Security utilities for the web API.
 """
 
 import logging
+from pathlib import Path
 from typing import Any
 
 
@@ -36,6 +37,99 @@ def sanitize_for_log(value: Any) -> str:
         sanitized = sanitized[:max_len] + "..."
 
     return sanitized
+
+
+def sanitize_path_component(component: str, allow_path_sep: bool = False) -> str:
+    r"""
+    Sanitize a path component to prevent path traversal attacks.
+
+    This function:
+    - Removes any path traversal attempts (../, ..\, etc.)
+    - Removes absolute path indicators (/, C:, etc.)
+    - Validates the component doesn't contain dangerous characters
+
+    Args:
+        component: The path component to sanitize (e.g., session_id, filename)
+        allow_path_sep: If True, allows path separators (for multi-level paths)
+
+    Returns:
+        Sanitized path component safe for file operations
+
+    Raises:
+        ValueError: If the component contains path traversal attempts or is invalid
+
+    Example:
+        >>> safe_id = sanitize_path_component(session_id)
+        >>> session_file = base_dir / f"{safe_id}.json"
+    """
+    if not component or not isinstance(component, str):
+        raise ValueError("Path component must be a non-empty string")
+
+    # Remove any whitespace
+    component = component.strip()
+
+    # Check for path traversal attempts
+    if ".." in component:
+        raise ValueError("Path traversal attempt detected")
+
+    # Check for absolute paths (Unix)
+    if component.startswith("/"):
+        raise ValueError("Absolute path not allowed")
+
+    # Check for absolute paths (Windows)
+    if len(component) >= 2 and component[1] == ":":
+        raise ValueError("Absolute path not allowed")
+
+    # Check for null bytes
+    if "\x00" in component:
+        raise ValueError("Null byte in path component")
+
+    # If path separators not allowed, check for them
+    if not allow_path_sep:
+        if "/" in component or "\\" in component:
+            raise ValueError("Path separators not allowed in component")
+
+    return component
+
+
+def safe_join_path(base_path: Path, *components: str) -> Path:
+    """
+    Safely join path components and ensure result is within base_path.
+
+    This prevents path traversal attacks by:
+    1. Sanitizing each component
+    2. Resolving the final path
+    3. Verifying it's within the base directory
+
+    Args:
+        base_path: The base directory (must exist)
+        *components: Path components to join
+
+    Returns:
+        Resolved path guaranteed to be within base_path
+
+    Raises:
+        ValueError: If path traversal is detected or path escapes base_path
+
+    Example:
+        >>> safe_path = safe_join_path(project_dir, session_id, "data.json")
+    """
+    # Resolve base path to absolute
+    base_path = base_path.resolve()
+
+    # Sanitize and join components
+    sanitized = [sanitize_path_component(c) for c in components]
+    target_path = base_path.joinpath(*sanitized).resolve()
+
+    # Ensure the resolved path is within base_path
+    try:
+        target_path.relative_to(base_path)
+    except ValueError:
+        raise ValueError(
+            "Path traversal detected: resolved path escapes base directory"
+        )
+
+    return target_path
 
 
 class SecureLogger(logging.LoggerAdapter):
