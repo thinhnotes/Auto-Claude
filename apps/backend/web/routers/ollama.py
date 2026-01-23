@@ -37,11 +37,11 @@ def get_ollama_url(base_url: str | None = None) -> str:
 async def check_ollama_status(baseUrl: str | None = None) -> dict:
     """Check if Ollama is running."""
     url = get_ollama_url(baseUrl)
-    
+
     try:
         async with httpx.AsyncClient(timeout=5.0) as client:
             response = await client.get(f"{url}/api/version")
-            
+
             if response.status_code == 200:
                 data = response.json()
                 return {
@@ -50,8 +50,8 @@ async def check_ollama_status(baseUrl: str | None = None) -> dict:
                         "running": True,
                         "url": url,
                         "version": data.get("version"),
-                        "message": "Ollama is running"
-                    }
+                        "message": "Ollama is running",
+                    },
                 }
             else:
                 return {
@@ -59,8 +59,8 @@ async def check_ollama_status(baseUrl: str | None = None) -> dict:
                     "data": {
                         "running": False,
                         "url": url,
-                        "message": f"Ollama returned status {response.status_code}"
-                    }
+                        "message": f"Ollama returned status {response.status_code}",
+                    },
                 }
     except httpx.ConnectError:
         return {
@@ -68,17 +68,13 @@ async def check_ollama_status(baseUrl: str | None = None) -> dict:
             "data": {
                 "running": False,
                 "url": url,
-                "message": "Cannot connect to Ollama - is it running?"
-            }
+                "message": "Cannot connect to Ollama - is it running?",
+            },
         }
     except Exception as e:
         return {
             "success": True,
-            "data": {
-                "running": False,
-                "url": url,
-                "message": str(e)
-            }
+            "data": {"running": False, "url": url, "message": str(e)},
         }
 
 
@@ -86,36 +82,25 @@ async def check_ollama_status(baseUrl: str | None = None) -> dict:
 async def check_ollama_installed() -> dict:
     """Check if Ollama is installed on the system."""
     ollama_path = shutil.which("ollama")
-    
+
     if not ollama_path:
         return {
             "success": True,
-            "data": {
-                "installed": False,
-                "path": None,
-                "version": None
-            }
+            "data": {"installed": False, "path": None, "version": None},
         }
-    
+
     # Get version
     try:
         result = subprocess.run(
-            ["ollama", "--version"],
-            capture_output=True,
-            text=True,
-            timeout=5
+            ["ollama", "--version"], capture_output=True, text=True, timeout=5
         )
         version = result.stdout.strip() if result.returncode == 0 else None
     except Exception:
         version = None
-    
+
     return {
         "success": True,
-        "data": {
-            "installed": True,
-            "path": ollama_path,
-            "version": version
-        }
+        "data": {"installed": True, "path": ollama_path, "version": version},
     }
 
 
@@ -123,9 +108,9 @@ async def check_ollama_installed() -> dict:
 async def install_ollama() -> dict:
     """Return installation instructions for Ollama."""
     import platform
-    
+
     system = platform.system().lower()
-    
+
     if system == "darwin":
         command = "brew install ollama"
     elif system == "linux":
@@ -134,62 +119,52 @@ async def install_ollama() -> dict:
         command = "winget install Ollama.Ollama"
     else:
         command = "Visit https://ollama.com/download for installation instructions"
-    
-    return {
-        "success": True,
-        "data": {
-            "command": command
-        }
-    }
+
+    return {"success": True, "data": {"command": command}}
 
 
 @router.get("/ollama/models")
 async def list_ollama_models(baseUrl: str | None = None) -> dict:
     """List all Ollama models."""
     url = get_ollama_url(baseUrl)
-    
+
     try:
         async with httpx.AsyncClient(timeout=10.0) as client:
             response = await client.get(f"{url}/api/tags")
-            
+
             if response.status_code != 200:
                 return {
                     "success": False,
-                    "error": f"Failed to list models: {response.status_code}"
+                    "error": f"Failed to list models: {response.status_code}",
                 }
-            
+
             data = response.json()
             models = []
-            
+
             for model in data.get("models", []):
                 name = model.get("name", "")
                 size_bytes = model.get("size", 0)
-                
+
                 # Detect if it's an embedding model
-                is_embedding = any(x in name.lower() for x in ["embed", "nomic", "minilm", "bge"])
-                
-                models.append({
-                    "name": name,
-                    "size_bytes": size_bytes,
-                    "size_gb": round(size_bytes / (1024**3), 2),
-                    "modified_at": model.get("modified_at", ""),
-                    "is_embedding": is_embedding,
-                    "embedding_dim": None,
-                    "description": model.get("details", {}).get("family", "")
-                })
-            
-            return {
-                "success": True,
-                "data": {
-                    "models": models,
-                    "count": len(models)
-                }
-            }
+                is_embedding = any(
+                    x in name.lower() for x in ["embed", "nomic", "minilm", "bge"]
+                )
+
+                models.append(
+                    {
+                        "name": name,
+                        "size_bytes": size_bytes,
+                        "size_gb": round(size_bytes / (1024**3), 2),
+                        "modified_at": model.get("modified_at", ""),
+                        "is_embedding": is_embedding,
+                        "embedding_dim": None,
+                        "description": model.get("details", {}).get("family", ""),
+                    }
+                )
+
+            return {"success": True, "data": {"models": models, "count": len(models)}}
     except httpx.ConnectError:
-        return {
-            "success": False,
-            "error": "Cannot connect to Ollama - is it running?"
-        }
+        return {"success": False, "error": "Cannot connect to Ollama - is it running?"}
     except Exception as e:
         return {"success": False, "error": str(e)}
 
@@ -198,42 +173,58 @@ async def list_ollama_models(baseUrl: str | None = None) -> dict:
 async def list_ollama_embedding_models(baseUrl: str | None = None) -> dict:
     """List Ollama embedding models."""
     result = await list_ollama_models(baseUrl)
-    
+
     if not result.get("success"):
         return result
-    
+
     models = result.get("data", {}).get("models", [])
     embedding_models = [m for m in models if m.get("is_embedding")]
-    
+
     # Also add common embedding models that might be available
     common_embedding_models = [
-        {"name": "nomic-embed-text", "embedding_dim": 768, "description": "Nomic AI text embeddings"},
-        {"name": "mxbai-embed-large", "embedding_dim": 1024, "description": "Mixedbread AI embeddings"},
-        {"name": "all-minilm", "embedding_dim": 384, "description": "All-MiniLM sentence transformer"},
-        {"name": "bge-base", "embedding_dim": 768, "description": "BAAI General Embeddings"},
+        {
+            "name": "nomic-embed-text",
+            "embedding_dim": 768,
+            "description": "Nomic AI text embeddings",
+        },
+        {
+            "name": "mxbai-embed-large",
+            "embedding_dim": 1024,
+            "description": "Mixedbread AI embeddings",
+        },
+        {
+            "name": "all-minilm",
+            "embedding_dim": 384,
+            "description": "All-MiniLM sentence transformer",
+        },
+        {
+            "name": "bge-base",
+            "embedding_dim": 768,
+            "description": "BAAI General Embeddings",
+        },
     ]
-    
+
     # Merge with detected models
     model_names = {m["name"] for m in embedding_models}
     for model in common_embedding_models:
         if model["name"] not in model_names:
-            embedding_models.append({
-                **model,
-                "size_bytes": 0,
-                "size_gb": 0,
-            })
-    
+            embedding_models.append(
+                {
+                    **model,
+                    "size_bytes": 0,
+                    "size_gb": 0,
+                }
+            )
+
     return {
         "success": True,
-        "data": {
-            "embedding_models": embedding_models,
-            "count": len(embedding_models)
-        }
+        "data": {"embedding_models": embedding_models, "count": len(embedding_models)},
     }
 
 
 class PullModelRequest(BaseModel):
     """Request to pull a model."""
+
     modelName: str
     baseUrl: str | None = None
 
@@ -242,37 +233,30 @@ class PullModelRequest(BaseModel):
 async def pull_ollama_model(request: PullModelRequest) -> dict:
     """Pull/download an Ollama model."""
     url = get_ollama_url(request.baseUrl)
-    
+
     try:
         async with httpx.AsyncClient(timeout=600.0) as client:  # 10 min timeout
             response = await client.post(
-                f"{url}/api/pull",
-                json={"name": request.modelName, "stream": False}
+                f"{url}/api/pull", json={"name": request.modelName, "stream": False}
             )
-            
+
             if response.status_code != 200:
                 return {
                     "success": False,
-                    "error": f"Failed to pull model: {response.text}"
+                    "error": f"Failed to pull model: {response.text}",
                 }
-            
+
             return {
                 "success": True,
                 "data": {
                     "model": request.modelName,
                     "status": "completed",
-                    "output": ["Model pulled successfully"]
-                }
+                    "output": ["Model pulled successfully"],
+                },
             }
     except httpx.ConnectError:
-        return {
-            "success": False,
-            "error": "Cannot connect to Ollama"
-        }
+        return {"success": False, "error": "Cannot connect to Ollama"}
     except httpx.TimeoutException:
-        return {
-            "success": False,
-            "error": "Model pull timed out - try again"
-        }
+        return {"success": False, "error": "Model pull timed out - try again"}
     except Exception as e:
         return {"success": False, "error": str(e)}

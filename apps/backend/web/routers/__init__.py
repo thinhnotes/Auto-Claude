@@ -34,11 +34,12 @@ from .tasks import router as tasks_router
 from .worktrees import router as worktrees_router
 
 # Conditionally import terminals router (Unix-only due to pty dependency)
-if sys.platform != 'win32':
+if sys.platform != "win32":
     from .terminals import router as terminals_router
 else:
     # Create a dummy router for Windows
     from fastapi import APIRouter
+
     terminals_router = APIRouter()
 
 __all__ = [

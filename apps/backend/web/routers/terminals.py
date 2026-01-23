@@ -58,11 +58,11 @@ def get_default_shell() -> str:
         shutil.which("bash"),
         shutil.which("sh"),
     ]
-    
+
     for shell in shells:
         if shell and os.path.exists(shell):
             return shell
-    
+
     return "/bin/sh"
 
 
@@ -74,26 +74,26 @@ def create_pty_process(
     rows: int = 24,
 ) -> tuple[int, int]:
     """Create a PTY process with the given shell.
-    
+
     Returns:
         Tuple of (pid, master_fd)
     """
     if shell is None:
         shell = get_default_shell()
-    
+
     # Build environment
     process_env = os.environ.copy()
     process_env["TERM"] = "xterm-256color"
     process_env["COLORTERM"] = "truecolor"
     process_env["LANG"] = os.environ.get("LANG", "en_US.UTF-8")
-    
+
     # Add any custom environment variables
     if env:
         process_env.update(env)
-    
+
     # Create PTY
     pid, fd = pty.fork()
-    
+
     if pid == 0:
         # Child process
         os.chdir(cwd)
@@ -103,14 +103,16 @@ def create_pty_process(
         # Set terminal size
         winsize = struct.pack("HHHH", rows, cols, 0, 0)
         import fcntl
+
         fcntl.ioctl(fd, termios.TIOCSWINSZ, winsize)
-        
+
         return pid, fd
 
 
 def resize_pty(fd: int, cols: int, rows: int) -> None:
     """Resize a PTY to the given dimensions."""
     import fcntl
+
     winsize = struct.pack("HHHH", rows, cols, 0, 0)
     fcntl.ioctl(fd, termios.TIOCSWINSZ, winsize)
 
@@ -129,16 +131,18 @@ async def list_terminals(projectPath: str | None = None) -> dict:
             if projectPath and session.project_path != projectPath:
                 continue
 
-            terminals.append({
-                "id": session_id,
-                "name": session.name,
-                "cwd": session.cwd,
-                "shell": session.shell,
-                "cols": session.cols,
-                "rows": session.rows,
-                "connected": session.websocket is not None,
-                "projectPath": session.project_path,
-            })
+            terminals.append(
+                {
+                    "id": session_id,
+                    "name": session.name,
+                    "cwd": session.cwd,
+                    "shell": session.shell,
+                    "cols": session.cols,
+                    "rows": session.rows,
+                    "connected": session.websocket is not None,
+                    "projectPath": session.project_path,
+                }
+            )
 
     return {"success": True, "data": terminals}
 
@@ -196,7 +200,9 @@ async def create_terminal(request: dict) -> dict:
         )
         _terminal_sessions[session_id] = session
 
-        logger.info(f"Created terminal session {session_id} (pid={pid}, shell={shell}, project={project_path})")
+        logger.info(
+            f"Created terminal session {session_id} (pid={pid}, shell={shell}, project={project_path})"
+        )
 
         return {
             "success": True,
@@ -209,7 +215,7 @@ async def create_terminal(request: dict) -> dict:
                 "cols": cols,
                 "rows": rows,
                 "projectPath": project_path,
-            }
+            },
         }
     except Exception as e:
         logger.exception("Failed to create terminal")
@@ -220,33 +226,33 @@ async def create_terminal(request: dict) -> dict:
 async def close_terminal(terminal_id: str) -> dict:
     """Close a terminal session."""
     session = _terminal_sessions.get(terminal_id)
-    
+
     if not session:
         return {"success": False, "error": "Terminal not found"}
-    
+
     try:
         # Close the PTY
         os.close(session.fd)
-        
+
         # Kill the process
         try:
             os.kill(session.pid, signal.SIGTERM)
         except ProcessLookupError:
             pass  # Already dead
-        
+
         # Close websocket if connected
         if session.websocket:
             try:
                 await session.websocket.close()
             except Exception:
                 pass
-        
+
         # Remove from sessions
         session.is_active = False
         del _terminal_sessions[terminal_id]
-        
+
         logger.info(f"Closed terminal session {terminal_id}")
-        
+
         return {"success": True}
     except Exception as e:
         logger.exception(f"Failed to close terminal {terminal_id}")
@@ -257,18 +263,18 @@ async def close_terminal(terminal_id: str) -> dict:
 async def resize_terminal(terminal_id: str, request: dict) -> dict:
     """Resize a terminal."""
     session = _terminal_sessions.get(terminal_id)
-    
+
     if not session:
         return {"success": False, "error": "Terminal not found"}
-    
+
     cols = request.get("cols", 80)
     rows = request.get("rows", 24)
-    
+
     try:
         resize_pty(session.fd, cols, rows)
         session.cols = cols
         session.rows = rows
-        
+
         return {"success": True}
     except Exception as e:
         return {"success": False, "error": str(e)}
@@ -278,12 +284,12 @@ async def resize_terminal(terminal_id: str, request: dict) -> dict:
 async def write_to_terminal(terminal_id: str, request: dict) -> dict:
     """Write data to a terminal (for non-WebSocket usage)."""
     session = _terminal_sessions.get(terminal_id)
-    
+
     if not session:
         return {"success": False, "error": "Terminal not found"}
-    
+
     data = request.get("data", "")
-    
+
     try:
         os.write(session.fd, data.encode())
         return {"success": True}
@@ -294,38 +300,41 @@ async def write_to_terminal(terminal_id: str, request: dict) -> dict:
 @router.websocket("/terminals/{terminal_id}/ws")
 async def terminal_websocket(websocket: WebSocket, terminal_id: str):
     """WebSocket endpoint for terminal I/O.
-    
+
     This handles bidirectional communication between the browser
     and the PTY process.
     """
     session = _terminal_sessions.get(terminal_id)
-    
+
     if not session:
         await websocket.close(code=4004, reason="Terminal not found")
         return
-    
+
     await websocket.accept()
     session.websocket = websocket
-    
+
     logger.info(f"WebSocket connected to terminal {terminal_id}")
-    
+
     # Set non-blocking mode on the PTY fd
     import fcntl
+
     flags = fcntl.fcntl(session.fd, fcntl.F_GETFL)
     fcntl.fcntl(session.fd, fcntl.F_SETFL, flags | os.O_NONBLOCK)
-    
+
     async def read_pty():
         """Read from PTY and send to WebSocket."""
         while session.is_active:
             try:
                 # Use select to check if data is available
                 readable, _, _ = select.select([session.fd], [], [], 0.1)
-                
+
                 if readable:
                     try:
                         data = os.read(session.fd, 4096)
                         if data:
-                            await websocket.send_text(data.decode("utf-8", errors="replace"))
+                            await websocket.send_text(
+                                data.decode("utf-8", errors="replace")
+                            )
                         else:
                             # EOF - process exited
                             logger.info(f"Terminal {terminal_id} process exited")
@@ -334,33 +343,33 @@ async def terminal_websocket(websocket: WebSocket, terminal_id: str):
                         if e.errno == 5:  # EIO - terminal closed
                             break
                         raise
-                
+
                 await asyncio.sleep(0.01)  # Small delay to prevent CPU spin
-                
+
             except Exception as e:
                 logger.error(f"Error reading from PTY: {e}")
                 break
-        
+
         # Notify client that terminal closed
         try:
             await websocket.send_json({"type": "exit", "code": 0})
         except Exception:
             pass
-    
+
     # Start PTY reader task
     reader_task = asyncio.create_task(read_pty())
-    
+
     try:
         while True:
             # Receive data from WebSocket
             message = await websocket.receive()
-            
+
             if message["type"] == "websocket.disconnect":
                 break
-            
+
             if "text" in message:
                 text = message["text"]
-                
+
                 # Check if it's a JSON command
                 try:
                     cmd = json.loads(text)
@@ -373,14 +382,14 @@ async def terminal_websocket(websocket: WebSocket, terminal_id: str):
                         continue
                 except json.JSONDecodeError:
                     pass
-                
+
                 # Regular input - write to PTY
                 try:
                     os.write(session.fd, text.encode())
                 except OSError as e:
                     logger.error(f"Error writing to PTY: {e}")
                     break
-            
+
             elif "bytes" in message:
                 # Binary data
                 try:
@@ -388,7 +397,7 @@ async def terminal_websocket(websocket: WebSocket, terminal_id: str):
                 except OSError as e:
                     logger.error(f"Error writing to PTY: {e}")
                     break
-    
+
     except WebSocketDisconnect:
         logger.info(f"WebSocket disconnected from terminal {terminal_id}")
     except Exception as e:
@@ -397,7 +406,7 @@ async def terminal_websocket(websocket: WebSocket, terminal_id: str):
         # Clean up
         session.websocket = None
         reader_task.cancel()
-        
+
         try:
             await reader_task
         except asyncio.CancelledError:
