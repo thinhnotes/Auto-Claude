@@ -819,7 +819,7 @@ export function App() {
         />
 
         {/* Main content */}
-        <div className="flex flex-1 flex-col overflow-hidden">
+        <div className="flex flex-1 flex-col overflow-hidden min-h-0">
           {/* Project Tabs */}
           {projectTabs.length > 0 && (
             <DndContext
@@ -854,7 +854,7 @@ export function App() {
           )}
 
           {/* Main content area */}
-          <main className="flex-1 overflow-hidden">
+          <main className="flex-1 overflow-auto min-h-0">
             {selectedProject ? (
               <>
                 {activeView === 'kanban' && (
