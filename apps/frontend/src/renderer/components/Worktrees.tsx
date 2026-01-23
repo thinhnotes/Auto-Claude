@@ -467,10 +467,6 @@ export function Worktrees({ projectId }: WorktreesProps) {
     return tasks.find(t => t.specId === specName);
   }, [tasks]);
 
-  const canOperateWorktree = (task: ReturnType<typeof findTaskForWorktree>) => {
-    return isWeb || !!task;
-  };
-
   // Handle merge
   const handleMerge = async () => {
     console.log('[Worktrees] handleMerge called');
