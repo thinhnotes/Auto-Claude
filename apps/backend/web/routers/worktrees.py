@@ -387,7 +387,7 @@ async def publish_worktree_branch(
         logger.error(f"Error publishing branch: {e}", exc_info=True)
         return {
             "success": False,
-            "error": str(e)
+            "error": "Failed to publish branch"
         }
 
 
