@@ -10,7 +10,6 @@ using WebSockets to communicate with PTY processes on the backend.
 
 import asyncio
 import json
-import logging
 import os
 import pty
 import select
@@ -24,8 +23,10 @@ from pathlib import Path
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
+from ..utils.security import get_secure_logger
+
 router = APIRouter()
-logger = logging.getLogger("auto-claude-api")
+logger = get_secure_logger("auto-claude-api")
 
 
 @dataclass

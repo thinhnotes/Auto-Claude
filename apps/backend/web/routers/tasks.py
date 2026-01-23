@@ -7,7 +7,6 @@ API endpoints for managing tasks (specs) within projects.
 
 import asyncio
 import json
-import logging
 import os
 import shutil
 import signal
@@ -43,10 +42,11 @@ from ..utils.plan_helpers import (
     load_plan_from_spec,
     load_task_logs_from_spec,
 )
+from ..utils.security import get_secure_logger
 from .projects import load_projects
 
 router = APIRouter()
-logger = logging.getLogger("auto-claude-api")
+logger = get_secure_logger("auto-claude-api")
 
 # Track running task PIDs (not process objects - tasks run detached)
 # Maps task_id -> {"pid": int, "started_at": str, "log_file": str}

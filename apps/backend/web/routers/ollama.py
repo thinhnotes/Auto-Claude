@@ -5,7 +5,6 @@ Ollama Router
 API endpoints for Ollama model management.
 """
 
-import logging
 import os
 import shutil
 import subprocess
@@ -22,8 +21,10 @@ if str(_PARENT_DIR) not in sys.path:
     sys.path.insert(0, str(_PARENT_DIR))
 
 
+from ..utils.security import get_secure_logger
+
 router = APIRouter()
-logger = logging.getLogger("auto-claude-api")
+logger = get_secure_logger("auto-claude-api")
 
 DEFAULT_OLLAMA_URL = "http://localhost:11434"
 

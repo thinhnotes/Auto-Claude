@@ -13,7 +13,6 @@ the nested format.
 """
 
 import json
-import logging
 import os
 from datetime import datetime
 from pathlib import Path
@@ -27,8 +26,9 @@ from .logging_utils import (
     log_plan_state,
     log_worktree_info,
 )
+from .security import get_secure_logger
 
-logger = logging.getLogger("auto-claude-api")
+logger = get_secure_logger("auto-claude-api")
 
 
 def _get_log_level() -> str:

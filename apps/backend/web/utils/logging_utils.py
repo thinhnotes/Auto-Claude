@@ -7,7 +7,6 @@ Includes structured logging for task execution, plan loading, and error tracking
 """
 
 import json
-import logging
 import os
 import traceback
 from collections.abc import Callable
@@ -16,8 +15,10 @@ from functools import wraps
 from pathlib import Path
 from typing import Any
 
+from .security import get_secure_logger
+
 # Create a dedicated logger for web operations
-logger = logging.getLogger("auto-claude-api")
+logger = get_secure_logger("auto-claude-api")
 
 
 def log_function_call(

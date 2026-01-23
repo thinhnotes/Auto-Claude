@@ -5,7 +5,6 @@ Worktrees Router
 API endpoints for managing Git worktrees for task isolation.
 """
 
-import logging
 import sys
 from pathlib import Path
 
@@ -19,10 +18,11 @@ if str(_PARENT_DIR) not in sys.path:
 
 from core.worktree import WorktreeInfo, WorktreeManager
 
+from ..utils.security import get_secure_logger
 from .projects import load_projects
 
 router = APIRouter()
-logger = logging.getLogger("auto-claude-api")
+logger = get_secure_logger("auto-claude-api")
 
 
 class WorktreeResponse(BaseModel):

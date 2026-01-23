@@ -5,7 +5,6 @@ Source Environment Router
 API endpoints for Auto Claude source environment configuration.
 """
 
-import logging
 import os
 import sys
 from pathlib import Path
@@ -19,8 +18,10 @@ if str(_PARENT_DIR) not in sys.path:
     sys.path.insert(0, str(_PARENT_DIR))
 
 
+from ..utils.security import get_secure_logger
+
 router = APIRouter()
-logger = logging.getLogger("auto-claude-api")
+logger = get_secure_logger("auto-claude-api")
 
 # Backend .env file location
 ENV_FILE = _PARENT_DIR / ".env"

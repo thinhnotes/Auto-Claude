@@ -44,7 +44,11 @@ logging.basicConfig(
     format="%(asctime)s | %(levelname)-7s | %(message)s",
     datefmt="%H:%M:%S",
 )
-logger = logging.getLogger("auto-claude-api")
+
+# Import secure logger AFTER basicConfig
+from .utils.security import get_secure_logger
+
+logger = get_secure_logger("auto-claude-api")
 
 # Ensure parent directory is in path for imports
 if str(_BACKEND_DIR) not in sys.path:

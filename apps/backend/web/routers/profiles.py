@@ -7,7 +7,6 @@ Stores API profiles with baseUrl, apiKey, and optional model mappings.
 """
 
 import json
-import logging
 import sys
 import time
 import uuid
@@ -22,8 +21,10 @@ _PARENT_DIR = Path(__file__).parent.parent.parent
 if str(_PARENT_DIR) not in sys.path:
     sys.path.insert(0, str(_PARENT_DIR))
 
+from ..utils.security import get_secure_logger
+
 router = APIRouter()
-logger = logging.getLogger("auto-claude-api")
+logger = get_secure_logger("auto-claude-api")
 
 
 class APIProfile(BaseModel):

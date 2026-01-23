@@ -8,7 +8,6 @@ This enables web mode to detect and use the Claude CLI installed
 on the backend server.
 """
 
-import logging
 import shutil
 import subprocess
 from pathlib import Path
@@ -16,8 +15,10 @@ from pathlib import Path
 from fastapi import APIRouter
 from pydantic import BaseModel
 
+from ..utils.security import get_secure_logger
+
 router = APIRouter()
-logger = logging.getLogger("auto-claude-api")
+logger = get_secure_logger("auto-claude-api")
 
 
 class ClaudeVersionInfo(BaseModel):

@@ -6,7 +6,6 @@ API endpoints for managing projects.
 """
 
 import json
-import logging
 import os
 import subprocess
 import sys
@@ -23,8 +22,10 @@ if str(_PARENT_DIR) not in sys.path:
     sys.path.insert(0, str(_PARENT_DIR))
 
 
+from ..utils.security import get_secure_logger
+
 router = APIRouter()
-logger = logging.getLogger("auto-claude-api")
+logger = get_secure_logger("auto-claude-api")
 
 
 class ProjectCreate(BaseModel):

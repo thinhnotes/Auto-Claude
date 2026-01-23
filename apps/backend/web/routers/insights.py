@@ -12,7 +12,6 @@ This router provides:
 
 import asyncio
 import json
-import logging
 import os
 import sys
 import tempfile
@@ -30,10 +29,11 @@ _PARENT_DIR = Path(__file__).parent.parent.parent
 if str(_PARENT_DIR) not in sys.path:
     sys.path.insert(0, str(_PARENT_DIR))
 
+from ..utils.security import get_secure_logger
 from .projects import load_projects
 
 router = APIRouter()
-logger = logging.getLogger("auto-claude-api")
+logger = get_secure_logger("auto-claude-api")
 
 
 class InsightsMessage(BaseModel):
