@@ -5,12 +5,10 @@ Source Environment Router
 API endpoints for Auto Claude source environment configuration.
 """
 
-import json
 import logging
 import os
 import sys
 from pathlib import Path
-from typing import Optional
 
 from fastapi import APIRouter
 from pydantic import BaseModel
@@ -30,14 +28,14 @@ ENV_FILE = _PARENT_DIR / ".env"
 
 class SourceEnvConfig(BaseModel):
     """Source environment configuration."""
-    claudeOAuthToken: Optional[str] = None
+    claudeOAuthToken: str | None = None
 
 
 class SourceEnvCheckResult(BaseModel):
     """Result of checking source token."""
     valid: bool
     message: str
-    email: Optional[str] = None
+    email: str | None = None
 
 
 def load_env_file() -> dict[str, str]:
@@ -53,7 +51,7 @@ def load_env_file() -> dict[str, str]:
                     # Remove quotes if present
                     value = value.strip().strip('"').strip("'")
                     env_vars[key.strip()] = value
-        except IOError:
+        except OSError:
             pass
     return env_vars
 
@@ -92,7 +90,7 @@ async def get_source_env() -> dict:
 
 class UpdateSourceEnvRequest(BaseModel):
     """Request to update source environment."""
-    claudeOAuthToken: Optional[str] = None
+    claudeOAuthToken: str | None = None
 
 
 @router.patch("/source-env")

@@ -13,7 +13,6 @@ import sys
 import uuid
 from datetime import datetime
 from pathlib import Path
-from typing import Optional
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
@@ -43,8 +42,8 @@ class ProjectResponse(BaseModel):
     path: str
     created_at: str
     specs_count: int = 0
-    last_accessed: Optional[str] = None
-    autoBuildPath: Optional[str] = None
+    last_accessed: str | None = None
+    autoBuildPath: str | None = None
 
 
 class ProjectListResponse(BaseModel):
@@ -69,7 +68,7 @@ def load_projects() -> list[dict]:
     try:
         with open(projects_file) as f:
             return json.load(f)
-    except (json.JSONDecodeError, IOError):
+    except (json.JSONDecodeError, OSError):
         return []
 
 
@@ -342,7 +341,7 @@ async def create_project_folder(request: CreateFolderRequest) -> dict:
             }
         }
     
-    except PermissionError:
+    except OSError:
         return {
             "success": False,
             "error": f"Permission denied: Cannot create folder at {project_path}"
@@ -591,47 +590,47 @@ class ProjectEnvConfig(BaseModel):
     """Project environment configuration."""
     
     # Claude Authentication
-    claudeOAuthToken: Optional[str] = None
+    claudeOAuthToken: str | None = None
     claudeAuthStatus: str = "not_configured"  # authenticated, token_set, not_configured
     claudeTokenIsGlobal: bool = True
     
     # Model Override
-    autoBuildModel: Optional[str] = None
+    autoBuildModel: str | None = None
     
     # Linear Integration
     linearEnabled: bool = False
-    linearApiKey: Optional[str] = None
-    linearTeamId: Optional[str] = None
-    linearProjectId: Optional[str] = None
+    linearApiKey: str | None = None
+    linearTeamId: str | None = None
+    linearProjectId: str | None = None
     linearRealtimeSync: bool = False
     
     # GitHub Integration
     githubEnabled: bool = False
-    githubToken: Optional[str] = None
-    githubRepo: Optional[str] = None
+    githubToken: str | None = None
+    githubRepo: str | None = None
     githubAutoSync: bool = False
-    githubAuthMethod: Optional[str] = None
+    githubAuthMethod: str | None = None
     
     # GitLab Integration
     gitlabEnabled: bool = False
     gitlabInstanceUrl: str = "https://gitlab.com"
-    gitlabToken: Optional[str] = None
-    gitlabProject: Optional[str] = None
+    gitlabToken: str | None = None
+    gitlabProject: str | None = None
     gitlabAutoSync: bool = False
     
     # Azure DevOps Integration
     azureDevOpsEnabled: bool = False
-    azureDevOpsOrganizationUrl: Optional[str] = None
-    azureDevOpsProject: Optional[str] = None
-    azureDevOpsTeam: Optional[str] = None
-    azureDevOpsPersonalAccessToken: Optional[str] = None
+    azureDevOpsOrganizationUrl: str | None = None
+    azureDevOpsProject: str | None = None
+    azureDevOpsTeam: str | None = None
+    azureDevOpsPersonalAccessToken: str | None = None
     
     # Git/Worktree Settings
-    defaultBranch: Optional[str] = None
+    defaultBranch: str | None = None
     
     # Graphiti Memory Integration
     graphitiEnabled: bool = True
-    openaiApiKey: Optional[str] = None
+    openaiApiKey: str | None = None
     openaiKeyIsGlobal: bool = True
 
 
@@ -648,7 +647,7 @@ def load_project_env(project_path: Path) -> dict:
     try:
         with open(env_file) as f:
             return json.load(f)
-    except (json.JSONDecodeError, IOError):
+    except (json.JSONDecodeError, OSError):
         return {}
 
 

@@ -16,10 +16,8 @@ import os
 import sys
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Optional
 
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel
 
 # Ensure parent directory is in path for imports
 _PARENT_DIR = Path(__file__).parent.parent.parent
@@ -51,7 +49,7 @@ def load_project_index(project_path: Path) -> dict | None:
     try:
         with open(index_path) as f:
             return json.load(f)
-    except (json.JSONDecodeError, IOError) as e:
+    except (json.JSONDecodeError, OSError) as e:
         logger.warning(f"Failed to load project index: {e}")
         return None
 
@@ -76,7 +74,7 @@ def load_graphiti_state(project_path: Path) -> dict | None:
             try:
                 with open(state_file) as f:
                     return json.load(f)
-            except (json.JSONDecodeError, IOError):
+            except (json.JSONDecodeError, OSError):
                 continue
     
     return None
@@ -92,7 +90,7 @@ def build_memory_status(project_path: Path) -> dict:
         try:
             with open(env_file) as f:
                 env_config = json.load(f)
-        except (json.JSONDecodeError, IOError):
+        except (json.JSONDecodeError, OSError):
             pass
     
     graphiti_enabled = env_config.get("graphitiEnabled", True)
@@ -160,7 +158,7 @@ def load_file_based_memories(project_path: Path, limit: int = 20) -> list[dict]:
                     "createdAt": timestamp,
                     "validAt": timestamp,
                 })
-            except IOError:
+            except OSError:
                 pass
         
         # Check for spec.md
@@ -180,7 +178,7 @@ def load_file_based_memories(project_path: Path, limit: int = 20) -> list[dict]:
                     "createdAt": timestamp,
                     "validAt": timestamp,
                 })
-            except IOError:
+            except OSError:
                 pass
     
     # Sort by creation time, newest first

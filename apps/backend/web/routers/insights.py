@@ -17,13 +17,13 @@ import os
 import sys
 import tempfile
 import uuid
+from collections.abc import AsyncGenerator
 from datetime import datetime
 from pathlib import Path
-from typing import Any, AsyncGenerator, Optional
 
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 # Ensure parent directory is in path for imports
 _PARENT_DIR = Path(__file__).parent.parent.parent
@@ -66,7 +66,7 @@ class SendMessageRequest(BaseModel):
     """Request to send a message."""
     
     message: str
-    modelConfig: Optional[InsightsModelConfig] = None
+    modelConfig: InsightsModelConfig | None = None
 
 
 def get_insights_dir(project_path: Path) -> Path:
@@ -92,7 +92,7 @@ def load_session(project_path: Path, session_id: str) -> dict | None:
     try:
         with open(session_file) as f:
             return json.load(f)
-    except (json.JSONDecodeError, IOError):
+    except (json.JSONDecodeError, OSError):
         return None
 
 
@@ -113,7 +113,7 @@ def get_current_session_id(project_path: Path) -> str | None:
         return None
     try:
         return pointer_file.read_text().strip()
-    except IOError:
+    except OSError:
         return None
 
 
@@ -144,7 +144,7 @@ def list_all_sessions(project_path: Path) -> list[dict]:
                     "createdAt": session.get("createdAt", ""),
                     "updatedAt": session.get("updatedAt", ""),
                 })
-        except (json.JSONDecodeError, IOError):
+        except (json.JSONDecodeError, OSError):
             continue
     
     # Sort by updated time, newest first

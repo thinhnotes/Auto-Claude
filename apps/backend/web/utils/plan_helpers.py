@@ -17,7 +17,6 @@ import logging
 import os
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Optional
 
 from workspace import get_existing_build_worktree
 
@@ -152,11 +151,11 @@ def load_plan_from_spec(
     spec_path: Path,
     project_path: Path,
     spec_folder: str,
-) -> tuple[Optional[dict], list[dict]]:
+) -> tuple[dict | None, list[dict]]:
     """
     Load implementation plan from spec, checking both main project and worktree.
-    
-    When a build is running in a worktree, the implementation_plan.json is 
+
+    When a build is running in a worktree, the implementation_plan.json is
     updated there, not in the main project. This function checks both locations
     and returns the most up-to-date plan.
     
@@ -314,7 +313,7 @@ def load_task_logs_from_spec(
     spec_path: Path,
     project_path: Path,
     spec_folder: str,
-) -> Optional[dict]:
+) -> dict | None:
     """
     Load task_logs.json from spec, checking both main project and worktree.
     

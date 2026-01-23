@@ -9,9 +9,9 @@ import json
 import os
 import sys
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter
 from pydantic import BaseModel, Field
 
 # Ensure parent directory is in path for imports
@@ -44,13 +44,13 @@ class SettingsModel(BaseModel):
     defaultModel: str = Field(default="opus", description="Default Claude model")
     
     # Path settings - critical for web mode
-    autoBuildPath: Optional[str] = Field(
+    autoBuildPath: str | None = Field(
         default=BACKEND_DIR,
         description="Path to Auto Claude backend source (auto-set in web mode)"
     )
-    pythonPath: Optional[str] = Field(default=None, description="Path to Python executable")
-    gitPath: Optional[str] = Field(default=None, description="Path to Git executable")
-    githubCLIPath: Optional[str] = Field(default=None, description="Path to GitHub CLI")
+    pythonPath: str | None = Field(default=None, description="Path to Python executable")
+    gitPath: str | None = Field(default=None, description="Path to Git executable")
+    githubCLIPath: str | None = Field(default=None, description="Path to GitHub CLI")
     
     # Agent settings
     agentFramework: str = Field(default="auto-claude", description="Agent framework to use")
@@ -73,8 +73,8 @@ class SettingsModel(BaseModel):
     )
     
     # API keys (optional - may be set via .env)
-    globalClaudeOAuthToken: Optional[str] = Field(default=None, description="Global Claude OAuth token")
-    globalOpenAIApiKey: Optional[str] = Field(default=None, description="Global OpenAI API key")
+    globalClaudeOAuthToken: str | None = Field(default=None, description="Global Claude OAuth token")
+    globalOpenAIApiKey: str | None = Field(default=None, description="Global OpenAI API key")
     
     # Changelog preferences
     changelogFormat: str = Field(default="keep-a-changelog", description="Changelog format")
@@ -89,7 +89,7 @@ class SettingsModel(BaseModel):
     
     # Legacy fields for compatibility
     auto_qa: bool = Field(default=True, description="Run QA automatically after builds")
-    max_iterations: Optional[int] = Field(
+    max_iterations: int | None = Field(
         default=None, description="Maximum agent iterations (None = unlimited)"
     )
     workspace_isolation: bool = Field(
@@ -122,7 +122,7 @@ def load_settings() -> SettingsModel:
         with open(settings_file) as f:
             data = json.load(f)
             return SettingsModel(**data)
-    except (json.JSONDecodeError, IOError):
+    except (json.JSONDecodeError, OSError):
         return SettingsModel()
 
 

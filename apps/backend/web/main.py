@@ -50,7 +50,21 @@ logger = logging.getLogger("auto-claude-api")
 if str(_BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(_BACKEND_DIR))
 
-from .routers import projects_router, settings_router, tasks_router, profiles_router, worktrees_router, insights_router, claude_cli_router, terminals_router, context_router, git_router, source_env_router, ollama_router, roadmap_router
+from .routers import (
+    claude_cli_router,
+    context_router,
+    git_router,
+    insights_router,
+    ollama_router,
+    profiles_router,
+    projects_router,
+    roadmap_router,
+    settings_router,
+    source_env_router,
+    tasks_router,
+    terminals_router,
+    worktrees_router,
+)
 
 
 class ConnectionManager:
@@ -243,7 +257,6 @@ async def test_api_connection(request: dict) -> dict:
 @app.get("/api/browse-folders")
 async def browse_folders(path: str = "") -> dict:
     """Browse folders on the server for project selection."""
-    import os
 
     # Default to home directory
     if not path:

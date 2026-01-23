@@ -5,19 +5,16 @@ Ollama Router
 API endpoints for Ollama model management.
 """
 
-import json
 import logging
 import os
 import shutil
 import subprocess
 import sys
 from pathlib import Path
-from typing import Optional
-
-from fastapi import APIRouter
-from pydantic import BaseModel
 
 import httpx
+from fastapi import APIRouter
+from pydantic import BaseModel
 
 # Ensure parent directory is in path for imports
 _PARENT_DIR = Path(__file__).parent.parent.parent
@@ -31,13 +28,13 @@ logger = logging.getLogger("auto-claude-api")
 DEFAULT_OLLAMA_URL = "http://localhost:11434"
 
 
-def get_ollama_url(base_url: Optional[str] = None) -> str:
+def get_ollama_url(base_url: str | None = None) -> str:
     """Get the Ollama base URL."""
     return base_url or os.environ.get("OLLAMA_BASE_URL", DEFAULT_OLLAMA_URL)
 
 
 @router.get("/ollama/status")
-async def check_ollama_status(baseUrl: Optional[str] = None) -> dict:
+async def check_ollama_status(baseUrl: str | None = None) -> dict:
     """Check if Ollama is running."""
     url = get_ollama_url(baseUrl)
     
@@ -147,7 +144,7 @@ async def install_ollama() -> dict:
 
 
 @router.get("/ollama/models")
-async def list_ollama_models(baseUrl: Optional[str] = None) -> dict:
+async def list_ollama_models(baseUrl: str | None = None) -> dict:
     """List all Ollama models."""
     url = get_ollama_url(baseUrl)
     
@@ -198,7 +195,7 @@ async def list_ollama_models(baseUrl: Optional[str] = None) -> dict:
 
 
 @router.get("/ollama/embedding-models")
-async def list_ollama_embedding_models(baseUrl: Optional[str] = None) -> dict:
+async def list_ollama_embedding_models(baseUrl: str | None = None) -> dict:
     """List Ollama embedding models."""
     result = await list_ollama_models(baseUrl)
     
@@ -238,7 +235,7 @@ async def list_ollama_embedding_models(baseUrl: Optional[str] = None) -> dict:
 class PullModelRequest(BaseModel):
     """Request to pull a model."""
     modelName: str
-    baseUrl: Optional[str] = None
+    baseUrl: str | None = None
 
 
 @router.post("/ollama/pull")

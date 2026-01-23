@@ -9,9 +9,8 @@ import logging
 import subprocess
 import sys
 from pathlib import Path
-from typing import Optional
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter
 from pydantic import BaseModel
 
 # Ensure parent directory is in path for imports
@@ -37,7 +36,7 @@ def run_git_command(args: list[str], cwd: str, timeout: int = 30) -> tuple[bool,
         return result.returncode == 0, result.stdout.strip(), result.stderr.strip()
     except subprocess.TimeoutExpired:
         return False, "", "Git command timed out"
-    except FileNotFoundError:
+    except OSError:
         return False, "", "Git is not installed"
     except Exception as e:
         return False, "", str(e)
@@ -235,7 +234,7 @@ async def check_git_status(path: str) -> dict:
     if has_commits and current_branch:
         # Try to get upstream tracking info
         success, ahead_behind, _ = run_git_command(
-            ["rev-list", "--left-right", "--count", f"HEAD...@{{u}}"],
+            ["rev-list", "--left-right", "--count", "HEAD...@{u}"],
             str(project_path)
         )
         if success and ahead_behind:

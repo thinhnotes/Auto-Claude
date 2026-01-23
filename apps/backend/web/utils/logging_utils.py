@@ -10,10 +10,11 @@ import json
 import logging
 import os
 import traceback
+from collections.abc import Callable
 from datetime import datetime
 from functools import wraps
 from pathlib import Path
-from typing import Any, Callable, Optional
+from typing import Any
 
 # Create a dedicated logger for web operations
 logger = logging.getLogger("auto-claude-api")
@@ -21,7 +22,7 @@ logger = logging.getLogger("auto-claude-api")
 
 def log_function_call(
     func_name: str,
-    args: Optional[dict] = None,
+    args: dict | None = None,
     level: str = "DEBUG"
 ) -> None:
     """Log a function call with its arguments."""
@@ -51,7 +52,7 @@ def log_function_result(
 def log_error(
     func_name: str,
     error: Exception,
-    context: Optional[dict] = None
+    context: dict | None = None
 ) -> None:
     """Log an error with full traceback and context."""
     context_str = json.dumps(context, default=str) if context else "{}"
@@ -66,7 +67,7 @@ def log_path_check(
     context: str,
     path: Path,
     exists: bool,
-    extra_info: Optional[str] = None
+    extra_info: str | None = None
 ) -> None:
     """Log a path existence check."""
     emoji = "📁" if exists else "📭"
@@ -79,7 +80,7 @@ def log_plan_state(
     spec_folder: str,
     plan_found: bool,
     subtask_count: int,
-    source: Optional[str] = None
+    source: str | None = None
 ) -> None:
     """Log the state of an implementation plan."""
     emoji = "📋" if plan_found else "📭"
@@ -93,7 +94,7 @@ def log_plan_state(
 def log_task_lifecycle(
     event: str,
     task_id: str,
-    details: Optional[dict] = None
+    details: dict | None = None
 ) -> None:
     """Log task lifecycle events (start, stop, complete, error)."""
     event_emojis = {
@@ -113,7 +114,7 @@ def log_worktree_info(
     context: str,
     project_path: Path,
     spec_folder: str,
-    worktree_path: Optional[Path]
+    worktree_path: Path | None
 ) -> None:
     """Log worktree information."""
     if worktree_path:
@@ -130,7 +131,7 @@ def log_file_operation(
     operation: str,
     file_path: Path,
     success: bool,
-    details: Optional[str] = None
+    details: str | None = None
 ) -> None:
     """Log file read/write operations."""
     emoji = "💾" if success else "❌"
@@ -175,7 +176,7 @@ def dump_diagnostic_info(
     context: str,
     project_path: Path,
     spec_folder: str,
-    spec_dir: Optional[Path] = None
+    spec_dir: Path | None = None
 ) -> dict:
     """
     Dump comprehensive diagnostic information for debugging.

@@ -5,14 +5,9 @@ Worktrees Router
 API endpoints for managing Git worktrees for task isolation.
 """
 
-import json
 import logging
-import os
-import subprocess
 import sys
-from datetime import datetime
 from pathlib import Path
-from typing import Any, Optional
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
@@ -22,7 +17,8 @@ _PARENT_DIR = Path(__file__).parent.parent.parent
 if str(_PARENT_DIR) not in sys.path:
     sys.path.insert(0, str(_PARENT_DIR))
 
-from core.worktree import WorktreeManager, WorktreeInfo
+from core.worktree import WorktreeInfo, WorktreeManager
+
 from .projects import load_projects
 
 router = APIRouter()
@@ -41,8 +37,8 @@ class WorktreeResponse(BaseModel):
     files_changed: int = 0
     additions: int = 0
     deletions: int = 0
-    last_commit_date: Optional[str] = None
-    days_since_last_commit: Optional[int] = None
+    last_commit_date: str | None = None
+    days_since_last_commit: int | None = None
 
 
 class WorktreeListResponse(BaseModel):
@@ -56,9 +52,9 @@ class WorktreeStatusResponse(BaseModel):
     """Response model for worktree status."""
 
     has_worktree: bool
-    spec_name: Optional[str] = None
-    branch: Optional[str] = None
-    path: Optional[str] = None
+    spec_name: str | None = None
+    branch: str | None = None
+    path: str | None = None
     commit_count: int = 0
     files_changed: int = 0
     has_uncommitted_changes: bool = False
@@ -76,7 +72,7 @@ class MergeRequest(BaseModel):
 
     delete_after: bool = Field(default=False, description="Delete worktree after merge")
     no_commit: bool = Field(default=False, description="Stage changes without committing")
-    base_branch: Optional[str] = Field(default=None, description="Target branch for merge")
+    base_branch: str | None = Field(default=None, description="Target branch for merge")
 
 
 def get_project_path(project_id: str) -> Path:
@@ -240,7 +236,7 @@ async def merge_worktree(project_id: str, spec_name: str, request: MergeRequest)
 async def merge_worktree_preview(
     project_id: str,
     spec_name: str,
-    base_branch: Optional[str] = None,
+    base_branch: str | None = None,
 ) -> dict:
     """Preview what merging a worktree would do."""
     project_path = get_project_path(project_id)
@@ -333,8 +329,8 @@ async def detect_worktree_tools(project_id: str, spec_name: str) -> dict:
 
 class CreatePRRequest(BaseModel):
     """Request model for creating a pull request."""
-    target_branch: Optional[str] = None
-    title: Optional[str] = None
+    target_branch: str | None = None
+    title: str | None = None
     draft: bool = False
     force_push: bool = False
 

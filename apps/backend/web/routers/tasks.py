@@ -9,15 +9,14 @@ import asyncio
 import json
 import logging
 import os
-import signal
 import shutil
+import signal
 import subprocess
 import sys
+from collections.abc import AsyncGenerator
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Optional
-
-from typing import AsyncGenerator
+from typing import Any
 
 from fastapi import APIRouter, BackgroundTasks, HTTPException
 from fastapi.responses import StreamingResponse
@@ -30,18 +29,21 @@ if str(_PARENT_DIR) not in sys.path:
 
 from cli.spec_commands import list_specs
 from cli.utils import find_spec, get_specs_dir
+from core.worktree import WorktreeManager
 from progress import count_subtasks
 from workspace import get_existing_build_worktree
-from core.worktree import WorktreeManager
 
-from .projects import load_projects
-from ..utils.plan_helpers import get_all_subtasks, load_plan_from_spec, load_task_logs_from_spec
 from ..utils.logging_utils import (
     dump_diagnostic_info,
-    log_task_lifecycle,
-    log_path_check,
     log_file_operation,
+    log_path_check,
+    log_task_lifecycle,
 )
+from ..utils.plan_helpers import (
+    load_plan_from_spec,
+    load_task_logs_from_spec,
+)
+from .projects import load_projects
 
 router = APIRouter()
 logger = logging.getLogger("auto-claude-api")
@@ -102,10 +104,10 @@ _cleanup_finished_tasks()
 class TaskCreate(BaseModel):
     """Request model for creating a task."""
 
-    title: Optional[str] = Field(default=None, description="Task title")
+    title: str | None = Field(default=None, description="Task title")
     description: str = Field(..., min_length=1, description="Task description")
-    complexity: Optional[str] = Field(default=None, description="Complexity: simple, standard, or complex")
-    metadata: Optional[dict[str, Any]] = Field(default=None, description="Additional metadata")
+    complexity: str | None = Field(default=None, description="Complexity: simple, standard, or complex")
+    metadata: dict[str, Any] | None = Field(default=None, description="Additional metadata")
 
 
 class TaskResponse(BaseModel):
@@ -118,8 +120,8 @@ class TaskResponse(BaseModel):
     progress: str
     has_build: bool
     project_id: str
-    created_at: Optional[str] = None
-    spec_content: Optional[str] = None
+    created_at: str | None = None
+    spec_content: str | None = None
 
 
 class TaskListResponse(BaseModel):
@@ -134,7 +136,7 @@ class TaskStartRequest(BaseModel):
 
     auto_continue: bool = Field(default=True, description="Auto-continue existing builds")
     skip_qa: bool = Field(default=False, description="Skip QA validation")
-    model: Optional[str] = Field(default=None, description="Model to use")
+    model: str | None = Field(default=None, description="Model to use")
 
 
 class TaskLogsResponse(BaseModel):
@@ -683,8 +685,8 @@ async def start_task(task_id: str, request: TaskStartRequest) -> dict[str, Any]:
     })
 
     return {
-        "status": "started", 
-        "task_id": task_id, 
+        "status": "started",
+        "task_id": task_id,
         "pid": process.pid,
         "log_file": str(log_file),
         "message": "Task running in background. You can close the browser safely."
@@ -863,7 +865,7 @@ async def get_task_logs(task_id: str, lines: int = 100) -> TaskLogsResponse:
 async def get_task_logs_detailed(
     project_id: str,
     spec_id: str,
-    since: Optional[str] = None,
+    since: str | None = None,
 ) -> dict[str, Any]:
     """Get detailed phase-based logs for a task (for task detail panel).
     
@@ -894,7 +896,7 @@ async def get_task_logs_detailed(
             "entries": []
         },
         "coding": {
-            "phase": "coding", 
+            "phase": "coding",
             "status": "pending",
             "started_at": None,
             "completed_at": None,
@@ -902,7 +904,7 @@ async def get_task_logs_detailed(
         },
         "validation": {
             "phase": "validation",
-            "status": "pending", 
+            "status": "pending",
             "started_at": None,
             "completed_at": None,
             "entries": []
@@ -1049,7 +1051,7 @@ async def stream_task_logs(task_id: str) -> StreamingResponse:
                 # Read new content from build.log (main spec dir)
                 if build_log.exists():
                     try:
-                        with open(build_log, "r") as f:
+                        with open(build_log) as f:
                             f.seek(last_build_pos)
                             new_content = f.read()
                             if new_content:
@@ -1063,7 +1065,7 @@ async def stream_task_logs(task_id: str) -> StreamingResponse:
                 # Read new content from worktree build.log
                 if worktree_build_log and worktree_build_log.exists():
                     try:
-                        with open(worktree_build_log, "r") as f:
+                        with open(worktree_build_log) as f:
                             f.seek(last_worktree_build_pos)
                             new_content = f.read()
                             if new_content:
@@ -1269,7 +1271,7 @@ async def get_task_git_changes(project_id: str, spec_id: str) -> dict:
                 # Map git status codes to readable names
                 status_map = {
                     "A": "added",
-                    "M": "modified", 
+                    "M": "modified",
                     "D": "deleted",
                     "R": "renamed",
                     "C": "copied",
@@ -1340,7 +1342,7 @@ async def get_task_file_diff(
     
     Args:
         project_id: Project ID
-        spec_id: Spec/task ID  
+        spec_id: Spec/task ID
         file_path: Relative path to the file within the project
     
     Returns the unified diff content for the file.
@@ -1395,7 +1397,7 @@ async def get_task_file_diff(
                     diff_lines = [
                         f"diff --git a/{file_path} b/{file_path}",
                         "new file mode 100644",
-                        f"--- /dev/null",
+                        "--- /dev/null",
                         f"+++ b/{file_path}",
                         f"@@ -0,0 +1,{len(lines)} @@"
                     ]

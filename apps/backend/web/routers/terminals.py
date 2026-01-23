@@ -17,13 +17,10 @@ import select
 import shutil
 import signal
 import struct
-import subprocess
-import sys
 import termios
 import uuid
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
@@ -40,12 +37,12 @@ class TerminalSession:
     fd: int
     cwd: str
     shell: str
-    websocket: Optional[WebSocket] = None
+    websocket: WebSocket | None = None
     cols: int = 80
     rows: int = 24
     name: str = "Terminal"
     is_active: bool = True
-    project_path: Optional[str] = None
+    project_path: str | None = None
 
 
 # Store active terminal sessions
@@ -71,8 +68,8 @@ def get_default_shell() -> str:
 
 def create_pty_process(
     cwd: str,
-    shell: Optional[str] = None,
-    env: Optional[dict] = None,
+    shell: str | None = None,
+    env: dict | None = None,
     cols: int = 80,
     rows: int = 24,
 ) -> tuple[int, int]:
@@ -119,7 +116,7 @@ def resize_pty(fd: int, cols: int, rows: int) -> None:
 
 
 @router.get("/terminals")
-async def list_terminals(projectPath: Optional[str] = None) -> dict:
+async def list_terminals(projectPath: str | None = None) -> dict:
     """List all active terminal sessions.
 
     Args:
