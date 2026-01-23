@@ -425,6 +425,8 @@ export function createWebAdapter(): AppAPI {
     worktreeDetectTools: async (projectId: string, specName: string) => {
       return apiRequest(`/api/projects/${projectId}/worktrees/${specName}/tools`);
     },
+    createWorktreePR: unsupported('createWorktreePR'),
+    clearStagedState: unsupported('clearStagedState'),
 
     // ===================
     // Task Archive
@@ -611,10 +613,12 @@ export function createWebAdapter(): AppAPI {
       const result = await apiRequest<Array<{ id: string }>>('/api/terminals');
       if (result.success && result.data) {
         const found = result.data.some(t => t.id === terminalId);
-        return { success: true, data: found };
+        return { success: true, data: { alive: found } };
       }
-      return { success: true, data: false };
+      return { success: true, data: { alive: false } };
     },
+    updateTerminalDisplayOrders: unsupported('updateTerminalDisplayOrders'),
+    listOtherWorktrees: unsupported('listOtherWorktrees'),
 
     // Terminal worktree
     createTerminalWorktree: async () => ({
@@ -648,6 +652,10 @@ export function createWebAdapter(): AppAPI {
     onTerminalClaudeBusy: unsupportedEvent('onTerminalClaudeBusy'),
     onTerminalPendingResume: unsupportedEvent('onTerminalPendingResume'),
     onTerminalWorktreeConfigChange: unsupportedEvent('onTerminalWorktreeConfigChange'),
+    onTerminalOnboardingComplete: unsupportedEvent('onTerminalOnboardingComplete'),
+    onTerminalProfileChanged: unsupportedEvent('onTerminalProfileChanged'),
+    onTerminalOAuthCodeNeeded: unsupportedEvent('onTerminalOAuthCodeNeeded'),
+    submitOAuthCode: unsupported('submitOAuthCode'),
 
     // ===================
     // Claude Profile Management (partial web support)
@@ -676,6 +684,8 @@ export function createWebAdapter(): AppAPI {
     switchClaudeProfile: unsupported('switchClaudeProfile'),
     initializeClaudeProfile: unsupported('initializeClaudeProfile'),
     setClaudeProfileToken: unsupported('setClaudeProfileToken'),
+    authenticateClaudeProfile: unsupported('authenticateClaudeProfile'),
+    verifyClaudeProfileAuth: unsupported('verifyClaudeProfileAuth'),
     getAutoSwitchSettings: unsupported('getAutoSwitchSettings'),
     updateAutoSwitchSettings: unsupported('updateAutoSwitchSettings'),
     retryWithProfile: unsupported('retryWithProfile'),
@@ -1010,6 +1020,7 @@ export function createWebAdapter(): AppAPI {
     downloadAppUpdate: unsupported('downloadAppUpdate'),
     downloadStableUpdate: unsupported('downloadStableUpdate'),
     installAppUpdate: unsupportedVoid('installAppUpdate'),
+    getDownloadedAppUpdate: unsupported('getDownloadedAppUpdate'),
     onAppUpdateAvailable: unsupportedEvent('onAppUpdateAvailable'),
     onAppUpdateDownloaded: unsupportedEvent('onAppUpdateDownloaded'),
     onAppUpdateProgress: unsupportedEvent('onAppUpdateProgress'),
@@ -1686,6 +1697,7 @@ export function createWebAdapter(): AppAPI {
     fetchClaudeUsage: unsupported('fetchClaudeUsage'),
     getBestAvailableProfile: unsupported('getBestAvailableProfile'),
     onSDKRateLimit: unsupportedEvent('onSDKRateLimit'),
+    onAuthFailure: unsupportedEvent('onAuthFailure'),
     onProactiveSwapNotification: unsupportedEvent('onProactiveSwapNotification'),
     getReleaseableVersions: unsupported('getReleaseableVersions'),
     runReleasePreflightCheck: unsupported('runReleasePreflightCheck'),
@@ -1704,6 +1716,26 @@ export function createWebAdapter(): AppAPI {
     onGitHubInvestigationProgress: unsupportedEvent('onGitHubInvestigationProgress'),
     onGitHubInvestigationComplete: unsupportedEvent('onGitHubInvestigationComplete'),
     onGitHubInvestigationError: unsupportedEvent('onGitHubInvestigationError'),
+    recoverStuckTask: unsupported('recoverStuckTask'),
+    getCliToolsInfo: unsupported('getCliToolsInfo'),
+    getSentryDsn: async () => '',
+    notifySentryStateChanged: unsupportedVoid('notifySentryStateChanged'),
+    discoverModels: unsupported('discoverModels'),
+    selectDirectory: async (): Promise<string | null> => {
+      // In web mode, prompt for manual path entry
+      const path = window.prompt('Enter project folder path:', '/home');
+      return path || null;
+    },
+    getDefaultProjectLocation: async () => null,
+    initializeProject: unsupported('initializeProject'),
+    addProject: unsupported('addProject'),
+    removeProject: unsupported('removeProject'),
+    refreshRoadmap: unsupportedVoid('refreshRoadmap'),
+    getCliToolsInfo: unsupported('getCliToolsInfo'),
+    getClaudeCodeVersions: unsupported('getClaudeCodeVersions'),
+    installClaudeCodeVersion: unsupported('installClaudeCodeVersion'),
+    getClaudeCodeInstallations: unsupported('getClaudeCodeInstallations'),
+    setClaudeCodeActivePath: unsupported('setClaudeCodeActivePath'),
     
     // Platform identification for web mode
     platform: 'web' as const,

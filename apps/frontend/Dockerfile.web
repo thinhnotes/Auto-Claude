@@ -6,6 +6,20 @@ WORKDIR /app
 # Copy package files
 COPY package*.json ./
 
+# Remove electron-specific dependencies and overrides for web build using node
+RUN node -e "\
+const fs = require('fs'); \
+const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8')); \
+delete pkg.devDependencies?.electron; \
+delete pkg.devDependencies?.['electron-builder']; \
+delete pkg.devDependencies?.['electron-vite']; \
+delete pkg.devDependencies?.['@electron/rebuild']; \
+delete pkg.devDependencies?.['@electron-toolkit/preload']; \
+delete pkg.devDependencies?.['@electron-toolkit/utils']; \
+delete pkg.dependencies?.['@lydell/node-pty']; \
+delete pkg.overrides; \
+fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2));"
+
 # Install dependencies (use npm install since lock file may be out of sync)
 RUN npm install --ignore-scripts
 
