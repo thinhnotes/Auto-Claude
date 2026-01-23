@@ -283,16 +283,16 @@ export function Sidebar({
         disabled={!selectedProjectId}
         aria-keyshortcuts={item.shortcut}
         className={cn(
-          'flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-all duration-200',
+          'flex w-full items-center gap-2.5 rounded-md px-2.5 py-2 text-sm transition-all duration-200',
           'hover:bg-accent hover:text-accent-foreground',
           'disabled:pointer-events-none disabled:opacity-50',
           isActive && 'bg-accent text-accent-foreground'
         )}
       >
         <Icon className="h-4 w-4 shrink-0" />
-        <span className="flex-1 text-left">{t(item.labelKey)}</span>
+        <span className="flex-1 text-left truncate">{t(item.labelKey)}</span>
         {item.shortcut && (
-          <kbd className="pointer-events-none hidden h-5 select-none items-center gap-1 rounded-md border border-border bg-secondary px-1.5 font-mono text-[10px] font-medium text-muted-foreground sm:flex">
+          <kbd className="pointer-events-none hidden h-5 select-none items-center gap-1 rounded-md border border-border bg-secondary px-1.5 font-mono text-[10px] font-medium text-muted-foreground sm:flex shrink-0">
             {item.shortcut}
           </kbd>
         )}
@@ -302,42 +302,45 @@ export function Sidebar({
 
   return (
     <TooltipProvider>
-      <div className="flex h-full w-64 flex-col bg-sidebar border-r border-border">
+      <div className="flex h-full w-64 flex-col bg-sidebar border-r border-border overflow-hidden">
         {/* Header with drag area - extra top padding for macOS traffic lights */}
-        <div className="electron-drag flex h-14 items-center px-4 pt-6">
+        <div className="electron-drag flex h-12 items-center px-4 pt-5 shrink-0">
           <span className="electron-no-drag text-lg font-bold text-primary">Auto Claude</span>
         </div>
 
-        <Separator className="mt-2" />
+        <Separator className="mt-1 shrink-0" />
 
+        <Separator className="shrink-0" />
 
-        <Separator />
-
-        {/* Navigation */}
-        <ScrollArea className="flex-1">
-          <div className="px-3 py-4">
+        {/* Navigation - scrollable area takes remaining space */}
+        <ScrollArea className="flex-1 min-h-0">
+          <div className="px-3 py-2">
             {/* Project Section */}
             <div>
-              <h3 className="mb-2 px-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              <h3 className="mb-1.5 px-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                 {t('sections.project')}
               </h3>
-              <nav className="space-y-1">
+              <nav className="space-y-0.5">
                 {visibleNavItems.map(renderNavItem)}
               </nav>
             </div>
           </div>
         </ScrollArea>
 
-        <Separator />
+        <Separator className="shrink-0" />
 
         {/* Rate Limit Indicator - shows when Claude is rate limited */}
-        <RateLimitIndicator />
+        <div className="shrink-0">
+          <RateLimitIndicator />
+        </div>
 
         {/* Update Banner - shows when app update is available */}
-        <UpdateBanner />
+        <div className="shrink-0">
+          <UpdateBanner />
+        </div>
 
-        {/* Bottom section with Settings, Help, and New Task */}
-        <div className="p-4 space-y-3">
+        {/* Bottom section with Settings, Help, and New Task - compact spacing for 16:9 */}
+        <div className="p-3 space-y-2 shrink-0">
           {/* Claude Code Status Badge */}
           <ClaudeCodeStatusBadge />
 
@@ -348,7 +351,7 @@ export function Sidebar({
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="flex-1 justify-start gap-2"
+                  className="flex-1 justify-start gap-2 h-8"
                   onClick={onSettingsClick}
                 >
                   <Settings className="h-4 w-4" />
@@ -362,6 +365,7 @@ export function Sidebar({
                 <Button
                   variant="ghost"
                   size="icon"
+                  className="h-8 w-8"
                   onClick={() => window.open('https://github.com/AndyMik90/Auto-Claude/issues', '_blank')}
                   aria-label={t('tooltips.help')}
                 >
@@ -374,7 +378,7 @@ export function Sidebar({
 
           {/* New Task button */}
           <Button
-            className="w-full"
+            className="w-full h-9"
             onClick={onNewTaskClick}
             disabled={!selectedProjectId || !selectedProject?.autoBuildPath}
           >
@@ -382,7 +386,7 @@ export function Sidebar({
             {t('actions.newTask')}
           </Button>
           {selectedProject && !selectedProject.autoBuildPath && (
-            <p className="mt-2 text-xs text-muted-foreground text-center">
+            <p className="text-xs text-muted-foreground text-center">
               {t('messages.initializeToCreateTasks')}
             </p>
           )}
