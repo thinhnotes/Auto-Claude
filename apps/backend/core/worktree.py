@@ -141,8 +141,6 @@ class PushAndCreatePRResult(TypedDict, total=False):
     error: str
     message: str
 
-from core.git_executable import run_git
-
 
 class WorktreeError(Exception):
     """Error during worktree operations."""
@@ -656,7 +654,9 @@ class WorktreeManager:
             # --no-commit stages the merge but doesn't create the commit
             merge_args.append("--no-commit")
         else:
-            merge_args.extend(["-m", f"auto-claude: Merge {info.branch} into {target_branch}"])
+            merge_args.extend(
+                ["-m", f"auto-claude: Merge {info.branch} into {target_branch}"]
+            )
 
         result = self._run_git(merge_args)
 

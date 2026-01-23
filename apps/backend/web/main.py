@@ -5,7 +5,6 @@ Auto Claude Web API - Main Application
 FastAPI application with CORS, routers, and WebSocket support.
 """
 
-import asyncio
 import logging
 import sys
 import time
@@ -19,37 +18,57 @@ _ENV_FILE = _BACKEND_DIR / ".env"
 if _ENV_FILE.exists():
     try:
         from dotenv import load_dotenv
+
         load_dotenv(_ENV_FILE)
         print(f"[Web API] Loaded .env from {_ENV_FILE}")
     except ImportError:
         # Fallback: manually load .env
         import os
+
         with open(_ENV_FILE) as f:
             for line in f:
                 line = line.strip()
-                if line and not line.startswith('#') and '=' in line:
-                    key, _, value = line.partition('=')
+                if line and not line.startswith("#") and "=" in line:
+                    key, _, value = line.partition("=")
                     os.environ.setdefault(key.strip(), value.strip())
         print(f"[Web API] Loaded .env (manual) from {_ENV_FILE}")
 
 from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s | %(levelname)-7s | %(message)s",
-    datefmt="%H:%M:%S"
+    datefmt="%H:%M:%S",
 )
-logger = logging.getLogger("auto-claude-api")
+
+# Import secure logger AFTER basicConfig
+from .utils.security import get_secure_logger
+
+logger = get_secure_logger("auto-claude-api")
 
 # Ensure parent directory is in path for imports
 if str(_BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(_BACKEND_DIR))
 
-from .routers import projects_router, settings_router, tasks_router, profiles_router, worktrees_router, insights_router, claude_cli_router, terminals_router, context_router, git_router, source_env_router, ollama_router, roadmap_router
+from .routers import (
+    claude_cli_router,
+    context_router,
+    git_router,
+    insights_router,
+    ollama_router,
+    profiles_router,
+    projects_router,
+    roadmap_router,
+    settings_router,
+    source_env_router,
+    tasks_router,
+    terminals_router,
+    worktrees_router,
+)
 
 
 class ConnectionManager:
@@ -85,14 +104,15 @@ async def lifespan(app: FastAPI):
     logger.info("🚀 Auto Claude Web API starting...")
     logger.info("📡 API available at http://localhost:8000")
     logger.info("📖 API docs at http://localhost:8000/docs")
-    
+
     # Log environment info for debugging
     from .utils.logging_utils import log_environment_info
+
     try:
         log_environment_info()
     except Exception as e:
         logger.warning(f"Could not log environment info: {e}")
-    
+
     app.state.connection_manager = manager
 
     yield
@@ -127,19 +147,21 @@ app.add_middleware(
 async def log_requests(request: Request, call_next):
     """Log all incoming HTTP requests."""
     start_time = time.time()
-    
+
     # Log incoming request
     client_host = request.client.host if request.client else "unknown"
     logger.info(f"➡️  {request.method} {request.url.path} from {client_host}")
-    
+
     # Process request
     response = await call_next(request)
-    
+
     # Log response
     duration_ms = (time.time() - start_time) * 1000
     status_emoji = "✅" if response.status_code < 400 else "❌"
-    logger.info(f"{status_emoji} {request.method} {request.url.path} → {response.status_code} ({duration_ms:.1f}ms)")
-    
+    logger.info(
+        f"{status_emoji} {request.method} {request.url.path} → {response.status_code} ({duration_ms:.1f}ms)"
+    )
+
     return response
 
 
@@ -151,7 +173,9 @@ app.include_router(profiles_router, prefix="/api/profiles", tags=["profiles"])
 app.include_router(worktrees_router, prefix="/api", tags=["worktrees"])
 app.include_router(insights_router, prefix="/api", tags=["insights"])
 app.include_router(claude_cli_router, prefix="/api", tags=["claude-cli"])
-app.include_router(terminals_router, prefix="/api", tags=["terminals"])
+# Only include terminals router on Unix (Windows doesn't support pty/termios)
+if sys.platform != "win32":
+    app.include_router(terminals_router, prefix="/api", tags=["terminals"])
 app.include_router(context_router, prefix="/api", tags=["context"])
 app.include_router(git_router, prefix="/api", tags=["git"])
 app.include_router(source_env_router, prefix="/api", tags=["source-env"])
@@ -162,7 +186,7 @@ app.include_router(roadmap_router, prefix="/api", tags=["roadmap"])
 _STATIC_DIR = Path(__file__).parent / "static"
 if _STATIC_DIR.exists():
     app.mount("/assets", StaticFiles(directory=_STATIC_DIR / "assets"), name="assets")
-    
+
     @app.get("/")
     async def serve_spa():
         """Serve the web UI SPA."""
@@ -170,15 +194,16 @@ if _STATIC_DIR.exists():
         if index_file.exists():
             return FileResponse(index_file)
         return {"message": "Auto Claude API is running. Web UI not found."}
-    
+
     @app.get("/{full_path:path}")
     async def serve_spa_catchall(full_path: str):
         """Catch-all route for SPA - return index.html for all non-API routes."""
         # Don't intercept API routes - return 404
         if full_path.startswith("api/") or full_path.startswith("ws/"):
             from fastapi import HTTPException
+
             raise HTTPException(status_code=404, detail="Not Found")
-        
+
         # Serve index.html for all other routes (SPA routing)
         index_file = _STATIC_DIR / "index.html"
         if index_file.exists():
@@ -205,12 +230,15 @@ async def test_api_connection(request: dict) -> dict:
 
     # Validate URL format
     if not base_url.startswith(("http://", "https://")):
-        return {"success": False, "error": "Base URL must start with http:// or https://"}
+        return {
+            "success": False,
+            "error": "Base URL must start with http:// or https://",
+        }
 
     try:
         async with httpx.AsyncClient(timeout=10.0) as client:
             # Try multiple endpoint patterns for different API providers
-            base = base_url.rstrip('/')
+            base = base_url.rstrip("/")
             endpoints_to_try = [
                 ("/v1/models", {"x-api-key": api_key}),  # Anthropic-style
                 ("/v1/models", {"Authorization": f"Bearer {api_key}"}),  # OpenAI-style
@@ -222,11 +250,23 @@ async def test_api_connection(request: dict) -> dict:
                 try:
                     response = await client.get(f"{base}{endpoint}", headers=headers)
                     if response.status_code == 200:
-                        return {"success": True, "data": {"success": True, "message": "Connection successful"}}
+                        return {
+                            "success": True,
+                            "data": {
+                                "success": True,
+                                "message": "Connection successful",
+                            },
+                        }
                     elif response.status_code == 401:
-                        return {"success": False, "error": "Authentication failed - check your API key"}
+                        return {
+                            "success": False,
+                            "error": "Authentication failed - check your API key",
+                        }
                     elif response.status_code == 403:
-                        return {"success": False, "error": "Access forbidden - check API key permissions"}
+                        return {
+                            "success": False,
+                            "error": "Access forbidden - check API key permissions",
+                        }
                     last_error = f"API returned status {response.status_code}"
                 except httpx.RequestError as e:
                     last_error = str(e)
@@ -240,7 +280,6 @@ async def test_api_connection(request: dict) -> dict:
 @app.get("/api/browse-folders")
 async def browse_folders(path: str = "") -> dict:
     """Browse folders on the server for project selection."""
-    import os
 
     # Default to home directory
     if not path:
@@ -253,20 +292,20 @@ async def browse_folders(path: str = "") -> dict:
 
         entries = []
         for entry in sorted(base_path.iterdir()):
-            if entry.is_dir() and not entry.name.startswith('.'):
-                entries.append({
-                    "name": entry.name,
-                    "path": str(entry),
-                    "isDirectory": True
-                })
+            if entry.is_dir() and not entry.name.startswith("."):
+                entries.append(
+                    {"name": entry.name, "path": str(entry), "isDirectory": True}
+                )
 
         return {
             "success": True,
             "data": {
                 "currentPath": str(base_path),
-                "parentPath": str(base_path.parent) if base_path.parent != base_path else None,
-                "entries": entries
-            }
+                "parentPath": str(base_path.parent)
+                if base_path.parent != base_path
+                else None,
+                "entries": entries,
+            },
         }
     except PermissionError:
         return {"success": False, "error": "Permission denied"}
@@ -306,10 +345,10 @@ async def websocket_endpoint(websocket: WebSocket):
     """
     client_host = websocket.client.host if websocket.client else "unknown"
     logger.info(f"🔌 WebSocket connection from {client_host}")
-    
+
     await manager.connect(websocket)
     logger.info(f"📊 Active WebSocket connections: {len(manager.active_connections)}")
-    
+
     try:
         while True:
             data = await websocket.receive_json()
@@ -321,9 +360,7 @@ async def websocket_endpoint(websocket: WebSocket):
             elif event_type == "subscribe":
                 channel = data.get("channel")
                 logger.info(f"📢 Client {client_host} subscribed to: {channel}")
-                await websocket.send_json(
-                    {"type": "subscribed", "channel": channel}
-                )
+                await websocket.send_json({"type": "subscribed", "channel": channel})
             else:
                 await websocket.send_json(
                     {"type": "error", "message": f"Unknown event type: {event_type}"}

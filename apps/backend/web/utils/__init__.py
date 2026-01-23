@@ -5,14 +5,6 @@ Web API Utility Functions
 Utility functions for the web API layer.
 """
 
-from .plan_helpers import (
-    get_all_subtasks,
-    get_subtasks_by_phase,
-    load_plan_from_spec,
-    load_task_logs_from_spec,
-    normalize_plan,
-)
-
 from .logging_utils import (
     dump_diagnostic_info,
     log_environment_info,
@@ -25,6 +17,13 @@ from .logging_utils import (
     log_task_lifecycle,
     log_worktree_info,
     with_logging,
+)
+from .plan_helpers import (
+    get_all_subtasks,
+    get_subtasks_by_phase,
+    load_plan_from_spec,
+    load_task_logs_from_spec,
+    normalize_plan,
 )
 
 __all__ = [

@@ -26,7 +26,6 @@ import {
   Square
 } from 'lucide-react';
 import { Button } from './ui/button';
-import { Badge } from './ui/badge';
 import { Checkbox } from './ui/checkbox';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from './ui/card';
 import { ScrollArea } from './ui/scroll-area';
@@ -344,6 +343,10 @@ export function Worktrees({ projectId }: WorktreesProps) {
   // Selection state
   const [isSelectionMode, setIsSelectionMode] = useState(false);
   const [selectedWorktreeIds, setSelectedWorktreeIds] = useState<Set<string>>(new Set());
+
+  // Publish branch state
+  const [isPublishingBranch, setIsPublishingBranch] = useState(false);
+  const [publishingWorktreeId, setPublishingWorktreeId] = useState<string | null>(null);
 
   // Selection callbacks
   const toggleWorktree = useCallback((id: string) => {
@@ -664,7 +667,7 @@ export function Worktrees({ projectId }: WorktreesProps) {
           if (result.data.success && result.data.prUrl && !result.data.alreadyExists) {
             // Update task in store
             useTaskStore.getState().updateTask(prTask.id, {
-              status: 'pr_created',
+              status: 'done',
               metadata: { ...prTask.metadata, prUrl: result.data.prUrl }
             });
           }
@@ -1072,7 +1075,7 @@ export function Worktrees({ projectId }: WorktreesProps) {
                               {t('common:buttons.createPR')}
                             </Button>
                           )}
-                          {task?.status === 'pr_created' && task.metadata?.prUrl && (
+                          {task?.status === 'done' && task.metadata?.prUrl && (
                             <Button
                               variant="info"
                               size="sm"

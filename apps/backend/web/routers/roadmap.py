@@ -28,7 +28,9 @@ router = APIRouter()
 running_roadmaps: dict[str, dict[str, Any]] = {}
 
 # File to persist running roadmap state (survives server restart)
-RUNNING_ROADMAPS_FILE = Path(__file__).parent.parent.parent / ".auto-claude" / "running_roadmaps.json"
+RUNNING_ROADMAPS_FILE = (
+    Path(__file__).parent.parent.parent / ".auto-claude" / "running_roadmaps.json"
+)
 
 
 class RoadmapStartRequest(BaseModel):
@@ -166,7 +168,9 @@ def _transform_competitor_analysis(raw: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def _transform_roadmap(raw: dict[str, Any], project_id: str, project_name: str) -> dict[str, Any]:
+def _transform_roadmap(
+    raw: dict[str, Any], project_id: str, project_name: str
+) -> dict[str, Any]:
     def transform_milestone(m: dict[str, Any]) -> dict[str, Any]:
         return {
             "id": m.get("id"),
@@ -343,7 +347,10 @@ async def generate_roadmap(project_id: str, request: RoadmapStartRequest) -> dic
     run_script = backend_dir / "runners" / "roadmap_runner.py"
 
     if not run_script.exists():
-        return {"success": False, "error": f"roadmap_runner.py not found at {run_script}"}
+        return {
+            "success": False,
+            "error": f"roadmap_runner.py not found at {run_script}",
+        }
 
     log_file = roadmap_dir / "roadmap.log"
     cmd = [
@@ -366,11 +373,11 @@ async def generate_roadmap(project_id: str, request: RoadmapStartRequest) -> dic
 
     try:
         with open(log_file, "a") as log_handle:
-            log_handle.write(f"\n{'='*60}\n")
+            log_handle.write(f"\n{'=' * 60}\n")
             log_handle.write(f"Roadmap started at: {datetime.utcnow().isoformat()}\n")
             log_handle.write(f"Command: {' '.join(cmd)}\n")
             log_handle.write(f"Project path: {project_path}\n")
-            log_handle.write(f"{'='*60}\n\n")
+            log_handle.write(f"{'=' * 60}\n\n")
             log_handle.flush()
 
             process = subprocess.Popen(
@@ -474,7 +481,9 @@ async def save_roadmap(project_id: str, request: RoadmapSaveRequest) -> dict:
 
 
 @router.patch("/projects/{project_id}/roadmap/features/{feature_id}")
-async def update_feature_status(project_id: str, feature_id: str, request: dict) -> dict:
+async def update_feature_status(
+    project_id: str, feature_id: str, request: dict
+) -> dict:
     project_path = get_project_path(project_id)
     roadmap_path = get_roadmap_path(project_path)
 
@@ -511,7 +520,9 @@ async def convert_feature_to_spec(project_id: str, feature_id: str) -> dict:
 
     try:
         raw = json.loads(roadmap_path.read_text())
-        feature = next((f for f in raw.get("features", []) if f.get("id") == feature_id), None)
+        feature = next(
+            (f for f in raw.get("features", []) if f.get("id") == feature_id), None
+        )
         if not feature:
             return {"success": False, "error": "Feature not found"}
 

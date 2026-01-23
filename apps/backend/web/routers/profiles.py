@@ -7,12 +7,11 @@ Stores API profiles with baseUrl, apiKey, and optional model mappings.
 """
 
 import json
-import logging
 import sys
 import time
 import uuid
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
@@ -22,8 +21,10 @@ _PARENT_DIR = Path(__file__).parent.parent.parent
 if str(_PARENT_DIR) not in sys.path:
     sys.path.insert(0, str(_PARENT_DIR))
 
+from ..utils.security import get_secure_logger
+
 router = APIRouter()
-logger = logging.getLogger("auto-claude-api")
+logger = get_secure_logger("auto-claude-api")
 
 
 class APIProfile(BaseModel):
@@ -33,7 +34,7 @@ class APIProfile(BaseModel):
     name: str
     baseUrl: str
     apiKey: str
-    models: Optional[dict[str, str]] = None
+    models: dict[str, str] | None = None
     createdAt: int  # Unix timestamp (ms)
     updatedAt: int  # Unix timestamp (ms)
 
@@ -42,7 +43,7 @@ class ProfilesFile(BaseModel):
     """Profiles file structure."""
 
     profiles: list[APIProfile]
-    activeProfileId: Optional[str] = None
+    activeProfileId: str | None = None
     version: int = 1
 
 
@@ -65,7 +66,7 @@ def load_profiles() -> dict:
             if "version" not in data:
                 data["version"] = 1
             return data
-    except (json.JSONDecodeError, IOError):
+    except (json.JSONDecodeError, OSError):
         return {"profiles": [], "activeProfileId": None, "version": 1}
 
 
