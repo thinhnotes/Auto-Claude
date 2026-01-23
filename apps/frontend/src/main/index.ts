@@ -56,18 +56,19 @@ import type { AppSettings } from '../shared/types';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Window sizing constants
+// Optimized for 16:9 displays: 720p (1280×720), 768p (1366×768), 1080p (1920×1080), 1440p (2560×1440)
 // ─────────────────────────────────────────────────────────────────────────────
-/** Preferred window width on startup */
-const WINDOW_PREFERRED_WIDTH: number = 1400;
-/** Preferred window height on startup */
-const WINDOW_PREFERRED_HEIGHT: number = 900;
-/** Absolute minimum window width (supports high DPI displays with scaling) */
+/** Preferred window width on startup - sized to work well on 1366×768+ displays */
+const WINDOW_PREFERRED_WIDTH: number = 1280;
+/** Preferred window height on startup - fits 720p work area (~680px) with margin */
+const WINDOW_PREFERRED_HEIGHT: number = 720;
+/** Absolute minimum window width - allows usability on 720p (1280px) with sidebar (256px) + content */
 const WINDOW_MIN_WIDTH: number = 800;
-/** Absolute minimum window height (supports high DPI displays with scaling) */
-const WINDOW_MIN_HEIGHT: number = 500;
+/** Absolute minimum window height - fits essential UI elements at 720p */
+const WINDOW_MIN_HEIGHT: number = 480;
 /** Margin from screen edges to avoid edge-to-edge windows */
-const WINDOW_SCREEN_MARGIN: number = 20;
-/** Default screen dimensions used as fallback when screen.getPrimaryDisplay() fails */
+const WINDOW_SCREEN_MARGIN: number = 40;
+/** Default screen dimensions used as fallback when screen.getPrimaryDisplay() fails (1080p 16:9) */
 const DEFAULT_SCREEN_WIDTH: number = 1920;
 const DEFAULT_SCREEN_HEIGHT: number = 1080;
 
