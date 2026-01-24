@@ -195,9 +195,11 @@ We welcome contributions! Please read [CONTRIBUTING.md](CONTRIBUTING.md) for:
 - Testing requirements
 - Pull request process
 
-**Before submitting any code:**
+**Essential documentation for developers:**
+- **[guides/DEVELOPMENT_WORKFLOW.md](guides/DEVELOPMENT_WORKFLOW.md)** - ⭐ **Read this first!** IDE setup, watch modes, TypeScript best practices
+- **[DEVELOPMENT_GUIDE.md](DEVELOPMENT_GUIDE.md)** - Code standards and CI requirements
 - **[PRE_COMMIT_CHECKLIST.md](PRE_COMMIT_CHECKLIST.md)** - Run 4 required checks before every commit
-- **[DEVELOPMENT_GUIDE.md](DEVELOPMENT_GUIDE.md)** - Follow best practices to avoid CI failures
+- **[CLAUDE.md](CLAUDE.md)** - Project architecture and component overview
 
 ---
 
