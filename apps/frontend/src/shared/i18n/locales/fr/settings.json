@@ -185,6 +185,16 @@
     "comfortable": "Confortable",
     "large": "Grand"
   },
+  "navigation": {
+    "mode": {
+      "title": "Style de barre de navigation",
+      "description": "Choisissez comment la barre de navigation est affichée",
+      "iconsOnly": "Icônes uniquement",
+      "iconsDescription": "Vue compacte",
+      "full": "Icônes et texte",
+      "fullDescription": "Vue complète"
+    }
+  },
   "general": {
     "otherAgentSettings": "Autres paramètres de l'agent",
     "otherAgentSettingsDescription": "Options de configuration supplémentaires de l'agent",
