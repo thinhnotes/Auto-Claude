@@ -809,14 +809,16 @@ export function App() {
     <ViewStateProvider>
       <TooltipProvider>
         <ProactiveSwapListener />
-      <div className="flex h-screen bg-background">
-        {/* Sidebar */}
-        <Sidebar
-          onSettingsClick={() => setIsSettingsDialogOpen(true)}
-          onNewTaskClick={() => setIsNewTaskDialogOpen(true)}
-          activeView={activeView}
-          onViewChange={setActiveView}
-        />
+      <div className="flex h-screen bg-background overflow-hidden">
+        {/* Sidebar - hidden on mobile and tablets, shown on desktop (1024px+) */}
+        <div className="hidden lg:flex">
+          <Sidebar
+            onSettingsClick={() => setIsSettingsDialogOpen(true)}
+            onNewTaskClick={() => setIsNewTaskDialogOpen(true)}
+            activeView={activeView}
+            onViewChange={setActiveView}
+          />
+        </div>
 
         {/* Main content */}
         <div className="flex flex-1 flex-col overflow-hidden min-h-0">

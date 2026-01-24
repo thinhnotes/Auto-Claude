@@ -1852,22 +1852,16 @@ body {
    Mobile Safe Area & Viewport Fixes
    ============================================ */
 
-/* Ensure app uses full viewport height on mobile browsers */
+/* Use dynamic viewport height for mobile browsers (accounts for address bar) */
 @supports (height: 100dvh) {
-  #root {
-    min-height: 100dvh;
+  .h-screen {
+    height: 100dvh;
   }
 }
 
 /* Mobile safe area insets for notches and browser UI */
-@media (max-width: 768px) {
+@media (max-width: 1024px) {
   body {
-    padding-bottom: env(safe-area-inset-bottom);
-  }
-  
-  /* Ensure welcome screen is scrollable on small viewports */
-  .welcome-screen-container {
-    min-height: calc(100vh - env(safe-area-inset-top) - env(safe-area-inset-bottom));
     padding-bottom: env(safe-area-inset-bottom);
   }
 }
