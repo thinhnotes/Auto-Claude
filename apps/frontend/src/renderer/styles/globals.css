@@ -1847,3 +1847,27 @@ body {
 [data-ui-scale="190"] { font-size: 30.4px; }
 [data-ui-scale="195"] { font-size: 31.2px; }
 [data-ui-scale="200"] { font-size: 32px; }
+
+/* ============================================
+   Mobile Safe Area & Viewport Fixes
+   ============================================ */
+
+/* Ensure app uses full viewport height on mobile browsers */
+@supports (height: 100dvh) {
+  #root {
+    min-height: 100dvh;
+  }
+}
+
+/* Mobile safe area insets for notches and browser UI */
+@media (max-width: 768px) {
+  body {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  
+  /* Ensure welcome screen is scrollable on small viewports */
+  .welcome-screen-container {
+    min-height: calc(100vh - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+}

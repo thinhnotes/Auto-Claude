@@ -41,24 +41,24 @@ export function WelcomeScreen({
   };
 
   return (
-    <div className="flex h-full items-center justify-center p-8">
-      <div className="w-full max-w-2xl">
+    <div className="flex h-full items-start md:items-center justify-center p-4 md:p-8 overflow-y-auto">
+      <div className="w-full max-w-2xl my-auto">
         {/* Hero Section */}
-        <div className="text-center mb-10">
-          <h1 className="text-3xl font-bold text-foreground tracking-tight">
+        <div className="text-center mb-6 md:mb-10">
+          <h1 className="text-2xl md:text-3xl font-bold text-foreground tracking-tight">
             {t('welcome:hero.title')}
           </h1>
-          <p className="mt-3 text-muted-foreground">
+          <p className="mt-2 md:mt-3 text-sm md:text-base text-muted-foreground">
             {t('welcome:hero.subtitle')}
           </p>
         </div>
 
         {/* Action Buttons */}
-        <div className="flex gap-4 justify-center mb-10">
+        <div className="flex flex-col sm:flex-row gap-3 md:gap-4 justify-center mb-6 md:mb-10">
           <Button
             size="lg"
             onClick={onNewProject}
-            className="gap-2 px-6"
+            className="gap-2 px-4 md:px-6 w-full sm:w-auto"
           >
             <FolderPlus className="h-5 w-5" />
             {t('welcome:actions.newProject')}
@@ -67,7 +67,7 @@ export function WelcomeScreen({
             size="lg"
             variant="secondary"
             onClick={onOpenProject}
-            className="gap-2 px-6"
+            className="gap-2 px-4 md:px-6 w-full sm:w-auto"
           >
             <FolderOpen className="h-5 w-5" />
             {t('welcome:actions.openProject')}
