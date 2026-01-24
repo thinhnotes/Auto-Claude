@@ -41,20 +41,20 @@ export function WelcomeScreen({
   };
 
   return (
-    <div className="flex h-full items-center justify-center p-6 md:p-8 overflow-y-auto">
-      <div className="w-full max-w-2xl">
+    <div className="flex h-full items-start justify-center p-4 sm:p-6 md:p-8 overflow-y-auto">
+      <div className="w-full max-w-2xl py-4 sm:py-6 md:py-8">
         {/* Hero Section */}
-        <div className="text-center mb-6 md:mb-10">
-          <h1 className="text-2xl md:text-3xl font-bold text-foreground tracking-tight">
+        <div className="text-center mb-4 sm:mb-6 md:mb-10">
+          <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-foreground tracking-tight">
             {t('welcome:hero.title')}
           </h1>
-          <p className="mt-2 md:mt-3 text-sm md:text-base text-muted-foreground">
+          <p className="mt-2 text-sm md:text-base text-muted-foreground">
             {t('welcome:hero.subtitle')}
           </p>
         </div>
 
         {/* Action Buttons */}
-        <div className="flex flex-col sm:flex-row gap-3 justify-center mb-6 md:mb-10">
+        <div className="flex flex-col sm:flex-row gap-3 justify-center mb-4 sm:mb-6 md:mb-10">
           <Button
             size="lg"
             onClick={onNewProject}
