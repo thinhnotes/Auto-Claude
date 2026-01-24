@@ -287,6 +287,8 @@ export interface AppSettings {
   autoNameClaudeTerminals?: boolean;
   // Track which version warnings have been shown (e.g., ["2.7.5"])
   seenVersionWarnings?: string[];
+  // Navigation bar display mode (icon-only or icon-and-text)
+  navigationMode?: 'icons' | 'full';
 }
 
 // Auto-Claude Source Environment Configuration (for auto-claude repo .env)
