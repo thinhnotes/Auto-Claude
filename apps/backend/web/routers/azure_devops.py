@@ -51,7 +51,7 @@ async def get_azure_devops_config(project_id: str) -> AzureDevOpsConfig | None:
         if not env_path.exists():
             return AzureDevOpsConfig(enabled=False)
 
-        env_content = env_path.read_text()
+        env_content = env_path.read_text(encoding="utf-8")
         env_lines = env_content.split("\n")
 
         config = {
