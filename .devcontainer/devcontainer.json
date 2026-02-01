@@ -33,11 +33,9 @@
       "settings": {
         "python.defaultInterpreterPath": "${workspaceFolder}/apps/backend/.venv/bin/python",
         "python.terminal.activateEnvironment": true,
-        "python.formatting.provider": "black",
-        "python.linting.enabled": true,
-        "python.linting.ruffEnabled": true,
         "editor.formatOnSave": true,
         "editor.defaultFormatter": "biomejs.biome",
+        "ruff.lint.enable": true,
         "[python]": {
           "editor.defaultFormatter": "charliermarsh.ruff",
           "editor.formatOnSave": true,
@@ -82,6 +80,6 @@
   "remoteUser": "node",
   
   "mounts": [
-    "source=${localEnv:HOME}${localEnv:USERPROFILE}/.config/claude,target=/home/node/.config/claude,type=bind,consistency=cached"
+    "source=${localEnv:HOME}/.config/claude,target=/home/node/.config/claude,type=bind,consistency=cached"
   ]
 }

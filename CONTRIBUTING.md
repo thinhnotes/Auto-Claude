@@ -145,7 +145,7 @@ The easiest way to start contributing is using our pre-configured devcontainer:
 
 **With GitHub Codespaces:**
 1. Open this repository on GitHub
-2. Click "Code" → "Codespaces" → "Create codespace on develop"
+2. Click "Code" → "Codespaces" → create a codespace on your working branch (develop is the default in this repo)
 3. Wait for automatic setup (all dependencies install automatically)
 4. Run `claude` to authenticate with Claude CLI
 5. Start developing with `npm run dev`

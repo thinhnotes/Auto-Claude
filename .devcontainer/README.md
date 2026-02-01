@@ -31,7 +31,7 @@ This devcontainer provides a complete development environment for Auto Claude wi
 1. Open this repository on GitHub
 2. Click the green "Code" button
 3. Select "Codespaces" tab
-4. Click "Create codespace on main" (or your branch)
+4. Click "Create codespace on develop" (or your branch)
 5. Wait for the container to build and dependencies to install
 6. Start developing!
 
@@ -76,7 +76,7 @@ After the devcontainer is set up:
 - `npm run build` - Build for production
 - `npm run test` - Run tests
 - `npm run lint` - Lint code
-- `npm run typecheck` - Type check TypeScript
+- `cd apps/frontend && npm run typecheck` - Type check TypeScript
 
 ### Backend
 - `npm run test:backend` - Run backend tests
