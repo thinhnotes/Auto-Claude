@@ -60,7 +60,7 @@ def load_profiles() -> dict:
     if not profiles_file.exists():
         return {"profiles": [], "activeProfileId": None, "version": 1}
     try:
-        with open(profiles_file) as f:
+        with open(profiles_file, encoding="utf-8") as f:
             data = json.load(f)
             # Ensure version field exists
             if "version" not in data:
@@ -73,7 +73,7 @@ def load_profiles() -> dict:
 def save_profiles(data: dict) -> None:
     """Save profiles to file."""
     profiles_file = get_profiles_file()
-    with open(profiles_file, "w") as f:
+    with open(profiles_file, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2)
 
 

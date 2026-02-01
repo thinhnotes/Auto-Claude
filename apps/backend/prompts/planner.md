@@ -378,6 +378,8 @@ Use ONLY these values for the `type` field in phases:
 
 **DO NOT invent types like `code_review`, `component`, `test`, `lint`, `build`. Use `manual` for human review, `command` for running tests.**
 
+> ⚠️ **Using invalid verification types** (like `code_review`, `component`, `test`) **will cause validation failures** and the spec may be rejected. The planner will need to revise the subtask with a valid type from the table above.
+
 ### Special Subtask Types
 
 **Investigation subtasks** output knowledge, not just code:
