@@ -89,6 +89,48 @@ autonomous-coding/
 ```
 
 ## Commands Quick Reference
+=======
+**When working with AI/LLM code:**
+- Look in `apps/backend/core/client.py` for the Claude SDK client setup
+- Reference `apps/backend/agents/` for working agent implementations
+- Check `apps/backend/spec_agents/` for spec creation agent examples
+- NEVER use `anthropic.Anthropic()` directly - always use `create_client()` from `core.client`
+
+**Frontend (Electron Desktop App):**
+- Built with Electron, React, TypeScript
+- AI agents can perform E2E testing using the Electron MCP server
+- When bug fixing or implementing features, use the Electron MCP server for automated testing
+- See "End-to-End Testing" section below for details
+
+## Development Guidelines
+
+**For Contributors:** Before you start developing, read these essential guides:
+
+- **[guides/DEVELOPMENT_WORKFLOW.md](guides/DEVELOPMENT_WORKFLOW.md)** - ⭐ **Start here!** Essential workflow for efficient development
+  - IDE setup for real-time error detection
+  - Watch modes for TypeScript and tests
+  - Common pitfalls and solutions
+  - Step-by-step feature development example
+  
+- **[DEVELOPMENT_GUIDE.md](DEVELOPMENT_GUIDE.md)** - Code standards and CI requirements
+  - Python and TypeScript standards
+  - Testing requirements
+  - Pre-commit checks
+  
+- **[CONTRIBUTING.md](CONTRIBUTING.md)** - Contribution process and guidelines
+
+**Quick Start for Development:**
+```bash
+# Terminal 1: TypeScript watch mode (catch errors as you type)
+cd apps/frontend && npm run typecheck -- --watch
+
+# Terminal 2: Test watch mode (run tests automatically)
+npm test -- --watch
+
+# See guides/DEVELOPMENT_WORKFLOW.md for detailed workflow
+```
+
+## Commands
 
 ### Setup
 ```bash

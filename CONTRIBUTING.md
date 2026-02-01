@@ -23,6 +23,14 @@ That said, we've seen AI-generated PRs that introduce regressions because the co
 
 AI-assisted PRs go through the same review process as any other contribution. Transparency just helps reviewers know where to look more carefully.
 
+## 📚 Quick Links
+
+**Before you start coding:**
+- **[PRE_COMMIT_CHECKLIST.md](PRE_COMMIT_CHECKLIST.md)** - Run these 4 checks before EVERY commit
+- **[DEVELOPMENT_GUIDE.md](DEVELOPMENT_GUIDE.md)** - Comprehensive development best practices
+
+**These guides will save you time by preventing common CI failures!**
+
 ## Table of Contents
 
 - [How to Contribute](#how-to-contribute)
