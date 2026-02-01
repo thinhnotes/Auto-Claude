@@ -771,7 +771,7 @@ export function createWebAdapter(): AppAPI {
 
       return path.trim();
     },
-        createProjectFolder: async (
+    createProjectFolder: async (
       location: string,
       name: string,
       initGit: boolean
