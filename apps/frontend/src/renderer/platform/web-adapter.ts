@@ -1587,13 +1587,29 @@ export function createWebAdapter(): AppAPI {
     // Azure DevOps API
     // ===================
     azureDevOps: {
-      getConfig: unsupported('azureDevOps.getConfig'),
-      getIterations: async () => ({ success: false, error: 'Not supported in web mode' }),
-      getCurrentIteration: unsupported('azureDevOps.getCurrentIteration'),
-      getWorkItemsForIteration: async () => ({ success: false, error: 'Not supported in web mode' }),
-      getWorkItem: unsupported('azureDevOps.getWorkItem'),
-      getAreas: async () => ({ success: false, error: 'Not supported in web mode' }),
-      checkConnection: unsupported('azureDevOps.checkConnection'),
+      getConfig: async (projectId: string) =>
+        apiRequest(`/api/projects/${projectId}/azure-devops/config`),
+
+      getIterations: async (projectId: string) =>
+        apiRequest(`/api/projects/${projectId}/azure-devops/iterations`),
+
+      getCurrentIteration: async (projectId: string) =>
+        apiRequest(`/api/projects/${projectId}/azure-devops/current-iteration`),
+
+      getWorkItemsForIteration: async (projectId: string, iterationPath: string, areaPath?: string) => {
+        const params = new URLSearchParams({ iterationPath });
+        if (areaPath) params.append('areaPath', areaPath);
+        return apiRequest(`/api/projects/${projectId}/azure-devops/work-items?${params.toString()}`);
+      },
+
+      getWorkItem: async (projectId: string, workItemId: number) =>
+        apiRequest(`/api/projects/${projectId}/azure-devops/work-items/${workItemId}`),
+
+      getAreas: async (projectId: string) =>
+        apiRequest(`/api/projects/${projectId}/azure-devops/areas`),
+
+      checkConnection: async (projectId: string) =>
+        apiRequest(`/api/projects/${projectId}/azure-devops/connection`),
     },
 
     // ===================
