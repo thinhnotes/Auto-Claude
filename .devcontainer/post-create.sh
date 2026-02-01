@@ -57,15 +57,33 @@ echo "🐍 Installing backend dependencies..."
 cd apps/backend
 if [ ! -d ".venv" ]; then
     echo "Creating Python virtual environment..."
-    uv venv
+    uv venv || echo "⚠️  uv venv failed, will use system Python"
 fi
+
+# Try to install with uv first, fallback to pip if it fails
 echo "Installing Python packages..."
-uv pip install -r requirements.txt
+if [ -d ".venv" ]; then
+    uv pip install -r requirements.txt || {
+        echo "⚠️  uv pip install failed, trying system pip..."
+        python -m pip install -r requirements.txt
+    }
+else
+    echo "Using system Python for package installation..."
+    python -m pip install -r requirements.txt
+fi
+
+# Install additional web server dependencies
+echo "Installing web server dependencies..."
+python -m pip install uvicorn[standard] fastapi httpx websockets
 
 # Install test dependencies if available
 if [ -f "../../tests/requirements-test.txt" ]; then
     echo "Installing test dependencies..."
-    uv pip install -r ../../tests/requirements-test.txt
+    if [ -d ".venv" ]; then
+        uv pip install -r ../../tests/requirements-test.txt || python -m pip install -r ../../tests/requirements-test.txt
+    else
+        python -m pip install -r ../../tests/requirements-test.txt
+    fi
 fi
 
 cd ../..

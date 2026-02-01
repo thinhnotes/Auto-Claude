@@ -17,6 +17,7 @@ import type {
   ProjectEnvConfig,
   CustomMcpServer,
 } from '../../shared/types';
+import { WSClient } from './ws-client';
 
 /**
  * Get the API base URL from runtime or build-time environment
@@ -32,6 +33,20 @@ function getApiBaseUrl(): string {
   const envUrl = import.meta.env?.VITE_API_URL as string;
   // Use empty string for relative /api calls (nginx proxy)
   return envUrl || '';
+}
+
+/**
+ * Get the WebSocket URL from API base URL
+ */
+function getWebSocketUrl(): string {
+  const baseUrl = getApiBaseUrl();
+  if (!baseUrl) {
+    // Relative path - use current host
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    return `${protocol}//${window.location.host}/ws`;
+  }
+  // Convert http:// to ws:// or https:// to wss://
+  return baseUrl.replace(/^http/, 'ws') + '/ws';
 }
 
 /**
@@ -80,6 +95,39 @@ async function apiRequest<T>(
   }
 }
 
+// ===================
+// WebSocket Client Instance
+// ===================
+let wsClient: WSClient | null = null;
+
+function getWSClient(): WSClient {
+  if (!wsClient) {
+    const wsUrl = getWebSocketUrl();
+    console.log('[Web Adapter] Creating WebSocket client:', wsUrl);
+    
+    wsClient = new WSClient({
+      url: wsUrl,
+      autoReconnect: true,
+      onConnect: () => console.log('[Web Adapter] WebSocket connected'),
+      onDisconnect: () => console.log('[Web Adapter] WebSocket disconnected'),
+      onError: (err) => console.error('[Web Adapter] WebSocket error:', err),
+    });
+    
+    wsClient.connect();
+  }
+  return wsClient;
+}
+
+// ===================
+// Event Callback Sets (for WebSocket subscriptions)
+// ===================
+const taskLogCallbacks: Set<(specId: string, logs: any) => void> = new Set();
+const taskProgressCallbacks: Set<(taskId: string, plan: any, projectId?: string) => void> = new Set();
+const roadmapProgressCallbacks: Set<(projectId: string, status: any) => void> = new Set();
+const roadmapCompleteCallbacks: Set<(projectId: string, roadmap: any) => void> = new Set();
+const roadmapErrorCallbacks: Set<(projectId: string, error: string) => void> = new Set();
+const roadmapStoppedCallbacks: Set<(projectId: string) => void> = new Set();
+
 /**
  * Create a stub function that returns an error for unsupported operations
  */
@@ -109,34 +157,6 @@ function unsupportedVoid(operation: string): (...args: unknown[]) => void {
   };
 }
 
-// Track poll timeouts for task logs (using setTimeout for "poll after completion" pattern)
-// This prevents request piling when requests take longer than the poll interval
-const taskLogPolls: Map<string, { timeoutId: ReturnType<typeof setTimeout> | null; cancelled: boolean }> = new Map();
-const taskLogEventSources: Map<string, EventSource> = new Map();
-const taskLogCallbacks: Set<(specId: string, logs: any) => void> = new Set();
-const taskLogUpdatedAt: Map<string, string> = new Map();
-
-// Track poll timeouts for task progress (subtasks)
-const taskProgressPolls: Map<string, { timeoutId: ReturnType<typeof setTimeout> | null; cancelled: boolean }> = new Map();
-const taskProgressCallbacks: Set<(taskId: string, plan: any, projectId?: string) => void> = new Set();
-
-const roadmapPolls: Map<string, { timeoutId: ReturnType<typeof setTimeout> | null; cancelled: boolean }> = new Map();
-const roadmapProgressCallbacks: Set<(projectId: string, status: any) => void> = new Set();
-const roadmapCompleteCallbacks: Set<(projectId: string, roadmap: any) => void> = new Set();
-const roadmapErrorCallbacks: Set<(projectId: string, error: string) => void> = new Set();
-const roadmapStoppedCallbacks: Set<(projectId: string) => void> = new Set();
-
-function stopRoadmapPolling(projectId: string) {
-  const pollState = roadmapPolls.get(projectId);
-  if (pollState) {
-    pollState.cancelled = true;
-    if (pollState.timeoutId) {
-      clearTimeout(pollState.timeoutId);
-    }
-    roadmapPolls.delete(projectId);
-  }
-}
-
 type RoadmapStatusPayload = {
   isRunning: boolean;
   phase?: string;
@@ -144,67 +164,6 @@ type RoadmapStatusPayload = {
   message?: string;
   error?: string;
 };
-
-function startRoadmapPolling(projectId: string) {
-  stopRoadmapPolling(projectId);
-
-  const pollState = { timeoutId: null as ReturnType<typeof setTimeout> | null, cancelled: false };
-  roadmapPolls.set(projectId, pollState);
-
-  const poll = async () => {
-    if (pollState.cancelled) return;
-
-    try {
-      const statusResult = await apiRequest<RoadmapStatusPayload>(
-        `/api/projects/${projectId}/roadmap/status`
-      );
-      if (pollState.cancelled) return;
-
-      if (statusResult.success && statusResult.data) {
-        const statusData = statusResult.data as RoadmapStatusPayload;
-        roadmapProgressCallbacks.forEach((callback) => {
-          callback(projectId, statusData);
-        });
-
-        if (statusData.phase === 'complete') {
-          const roadmapResult = await apiRequest(`/api/projects/${projectId}/roadmap`);
-          if (roadmapResult.success && roadmapResult.data) {
-            roadmapCompleteCallbacks.forEach((callback) => {
-              callback(projectId, roadmapResult.data);
-            });
-          }
-          stopRoadmapPolling(projectId);
-          return;
-        }
-
-        if (statusData.phase === 'error') {
-          roadmapErrorCallbacks.forEach((callback) => {
-            callback(projectId, statusData.error || 'Roadmap generation failed');
-          });
-          stopRoadmapPolling(projectId);
-          return;
-        }
-
-        if (!statusData.isRunning && statusData.phase === 'idle') {
-          stopRoadmapPolling(projectId);
-          return;
-        }
-      }
-    } catch (error) {
-      roadmapErrorCallbacks.forEach((callback) => {
-        callback(projectId, error instanceof Error ? error.message : 'Roadmap polling failed');
-      });
-      stopRoadmapPolling(projectId);
-      return;
-    }
-
-    if (!pollState.cancelled) {
-      pollState.timeoutId = setTimeout(poll, 2000);
-    }
-  };
-
-  poll();
-}
 
 /**
  * Create the Web API adapter
@@ -328,66 +287,18 @@ export function createWebAdapter(): AppAPI {
       });
     },
 
-    // Watch for task progress updates (subtasks) - polls 2 seconds after each request completes
+    // Watch for task progress updates (subtasks) - uses WebSocket subscriptions
     watchTaskProgress: async (projectId: string, specId: string) => {
-      const taskId = `${projectId}:${specId}`;
-      
-      // Cancel existing poll if any
-      if (taskProgressPolls.has(taskId)) {
-        const existing = taskProgressPolls.get(taskId);
-        if (existing) {
-          existing.cancelled = true;
-          if (existing.timeoutId) {
-            clearTimeout(existing.timeoutId);
-          }
-        }
-        taskProgressPolls.delete(taskId);
-      }
-      
-      // Create poll state
-      const pollState = { timeoutId: null as ReturnType<typeof setTimeout> | null, cancelled: false };
-      taskProgressPolls.set(taskId, pollState);
-      
-      // Poll function - waits for request to complete before scheduling next poll
-      const poll = async () => {
-        if (pollState.cancelled) return;
-        
-        try {
-          const result = await apiRequest(`/api/projects/${projectId}/tasks/${specId}/plan`);
-          if (pollState.cancelled) return;
-          
-          if (result.success && result.data) {
-            taskProgressCallbacks.forEach(callback => {
-              callback(taskId, result.data, projectId);
-            });
-          }
-        } catch (e) {
-          console.error('[TaskProgress Poll] Error:', e);
-        }
-        
-        // Schedule next poll only after this one completes (prevents request piling)
-        if (!pollState.cancelled) {
-          pollState.timeoutId = setTimeout(poll, 2000);
-        }
-      };
-      
-      // Start first poll immediately
-      poll();
+      // WebSocket subscriptions are handled by onTaskProgressUpdated
+      // This function is kept for API compatibility but does nothing
+      // The subscription happens when the UI calls onTaskProgressUpdated
+      console.log('[WebSocket] watchTaskProgress called for', specId, '- subscriptions handled by event listeners');
       return { success: true };
     },
 
     unwatchTaskProgress: async (specId: string) => {
-      // Find and cancel the poll for this spec
-      for (const [taskId, pollState] of Array.from(taskProgressPolls.entries())) {
-        if (taskId.endsWith(`:${specId}`)) {
-          pollState.cancelled = true;
-          if (pollState.timeoutId) {
-            clearTimeout(pollState.timeoutId);
-          }
-          taskProgressPolls.delete(taskId);
-          break;
-        }
-      }
+      // WebSocket subscriptions cleanup is handled automatically when components unmount
+      console.log('[WebSocket] unwatchTaskProgress called for', specId, '- cleanup handled automatically');
       return { success: true };
     },
 
@@ -699,12 +610,16 @@ export function createWebAdapter(): AppAPI {
     // ===================
     // Settings
     // ===================
-    getSettings: async () => apiRequest('/api/settings'),
-    saveSettings: async (settings: Record<string, unknown>) =>
-      apiRequest('/api/settings', {
-        method: 'PUT',
-        body: JSON.stringify(settings),
-      }),
+    getSettings: async () => {
+      const ws = getWSClient();
+      const data = await ws.request('settings.get', {});
+      return { success: true, data };
+    },
+    saveSettings: async (settings: Record<string, unknown>) => {
+      const ws = getWSClient();
+      const data = await ws.request('settings.update', settings);
+      return { success: true, data };
+    },
     getAppVersion: async () => '1.0.0-web',
     getSentryConfig: async () => ({
       dsn: '',
@@ -953,9 +868,7 @@ export function createWebAdapter(): AppAPI {
       apiRequest(`/api/projects/${projectId}/roadmap`),
     getRoadmapStatus: async (projectId: string) => {
       const result = await apiRequest<RoadmapStatusPayload>(`/api/projects/${projectId}/roadmap/status`);
-      if (result.success && result.data?.isRunning) {
-        startRoadmapPolling(projectId);
-      }
+      // No polling - WebSocket will handle real-time updates via onRoadmapProgress subscription
       return result;
     },
     saveRoadmap: async (projectId: string, roadmap: any) =>
@@ -972,7 +885,7 @@ export function createWebAdapter(): AppAPI {
         method: 'POST',
         body: JSON.stringify(payload),
       });
-      startRoadmapPolling(projectId);
+      // No polling - WebSocket will handle real-time updates via onRoadmapProgress subscription
     },
     refreshRoadmap: (projectId: string, enableCompetitorAnalysis?: boolean, refreshCompetitorAnalysis?: boolean) => {
       const payload = {
@@ -984,7 +897,7 @@ export function createWebAdapter(): AppAPI {
         method: 'POST',
         body: JSON.stringify(payload),
       });
-      startRoadmapPolling(projectId);
+      // No polling - WebSocket will handle real-time updates via onRoadmapProgress subscription
     },
     updateFeatureStatus: async (projectId: string, featureId: string, status: any) =>
       apiRequest(`/api/projects/${projectId}/roadmap/features/${featureId}`, {
@@ -996,7 +909,7 @@ export function createWebAdapter(): AppAPI {
         method: 'POST',
       }),
     stopRoadmap: async (projectId: string) => {
-      stopRoadmapPolling(projectId);
+      // No polling to stop - WebSocket subscriptions handle themselves
       const result = await apiRequest(`/api/projects/${projectId}/roadmap/stop`, { method: 'POST' });
       if (result.success) {
         roadmapStoppedCallbacks.forEach((callback) => {
@@ -1006,22 +919,34 @@ export function createWebAdapter(): AppAPI {
       return result;
     },
     onRoadmapProgress: (callback: (projectId: string, status: any) => void) => {
-      roadmapProgressCallbacks.add(callback as any);
-      return () => {
-        roadmapProgressCallbacks.delete(callback as any);
-      };
+      // Always use WebSocket - subscribe to roadmap.status channel
+      const client = getWSClient();
+      return client.subscribe('roadmap.status', {}, (data, cursor) => {
+        const projectId = data.projectId || data.project_id;
+        if (projectId) {
+          callback(projectId, data);
+        }
+      });
     },
     onRoadmapComplete: (callback: (projectId: string, roadmap: any) => void) => {
-      roadmapCompleteCallbacks.add(callback as any);
-      return () => {
-        roadmapCompleteCallbacks.delete(callback as any);
-      };
+      // Always use WebSocket - listen for completion phase
+      const client = getWSClient();
+      return client.subscribe('roadmap.status', {}, (data, cursor) => {
+        const projectId = data.projectId || data.project_id;
+        if (projectId && data.phase === 'complete' && data.roadmap) {
+          callback(projectId, data.roadmap);
+        }
+      });
     },
     onRoadmapError: (callback: (projectId: string, error: string) => void) => {
-      roadmapErrorCallbacks.add(callback as any);
-      return () => {
-        roadmapErrorCallbacks.delete(callback as any);
-      };
+      // Always use WebSocket - listen for error phase
+      const client = getWSClient();
+      return client.subscribe('roadmap.status', {}, (data, cursor) => {
+        const projectId = data.projectId || data.project_id;
+        if (projectId && data.phase === 'error' && data.error) {
+          callback(projectId, data.error);
+        }
+      });
     },
     onRoadmapStopped: (callback: (projectId: string) => void) => {
       roadmapStoppedCallbacks.add(callback as any);
@@ -1283,84 +1208,26 @@ export function createWebAdapter(): AppAPI {
       return apiRequest(`/api/projects/${projectId}/tasks/${specId}/logs`);
     },
     watchTaskLogs: async (projectId: string, specId: string) => {
-      // Web mode: Use polling instead of SSE for better compatibility
-      // Uses "poll after completion" pattern to prevent request piling
-      const taskId = `${projectId}:${specId}`;
-      
-      // Cancel existing poll if any
-      if (taskLogPolls.has(taskId)) {
-        const existing = taskLogPolls.get(taskId);
-        if (existing) {
-          existing.cancelled = true;
-          if (existing.timeoutId) {
-            clearTimeout(existing.timeoutId);
-          }
-        }
-        taskLogPolls.delete(taskId);
-      }
-      
-      // Create poll state
-      const pollState = { timeoutId: null as ReturnType<typeof setTimeout> | null, cancelled: false };
-      taskLogPolls.set(taskId, pollState);
-      
-      // Poll function - waits for request to complete before scheduling next poll
-      const poll = async () => {
-        if (pollState.cancelled) return;
-        
-        try {
-          const lastUpdatedAt = taskLogUpdatedAt.get(taskId);
-          const query = lastUpdatedAt ? `?since=${encodeURIComponent(lastUpdatedAt)}` : '';
-          const result = await apiRequest(`/api/projects/${projectId}/tasks/${specId}/logs${query}`);
-          if (pollState.cancelled) return;
-          
-          if (result.success) {
-            if (result.data) {
-              const logs = result.data as { updated_at?: string };
-              if (logs.updated_at) {
-                taskLogUpdatedAt.set(taskId, logs.updated_at);
-              }
-              taskLogCallbacks.forEach(callback => {
-                callback(specId, result.data);
-              });
-            } else if (lastUpdatedAt === undefined) {
-              taskLogUpdatedAt.set(taskId, '');
-            }
-          }
-        } catch (e) {
-          console.error('[TaskLog Poll] Error:', e);
-        }
-        
-        // Schedule next poll only after this one completes (prevents request piling)
-        if (!pollState.cancelled) {
-          pollState.timeoutId = setTimeout(poll, 2000);
-        }
-      };
-      
-      // Start first poll immediately
-      poll();
+      // WebSocket subscriptions are handled by onTaskLogsChanged
+      // This function is kept for API compatibility but does nothing
+      console.log('[WebSocket] watchTaskLogs called for', specId, '- subscriptions handled by event listeners');
       return { success: true };
     },
     unwatchTaskLogs: async (specId: string) => {
-      // Find and cancel the poll for this spec
-      for (const [taskId, pollState] of Array.from(taskLogPolls.entries())) {
-        if (taskId.endsWith(`:${specId}`)) {
-          pollState.cancelled = true;
-          if (pollState.timeoutId) {
-            clearTimeout(pollState.timeoutId);
-          }
-          taskLogPolls.delete(taskId);
-          taskLogUpdatedAt.delete(taskId);
-          break;
-        }
-      }
+      // WebSocket subscriptions cleanup is handled automatically when components unmount
+      console.log('[WebSocket] unwatchTaskLogs called for', specId, '- cleanup handled automatically');
       return { success: true };
     },
     onTaskLogsChanged: (callback: (specId: string, logs: any) => void) => {
-      // Register callback for log updates
-      taskLogCallbacks.add(callback);
-      return () => {
-        taskLogCallbacks.delete(callback);
-      };
+      // Always use WebSocket - subscribe to task.logs channel
+      const client = getWSClient();
+      return client.subscribe('task.logs', {}, (data, cursor) => {
+        // Extract specId from event data
+        const specId = data.specId || data.spec_id;
+        if (specId) {
+          callback(specId, data.logs || data);
+        }
+      });
     },
     onTaskLogsStream: unsupportedEvent('onTaskLogsStream'),
 

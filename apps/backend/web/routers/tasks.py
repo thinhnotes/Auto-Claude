@@ -43,6 +43,7 @@ from ..utils.plan_helpers import (
     load_task_logs_from_spec,
 )
 from ..utils.security import get_secure_logger
+from ..ws import publish_event, Channel
 from .projects import load_projects
 
 router = APIRouter()
@@ -727,6 +728,17 @@ async def start_task(task_id: str, request: TaskStartRequest) -> dict[str, Any]:
         },
     )
 
+    # Emit WebSocket event for task status change
+    await publish_event(
+        Channel.TASK_STATUS,
+        {"projectId": project_id, "taskId": task_id, "specId": folder},
+        {
+            "status": "running",
+            "startedAt": datetime.utcnow().isoformat(),
+            "pid": process.pid,
+        },
+    )
+
     return {
         "status": "started",
         "task_id": task_id,
@@ -783,6 +795,18 @@ async def stop_task(task_id: str) -> dict[str, Any]:
 
     logger.info(f"🛑 [{func_name}] Task stopped: {task_id}")
     log_task_lifecycle("stop", task_id, {"status": "stopped"})
+    
+    # Emit WebSocket event for task status change
+    project_id, folder = parse_task_id(task_id)
+    await publish_event(
+        Channel.TASK_STATUS,
+        {"projectId": project_id, "taskId": task_id, "specId": folder},
+        {
+            "status": "stopped",
+            "stoppedAt": datetime.utcnow().isoformat(),
+        },
+    )
+    
     return {"status": "stopped", "task_id": task_id}
 
 

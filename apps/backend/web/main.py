@@ -69,32 +69,43 @@ from .routers import (
     terminals_router,
     worktrees_router,
 )
+from .ws import (
+    ConnectionManager,
+    ErrorCode,
+    MessageType,
+    create_ack,
+    create_error,
+    get_manager,
+    validate_channel,
+)
+from .ws.dispatcher import get_dispatcher
+from .ws.handlers import settings as settings_handlers
+from .ws.handlers import profiles as profiles_handlers
+
+# Get global WebSocket manager
+manager = get_manager()
+
+# Get global request dispatcher
+dispatcher = get_dispatcher()
 
 
-class ConnectionManager:
-    """Manage WebSocket connections for real-time updates."""
-
-    def __init__(self):
-        self.active_connections: list[WebSocket] = []
-
-    async def connect(self, websocket: WebSocket):
-        await websocket.accept()
-        self.active_connections.append(websocket)
-
-    def disconnect(self, websocket: WebSocket):
-        if websocket in self.active_connections:
-            self.active_connections.remove(websocket)
-
-    async def broadcast(self, message: dict[str, Any]):
-        """Broadcast message to all connected clients."""
-        for connection in self.active_connections:
-            try:
-                await connection.send_json(message)
-            except Exception:
-                pass
+def register_ws_handlers():
+    """Register all WebSocket request handlers."""
+    # Settings handlers
+    dispatcher.register("settings.get", settings_handlers.handle_get_settings)
+    dispatcher.register("settings.update", settings_handlers.handle_update_settings)
+    dispatcher.register("settings.patch", settings_handlers.handle_patch_settings)
+    
+    # Profiles handlers
+    dispatcher.register("profiles.get", profiles_handlers.handle_get_profiles)
+    dispatcher.register("profiles.create", profiles_handlers.handle_create_profile)
+    dispatcher.register("profiles.update", profiles_handlers.handle_update_profile)
+    dispatcher.register("profiles.delete", profiles_handlers.handle_delete_profile)
+    dispatcher.register("profiles.activate", profiles_handlers.handle_activate_profile)
 
 
-manager = ConnectionManager()
+# Register handlers on module load
+register_ws_handlers()
 
 
 @asynccontextmanager
@@ -338,38 +349,105 @@ async def websocket_endpoint(websocket: WebSocket):
     """
     WebSocket endpoint for real-time updates.
 
-    Clients can subscribe to events like:
-    - task_status: Task status changes
-    - task_logs: Real-time log streaming
-    - project_updates: Project changes
+    Protocol:
+    - Client sends: { "type": "hello|subscribe|unsubscribe|ping", ... }
+    - Server sends: { "type": "ack|event|error|pong", ... }
+
+    Supported channels:
+    - task.status: Task status changes
+    - task.progress: Subtask progress updates
+    - task.logs: Real-time log streaming
+    - roadmap.status: Roadmap generation status
+    - project.updated: Project configuration changes
     """
     client_host = websocket.client.host if websocket.client else "unknown"
     logger.info(f"🔌 WebSocket connection from {client_host}")
 
-    await manager.connect(websocket)
-    logger.info(f"📊 Active WebSocket connections: {len(manager.active_connections)}")
+    state = await manager.connect(websocket)
+    logger.info(f"📊 Active WebSocket connections: {len(manager.connections)}")
 
     try:
         while True:
             data = await websocket.receive_json()
-            event_type = data.get("type", "ping")
-            logger.info(f"📨 WebSocket message: {event_type} from {client_host}")
+            msg_type = data.get("type", "ping")
+            msg_id = data.get("id")
+            
+            logger.debug(f"📨 WebSocket message: {msg_type} from {client_host}")
 
-            if event_type == "ping":
-                await websocket.send_json({"type": "pong"})
-            elif event_type == "subscribe":
+            if msg_type == MessageType.PING.value:
+                await websocket.send_json({"type": MessageType.PONG.value, "ts": data.get("ts")})
+            
+            elif msg_type == MessageType.HELLO.value:
+                # Client handshake
+                state.client_id = data.get("clientId")
+                logger.info(f"👋 Client {client_host} ({state.client_id}) connected")
+                await websocket.send_json(create_ack(msg_id or "hello"))
+            
+            elif msg_type == MessageType.SUBSCRIBE.value:
                 channel = data.get("channel")
-                logger.info(f"📢 Client {client_host} subscribed to: {channel}")
-                await websocket.send_json({"type": "subscribed", "channel": channel})
+                scope = data.get("scope", {})
+                
+                if not channel:
+                    await websocket.send_json(
+                        create_error(ErrorCode.INVALID_MESSAGE, "Missing channel", msg_id)
+                    )
+                    continue
+                
+                if not validate_channel(channel):
+                    await websocket.send_json(
+                        create_error(ErrorCode.UNKNOWN_CHANNEL, f"Unknown channel: {channel}", msg_id)
+                    )
+                    continue
+                
+                success, error = await manager.subscribe(websocket, channel, scope)
+                if success:
+                    logger.info(f"📢 Client {client_host} subscribed to {channel} with scope {scope}")
+                    await websocket.send_json(create_ack(msg_id or "subscribe", channel))
+                else:
+                    await websocket.send_json(
+                        create_error(ErrorCode.INVALID_SCOPE, error or "Subscription failed", msg_id)
+                    )
+            
+            elif msg_type == MessageType.UNSUBSCRIBE.value:
+                channel = data.get("channel")
+                scope = data.get("scope", {})
+                
+                if channel:
+                    await manager.unsubscribe(websocket, channel, scope)
+                    logger.info(f"🔕 Client {client_host} unsubscribed from {channel}")
+                    await websocket.send_json(create_ack(msg_id or "unsubscribe", channel))
+            
+            elif msg_type == MessageType.REQUEST.value:
+                # Handle request-response
+                method = data.get("method")
+                request_params = data.get("params", {})
+                
+                if not method:
+                    await websocket.send_json(
+                        create_error(ErrorCode.INVALID_MESSAGE, "Missing method", msg_id)
+                    )
+                    continue
+                
+                logger.info(f"📨 Request from {client_host}: {method}")
+                
+                # Dispatch to handler and send response
+                response = await dispatcher.dispatch(msg_id or "request", method, request_params)
+                await websocket.send_json(response)
+            
             else:
                 await websocket.send_json(
-                    {"type": "error", "message": f"Unknown event type: {event_type}"}
+                    create_error(
+                        ErrorCode.INVALID_MESSAGE,
+                        f"Unknown message type: {msg_type}",
+                        msg_id,
+                    )
                 )
+    
     except WebSocketDisconnect:
-        manager.disconnect(websocket)
+        await manager.disconnect(websocket)
         logger.info(f"🔌 WebSocket disconnected: {client_host}")
     except Exception as e:
-        manager.disconnect(websocket)
+        await manager.disconnect(websocket)
         logger.error(f"❌ WebSocket error from {client_host}: {e}")
 
 

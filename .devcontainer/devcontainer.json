@@ -31,8 +31,8 @@
         "eamodio.gitlens"
       ],
       "settings": {
-        "python.defaultInterpreterPath": "${workspaceFolder}/apps/backend/.venv/bin/python",
-        "python.terminal.activateEnvironment": true,
+        "python.defaultInterpreterPath": "/usr/local/bin/python",
+        "python.terminal.activateEnvironment": false,
         "editor.formatOnSave": true,
         "editor.defaultFormatter": "biomejs.biome",
         "ruff.lint.enable": true,
