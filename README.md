@@ -63,11 +63,30 @@
 
 ## Quick Start
 
+### For End Users
+
 1. **Download and install** the app for your platform
 2. **Open your project** - Select a git repository folder
 3. **Connect Claude** - The app will guide you through OAuth setup
 4. **Create a task** - Describe what you want to build
 5. **Watch it work** - Agents plan, code, and validate autonomously
+
+### For Developers
+
+**Option 1: Devcontainer (Recommended for GitHub Codespaces)**
+
+This repository includes a complete devcontainer configuration with all tools pre-installed (Python 3.12, Node.js 24, Claude CLI, VS Code extensions).
+
+1. Open in [GitHub Codespaces](https://github.com/features/codespaces) or [VS Code Dev Containers](https://code.visualstudio.com/docs/devcontainers/containers)
+2. Wait for automatic setup (dependencies install automatically)
+3. Run `claude` to authenticate
+4. Start developing with `npm run dev`
+
+See [.devcontainer/README.md](.devcontainer/README.md) for details.
+
+**Option 2: Local Installation**
+
+See [DEVELOPMENT_GUIDE.md](DEVELOPMENT_GUIDE.md) for local setup instructions.
 
 ---
 
