@@ -407,7 +407,7 @@ test.describe('Real-time Collaboration', () => {
 
     const onlineUsers = page.locator('[data-testid="online-users"], .users-online').first();
     if (await onlineUsers.isVisible({ timeout: 2000 }).catch(() => false)) {
-      await expect(onlineUsers).toContain Text('Collaborator');
+      await expect(onlineUsers).toContainText('Collaborator');
     }
   });
 
