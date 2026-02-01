@@ -185,6 +185,16 @@
     "comfortable": "Comfortable",
     "large": "Large"
   },
+  "navigation": {
+    "mode": {
+      "title": "Navigation Bar Style",
+      "description": "Choose how the navigation bar is displayed",
+      "iconsOnly": "Icons Only",
+      "iconsDescription": "Compact view",
+      "full": "Icons & Text",
+      "fullDescription": "Full view"
+    }
+  },
   "general": {
     "otherAgentSettings": "Other Agent Settings",
     "otherAgentSettingsDescription": "Additional agent configuration options",

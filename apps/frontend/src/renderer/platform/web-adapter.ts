@@ -752,26 +752,50 @@ export function createWebAdapter(): AppAPI {
     // Dialog Operations (limited in web)
     // ===================
     selectDirectory: async (): Promise<string | null> => {
-      const path = window.prompt(
-        'Enter the server-side project path:\n\n' +
-        'Example: /home/code/your-project-name\n\n' +
-        'Make sure the project exists in ./code/ on your host machine.',
-        '/home/code/'
-      );
-
-      if (!path) {
-        return null;
+      try {
+        // In web mode, fetch available projects from the server
+        const availableResult = await apiRequest<Array<{ name: string; path: string }>>('/api/projects/available');
+        
+        let message = 'Enter the server-side project path:\n\n';
+        
+        if (availableResult.success && availableResult.data && availableResult.data.length > 0) {
+          message += 'Available projects in /home/code:\n';
+          availableResult.data.forEach((proj) => {
+            message += `  - ${proj.name} (${proj.path})\n`;
+          });
+          message += '\nEnter the full path from above, or enter a custom path:';
+        } else {
+          message += 'No projects found in /home/code\n\n';
+          message += 'Place your project in ./code/ on the host machine, then enter:\n';
+          message += '/home/code/your-project-name';
+        }
+        
+        const path = window.prompt(message, '/home/code/');
+        
+        if (!path) {
+          return null;
+        }
+        
+        // Validate the path format
+        if (!path.startsWith('/')) {
+          window.alert('Path must be an absolute path starting with /');
+          return null;
+        }
+        
+        return path.trim();
+      } catch (error) {
+        console.log('[Web Adapter] Directory selection cancelled or failed:', error);
+        // Fallback to simple prompt if API call fails
+        const path = window.prompt(
+          'Enter the server-side project path:\n\n' +
+          'Example: /home/code/your-project-name\n\n' +
+          'Make sure the project exists in ./code/ on your host machine.',
+          '/home/code/'
+        );
+        return path?.trim() || null;
       }
-
-      // Validate the path format
-      if (!path.startsWith('/')) {
-        window.alert('Path must be an absolute path starting with /');
-        return null;
-      }
-
-      return path.trim();
     },
-    createProjectFolder: async (
+        createProjectFolder: async (
       location: string,
       name: string,
       initGit: boolean

@@ -109,6 +109,7 @@ export function Sidebar({
   const projects = useProjectStore((state) => state.projects);
   const selectedProjectId = useProjectStore((state) => state.selectedProjectId);
   const settings = useSettingsStore((state) => state.settings);
+  const navigationMode = settings.navigationMode || 'full';
 
   const [showAddProjectModal, setShowAddProjectModal] = useState(false);
   const [showInitDialog, setShowInitDialog] = useState(false);
@@ -275,37 +276,74 @@ export function Sidebar({
   const renderNavItem = (item: NavItem) => {
     const isActive = activeView === item.id;
     const Icon = item.icon;
+    const isIconMode = navigationMode === 'icons';
 
-    return (
+    const button = (
       <button
         key={item.id}
         onClick={() => handleNavClick(item.id)}
         disabled={!selectedProjectId}
         aria-keyshortcuts={item.shortcut}
+        aria-label={t(item.labelKey)}
         className={cn(
-          'flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-all duration-200',
+          'flex w-full items-center rounded-lg text-sm transition-all duration-200',
           'hover:bg-accent hover:text-accent-foreground',
           'disabled:pointer-events-none disabled:opacity-50',
-          isActive && 'bg-accent text-accent-foreground'
+          isActive && 'bg-accent text-accent-foreground',
+          isIconMode ? 'justify-center p-2.5' : 'gap-3 px-3 py-2.5'
         )}
       >
         <Icon className="h-4 w-4 shrink-0" />
-        <span className="flex-1 text-left">{t(item.labelKey)}</span>
-        {item.shortcut && (
-          <kbd className="pointer-events-none hidden h-5 select-none items-center gap-1 rounded-md border border-border bg-secondary px-1.5 font-mono text-[10px] font-medium text-muted-foreground sm:flex">
-            {item.shortcut}
-          </kbd>
+        {!isIconMode && (
+          <>
+            <span className="flex-1 text-left">{t(item.labelKey)}</span>
+            {item.shortcut && (
+              <kbd className="pointer-events-none hidden h-5 select-none items-center gap-1 rounded-md border border-border bg-secondary px-1.5 font-mono text-[10px] font-medium text-muted-foreground sm:flex">
+                {item.shortcut}
+              </kbd>
+            )}
+          </>
         )}
       </button>
     );
+
+    // Wrap in tooltip when in icon mode
+    if (isIconMode) {
+      return (
+        <Tooltip key={item.id}>
+          <TooltipTrigger asChild>
+            {button}
+          </TooltipTrigger>
+          <TooltipContent side="right">
+            <div className="flex items-center gap-2">
+              <span>{t(item.labelKey)}</span>
+              {item.shortcut && (
+                <kbd className="h-5 select-none items-center gap-1 rounded-md border border-border bg-secondary px-1.5 font-mono text-[10px] font-medium text-muted-foreground flex">
+                  {item.shortcut}
+                </kbd>
+              )}
+            </div>
+          </TooltipContent>
+        </Tooltip>
+      );
+    }
+
+    return button;
   };
 
   return (
     <TooltipProvider>
-      <div className="flex h-full w-64 flex-col bg-sidebar border-r border-border">
+      <div className={cn(
+        "flex h-full flex-col bg-sidebar border-r border-border transition-all duration-200",
+        navigationMode === 'icons' ? 'w-16' : 'w-64'
+      )}>
         {/* Header with drag area - extra top padding for macOS traffic lights */}
-        <div className="electron-drag flex h-14 items-center px-4 pt-6">
-          <span className="electron-no-drag text-lg font-bold text-primary">Auto Claude</span>
+        <div className="electron-drag flex h-14 items-center px-4 pt-6 justify-center">
+          {navigationMode === 'full' ? (
+            <span className="electron-no-drag text-lg font-bold text-primary">Auto Claude</span>
+          ) : (
+            <span className="electron-no-drag text-lg font-bold text-primary">AC</span>
+          )}
         </div>
 
         <Separator className="mt-2" />
@@ -315,12 +353,14 @@ export function Sidebar({
 
         {/* Navigation */}
         <ScrollArea className="flex-1">
-          <div className="px-3 py-4">
+          <div className={navigationMode === 'icons' ? 'px-2 py-4' : 'px-3 py-4'}>
             {/* Project Section */}
             <div>
-              <h3 className="mb-2 px-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                {t('sections.project')}
-              </h3>
+              {navigationMode === 'full' && (
+                <h3 className="mb-2 px-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                  {t('sections.project')}
+                </h3>
+              )}
               <nav className="space-y-1">
                 {visibleNavItems.map(renderNavItem)}
               </nav>
@@ -337,25 +377,26 @@ export function Sidebar({
         <UpdateBanner />
 
         {/* Bottom section with Settings, Help, and New Task */}
-        <div className="p-4 space-y-3">
+        <div className={navigationMode === 'icons' ? 'p-2 space-y-2' : 'p-4 space-y-3'}>
           {/* Claude Code Status Badge */}
-          <ClaudeCodeStatusBadge />
+          {navigationMode === 'full' && <ClaudeCodeStatusBadge />}
 
           {/* Settings and Help row */}
-          <div className="flex items-center gap-2">
+          <div className={cn("flex items-center gap-2", navigationMode === 'icons' && 'flex-col')}>
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button
                   variant="ghost"
-                  size="sm"
-                  className="flex-1 justify-start gap-2"
+                  size={navigationMode === 'icons' ? 'icon' : 'sm'}
+                  className={navigationMode === 'icons' ? '' : 'flex-1 justify-start gap-2'}
                   onClick={onSettingsClick}
+                  aria-label={t('tooltips.settings')}
                 >
                   <Settings className="h-4 w-4" />
-                  {t('actions.settings')}
+                  {navigationMode === 'full' && t('actions.settings')}
                 </Button>
               </TooltipTrigger>
-              <TooltipContent side="top">{t('tooltips.settings')}</TooltipContent>
+              <TooltipContent side={navigationMode === 'icons' ? 'right' : 'top'}>{t('tooltips.settings')}</TooltipContent>
             </Tooltip>
             <Tooltip>
               <TooltipTrigger asChild>
@@ -368,20 +409,29 @@ export function Sidebar({
                   <HelpCircle className="h-4 w-4" />
                 </Button>
               </TooltipTrigger>
-              <TooltipContent side="top">{t('tooltips.help')}</TooltipContent>
+              <TooltipContent side={navigationMode === 'icons' ? 'right' : 'top'}>{t('tooltips.help')}</TooltipContent>
             </Tooltip>
           </div>
 
           {/* New Task button */}
-          <Button
-            className="w-full"
-            onClick={onNewTaskClick}
-            disabled={!selectedProjectId || !selectedProject?.autoBuildPath}
-          >
-            <Plus className="mr-2 h-4 w-4" />
-            {t('actions.newTask')}
-          </Button>
-          {selectedProject && !selectedProject.autoBuildPath && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                className="w-full"
+                onClick={onNewTaskClick}
+                disabled={!selectedProjectId || !selectedProject?.autoBuildPath}
+                aria-label={t('actions.newTask')}
+                size={navigationMode === 'icons' ? 'icon' : 'default'}
+              >
+                <Plus className={navigationMode === 'icons' ? 'h-4 w-4' : 'mr-2 h-4 w-4'} />
+                {navigationMode === 'full' && t('actions.newTask')}
+              </Button>
+            </TooltipTrigger>
+            {navigationMode === 'icons' && (
+              <TooltipContent side="right">{t('actions.newTask')}</TooltipContent>
+            )}
+          </Tooltip>
+          {navigationMode === 'full' && selectedProject && !selectedProject.autoBuildPath && (
             <p className="mt-2 text-xs text-muted-foreground text-center">
               {t('messages.initializeToCreateTasks')}
             </p>
