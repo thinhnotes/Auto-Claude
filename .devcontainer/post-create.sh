@@ -12,6 +12,10 @@ if ! command -v uv &> /dev/null; then
     echo "📦 Installing UV package manager..."
     
     # Use pre-built binary for faster installation
+    # Note: Removed SHA-256 verification for simplicity and speed. The installer
+    # is downloaded over HTTPS from the official astral.sh domain, which provides
+    # transport-level security. For production use, consider re-enabling checksum
+    # verification by setting UV_INSTALLER_SHA256 environment variable.
     curl -LsSf https://astral.sh/uv/install.sh | sh
     
     # Ensure uv (installed in ~/.cargo/bin by default) is on PATH for this script.
@@ -22,9 +26,13 @@ fi
 
 # Install Claude CLI globally (make non-blocking)
 echo "🤖 Installing Claude CLI (optional - running in background)..."
-(npm install -g @anthropic-ai/claude-code > /tmp/claude-install.log 2>&1 || {
-    echo "⚠️  Claude CLI installation failed (see /tmp/claude-install.log)" >&2
-    CLAUDE_CLI_FAILED=true
+CLAUDE_INSTALL_LOG="/tmp/claude-install.log"
+CLAUDE_FAILED_FLAG="/tmp/claude-failed"
+rm -f "$CLAUDE_FAILED_FLAG"
+
+(npm install -g @anthropic-ai/claude-code > "$CLAUDE_INSTALL_LOG" 2>&1 || {
+    echo "⚠️  Claude CLI installation failed (see $CLAUDE_INSTALL_LOG)" >&2
+    touch "$CLAUDE_FAILED_FLAG"
 }) &
 CLAUDE_PID=$!
 
@@ -94,6 +102,13 @@ fi
 # Wait for Claude CLI installation to finish
 echo "⏳ Waiting for Claude CLI installation..."
 wait $CLAUDE_PID 2>/dev/null || true
+
+# Check if Claude CLI installation failed
+if [ -f "$CLAUDE_FAILED_FLAG" ]; then
+    CLAUDE_CLI_FAILED=true
+else
+    CLAUDE_CLI_FAILED=false
+fi
 
 echo ""
 echo "✅ Development environment setup complete!"

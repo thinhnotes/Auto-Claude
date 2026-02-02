@@ -89,7 +89,7 @@
 
   "remoteUser": "node",
   
-  "waitFor": "onCreateCommand",
+  "waitFor": "postCreateCommand",
   
   "updateContentCommand": "echo '📦 Updating dependencies...' && npm install --prefer-offline",
   
