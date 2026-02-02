@@ -2,6 +2,21 @@
 
 This devcontainer provides a complete development environment for Auto Claude with all necessary tools and dependencies pre-configured.
 
+## Performance
+
+**Build Times:**
+- **First build:** ~3-5 minutes (downloads and installs all dependencies)
+- **Subsequent rebuilds:** <1 minute (uses cached dependencies)
+- **Container restart:** Instant (no rebuild needed)
+
+**Optimization Features:**
+- ✅ Cached npm dependencies across rebuilds
+- ✅ Cached Python packages across rebuilds
+- ✅ Parallel installation of backend and frontend dependencies
+- ✅ Optional test dependencies (install only when needed)
+- ✅ Background Claude CLI installation (non-blocking)
+- ✅ Offline npm installs when cache is available
+
 ## Features
 
 ### Pre-installed Tools
@@ -88,6 +103,29 @@ After the devcontainer is set up:
 
 ## Troubleshooting
 
+### Container build is slow (>5 minutes on first run)
+This is normal for the first build. Subsequent rebuilds will be much faster (~1 minute) thanks to:
+- Cached node_modules in Docker volumes
+- Cached Python virtual environment
+- Cached UV and pip downloads
+- Offline npm installs
+
+To verify caching is working:
+```bash
+docker volume ls | grep auto-claude
+# You should see volumes like:
+# auto-claude-node-modules
+# auto-claude-frontend-node-modules
+# auto-claude-python-venv
+# auto-claude-uv-cache
+```
+
+### Rebuilding takes longer than expected
+If rebuilds are slow, try:
+1. **Ensure volumes aren't deleted:** Don't run `docker system prune -a` which removes volumes
+2. **Check disk space:** Run `docker system df` to check available space
+3. **Use updateContentCommand:** On rebuild, only dependencies are updated (not full reinstall)
+
 ### Claude CLI authentication fails
 - Make sure you have a Claude Pro/Max subscription
 - Try running `claude` command manually and follow the OAuth flow
@@ -108,6 +146,26 @@ npm install
 ### Port already in use
 - Stop any local services running on ports 8000, 5173, or 9222
 - Or modify the `forwardPorts` in `.devcontainer/devcontainer.json`
+
+### Installing test dependencies
+Test dependencies are not installed by default for faster startup. To install them:
+```bash
+cd apps/backend
+.venv/bin/pip install -r ../../tests/requirements-test.txt
+```
+
+Or rebuild with test dependencies:
+```bash
+INSTALL_TEST_DEPS=true bash .devcontainer/post-create.sh
+```
+
+### Clearing cache to start fresh
+If you need to clear all caches and rebuild from scratch:
+```bash
+# Remove all Auto Claude volumes
+docker volume rm $(docker volume ls -q | grep auto-claude)
+# Rebuild the devcontainer
+```
 
 ## Customization
 
