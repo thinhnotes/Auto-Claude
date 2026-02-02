@@ -16,14 +16,10 @@
   },
 
   "mounts": [
-    // Claude config mount (required for authentication)
     "source=${localEnv:HOME}/.config/claude,target=/home/node/.config/claude,type=bind,consistency=cached",
-    // Cache npm dependencies for faster rebuilds
     "source=auto-claude-node-modules,target=${containerWorkspaceFolder}/node_modules,type=volume",
     "source=auto-claude-frontend-node-modules,target=${containerWorkspaceFolder}/apps/frontend/node_modules,type=volume",
-    // Cache Python packages for faster rebuilds
     "source=auto-claude-python-venv,target=${containerWorkspaceFolder}/apps/backend/.venv,type=volume",
-    // Cache UV and pip cache directories
     "source=auto-claude-uv-cache,target=/home/node/.cache/uv,type=volume",
     "source=auto-claude-pip-cache,target=/home/node/.cache/pip,type=volume"
   ],
@@ -93,16 +89,12 @@
 
   "remoteUser": "node",
   
-  // Wait for extensions to be installed before running postCreateCommand
   "waitFor": "onCreateCommand",
   
-  // Use updateContentCommand for faster subsequent rebuilds
   "updateContentCommand": "echo '📦 Updating dependencies...' && npm install --prefer-offline",
   
-  // Lifecycle commands for optimization
   "onCreateCommand": "echo '🚀 Initial container setup...'",
   
-  // Container settings for better performance
   "containerEnv": {
     "NPM_CONFIG_UPDATE_NOTIFIER": "false",
     "NPM_CONFIG_FUND": "false",
