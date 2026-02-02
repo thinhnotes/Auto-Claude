@@ -67,6 +67,18 @@ export const IPC_CHANNELS = {
   TASK_LOGS_STREAM: 'task:logsStream',     // Event: streaming log chunk (main -> renderer)
   TASK_MERGE_PROGRESS: 'task:mergeProgress',  // Event: merge progress update (main -> renderer)
 
+  // Queue routing operations (for profile assignment and task session management)
+  QUEUE_GET_RUNNING_TASKS_BY_PROFILE: 'queue:getRunningTasksByProfile',
+  QUEUE_GET_BEST_PROFILE_FOR_TASK: 'queue:getBestProfileForTask',
+  QUEUE_ASSIGN_PROFILE_TO_TASK: 'queue:assignProfileToTask',
+  QUEUE_UPDATE_TASK_SESSION: 'queue:updateTaskSession',
+  QUEUE_GET_TASK_SESSION: 'queue:getTaskSession',
+
+  // Queue routing events (main -> renderer)
+  QUEUE_PROFILE_SWAPPED: 'queue:profileSwapped',
+  QUEUE_SESSION_CAPTURED: 'queue:sessionCaptured',
+  QUEUE_BLOCKED_NO_PROFILES: 'queue:blockedNoProfiles',
+
   // Terminal operations
   TERMINAL_CREATE: 'terminal:create',
   TERMINAL_DESTROY: 'terminal:destroy',
@@ -151,6 +163,7 @@ export const IPC_CHANNELS = {
   SETTINGS_SAVE: 'settings:save',
   SETTINGS_GET_CLI_TOOLS_INFO: 'settings:getCliToolsInfo',
   SETTINGS_CLAUDE_CODE_GET_ONBOARDING_STATUS: 'settings:claudeCode:getOnboardingStatus',  // Check hasCompletedOnboarding from ~/.claude.json
+  SPELLCHECK_SET_LANGUAGES: 'spellcheck:setLanguages',  // Set spellcheck languages
 
   // API Profile management (custom Anthropic-compatible endpoints)
   PROFILES_GET: 'profiles:get',

@@ -6,8 +6,6 @@ API endpoints for Azure DevOps integration.
 """
 
 import base64
-import json
-import os
 import sys
 from pathlib import Path
 from typing import Any
@@ -21,8 +19,8 @@ _PARENT_DIR = Path(__file__).parent.parent.parent
 if str(_PARENT_DIR) not in sys.path:
     sys.path.insert(0, str(_PARENT_DIR))
 
-from .projects import load_projects
 from ..utils.security import get_secure_logger
+from .projects import load_projects
 
 router = APIRouter()
 logger = get_secure_logger("auto-claude-api")

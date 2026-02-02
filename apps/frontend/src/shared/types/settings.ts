@@ -291,6 +291,8 @@ export interface AppSettings {
   seenVersionWarnings?: string[];
   // Sidebar collapsed state (icons only when true)
   sidebarCollapsed?: boolean;
+  // Navigation mode - icons only or full sidebar
+  navigationMode?: 'icons' | 'full';
 }
 
 // Auto-Claude Source Environment Configuration (for auto-claude repo .env)
