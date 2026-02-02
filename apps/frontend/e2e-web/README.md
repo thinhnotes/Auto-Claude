@@ -6,8 +6,16 @@ Comprehensive end-to-end test suite for the web version of Auto Claude using Pla
 
 This test suite covers:
 - **Project Management**: Add, list, select, and manage projects
+- **Project Initialization**: Create projects, initialize directories, manage directory structure
 - **Task Workflows**: Create, start, monitor, and complete tasks
+- **Advanced Task Management**: Create tasks with details, move tasks, task organization, board views
 - **Claude Accounts**: Add, authenticate, and manage Claude accounts
+- **Ideation**: Create and manage ideas, AI idea generation, idea approval workflow
+- **Roadmap**: View roadmap, manage features, phases, and milestones
+- **Changelog**: View changelog, create entries, filter by version, GitHub integration
+- **Context**: Project context, memories, PR reviews, project indexing
+- **Onboarding Wizard**: Initial setup, authentication, configuration steps
+- **Azure DevOps**: Azure boards, work items, sprints, backlog integration
 - **WebSocket & Real-time**: Live updates, progress streaming, notifications
 - **Cross-browser**: Chrome, Firefox, Safari compatibility
 - **Mobile Responsive**: Touch interactions, responsive layouts, mobile navigation
@@ -16,16 +24,24 @@ This test suite covers:
 
 ```
 e2e-web/
-├── playwright.config.web.ts       # Web-specific Playwright config
-├── playwright.config.docker.ts    # Docker-based testing config
-├── docker-setup.ts                # Docker container setup
-├── docker-teardown.ts             # Docker container cleanup
-├── web-helper.ts                  # Shared test utilities
-├── project-management.web.spec.ts # Project management tests
-├── task-workflow.web.spec.ts      # Task workflow tests
-├── claude-accounts.web.spec.ts    # Claude accounts tests
-├── websocket-realtime.web.spec.ts # WebSocket and real-time tests
-└── mobile-responsive.web.spec.ts  # Mobile responsive tests
+├── playwright.config.web.ts            # Web-specific Playwright config
+├── playwright.config.docker.ts         # Docker-based testing config
+├── docker-setup.ts                     # Docker container setup
+├── docker-teardown.ts                  # Docker container cleanup
+├── web-helper.ts                       # Shared test utilities
+├── project-management.web.spec.ts      # Project management tests
+├── project-initialization.web.spec.ts  # Project init & directory management
+├── task-workflow.web.spec.ts           # Task workflow tests
+├── task-advanced.web.spec.ts           # Advanced task management tests
+├── claude-accounts.web.spec.ts         # Claude accounts tests
+├── ideation.web.spec.ts                # Ideation/ideas tests
+├── roadmap.web.spec.ts                 # Roadmap features tests
+├── changelog.web.spec.ts               # Changelog management tests
+├── context.web.spec.ts                 # Context & memories tests
+├── onboarding.web.spec.ts              # Onboarding wizard tests
+├── azure-devops.web.spec.ts            # Azure DevOps integration tests
+├── websocket-realtime.web.spec.ts      # WebSocket and real-time tests
+└── mobile-responsive.web.spec.ts       # Mobile responsive tests
 ```
 
 ## Running Tests
