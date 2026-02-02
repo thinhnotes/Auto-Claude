@@ -14,12 +14,15 @@ The devcontainer was taking 15+ minutes to build and start, making it frustratin
 ## Solutions Implemented
 
 ### 1. Docker Volume Caching
-Added 6 persistent Docker volumes to cache dependencies across rebuilds:
+Added 5 persistent Docker volumes to cache dependencies across rebuilds:
 - `auto-claude-node-modules` - Root project dependencies
 - `auto-claude-frontend-node-modules` - Frontend dependencies
 - `auto-claude-python-venv` - Python virtual environment
 - `auto-claude-uv-cache` - UV package manager cache
 - `auto-claude-pip-cache` - Pip package cache
+
+Plus 1 bind mount for Claude authentication:
+- `${HOME}/.config/claude` - Claude CLI configuration (bind mount)
 
 ### 2. Parallel Installation
 Backend and frontend dependencies now install simultaneously:

@@ -11,12 +11,35 @@ CLAUDE_CLI_FAILED=false
 if ! command -v uv &> /dev/null; then
     echo "📦 Installing UV package manager..."
     
-    # Use pre-built binary for faster installation
-    # Note: Removed SHA-256 verification for simplicity and speed. The installer
-    # is downloaded over HTTPS from the official astral.sh domain, which provides
-    # transport-level security. For production use, consider re-enabling checksum
-    # verification by setting UV_INSTALLER_SHA256 environment variable.
-    curl -LsSf https://astral.sh/uv/install.sh | sh
+    UV_INSTALLER_URL="https://astral.sh/uv/install.sh"
+    UV_INSTALLER_SCRIPT="$(mktemp)"
+    
+    # Download installer
+    if ! curl -LsSf "$UV_INSTALLER_URL" -o "$UV_INSTALLER_SCRIPT"; then
+        echo "❌ Failed to download UV installer"
+        rm -f "$UV_INSTALLER_SCRIPT"
+        exit 1
+    fi
+    
+    # Optional: Verify installer integrity if UV_INSTALLER_SHA256 is set
+    # Set this in your environment for additional security:
+    # export UV_INSTALLER_SHA256="expected_sha256_hash"
+    if [ -n "${UV_INSTALLER_SHA256:-}" ]; then
+        echo "🔐 Verifying UV installer integrity..."
+        DOWNLOADED_SHA256="$(sha256sum "$UV_INSTALLER_SCRIPT" | awk '{print $1}')"
+        if [ "$DOWNLOADED_SHA256" != "$UV_INSTALLER_SHA256" ]; then
+            echo "❌ UV installer checksum mismatch!"
+            echo "Expected: $UV_INSTALLER_SHA256"
+            echo "Got:      $DOWNLOADED_SHA256"
+            rm -f "$UV_INSTALLER_SCRIPT"
+            exit 1
+        fi
+        echo "✅ UV installer integrity verified"
+    fi
+    
+    # Execute installer
+    sh "$UV_INSTALLER_SCRIPT"
+    rm -f "$UV_INSTALLER_SCRIPT"
     
     # Ensure uv (installed in ~/.cargo/bin by default) is on PATH for this script.
     export PATH="$HOME/.cargo/bin:$PATH"
@@ -30,10 +53,11 @@ CLAUDE_INSTALL_LOG="/tmp/claude-install.log"
 CLAUDE_FAILED_FLAG="/tmp/claude-failed"
 rm -f "$CLAUDE_FAILED_FLAG"
 
-(npm install -g @anthropic-ai/claude-code > "$CLAUDE_INSTALL_LOG" 2>&1 || {
-    echo "⚠️  Claude CLI installation failed (see $CLAUDE_INSTALL_LOG)" >&2
-    touch "$CLAUDE_FAILED_FLAG"
-}) &
+(
+    if ! npm install -g @anthropic-ai/claude-code > "$CLAUDE_INSTALL_LOG" 2>&1; then
+        touch "$CLAUDE_FAILED_FLAG"
+    fi
+) &
 CLAUDE_PID=$!
 
 # Install root dependencies with offline cache
@@ -106,6 +130,7 @@ wait $CLAUDE_PID 2>/dev/null || true
 # Check if Claude CLI installation failed
 if [ -f "$CLAUDE_FAILED_FLAG" ]; then
     CLAUDE_CLI_FAILED=true
+    echo "⚠️  Claude CLI installation failed (see $CLAUDE_INSTALL_LOG)"
 else
     CLAUDE_CLI_FAILED=false
 fi
