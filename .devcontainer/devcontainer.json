@@ -28,7 +28,8 @@
         "esbenp.prettier-vscode",
         "biomejs.biome",
         "bradlc.vscode-tailwindcss",
-        "eamodio.gitlens"
+        "eamodio.gitlens",
+        "sourcegraph.amp"
       ],
       "settings": {
         "python.defaultInterpreterPath": "${workspaceFolder}/apps/backend/.venv/bin/python",
