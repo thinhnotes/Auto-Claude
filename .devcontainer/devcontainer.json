@@ -31,6 +31,7 @@
         "eamodio.gitlens"
       ],
       "settings": {
+        "npm.packageManager": "npm",
         "python.defaultInterpreterPath": "/usr/local/bin/python",
         "python.terminal.activateEnvironment": false,
         "editor.formatOnSave": true,

@@ -81,6 +81,10 @@ from .ws import (
 from .ws.dispatcher import get_dispatcher
 from .ws.handlers import settings as settings_handlers
 from .ws.handlers import profiles as profiles_handlers
+from .ws.handlers import projects as projects_handlers
+from .ws.handlers import tasks as tasks_handlers
+from .ws.handlers import misc as misc_handlers
+from .ws.handlers import context as context_handlers
 
 # Get global WebSocket manager
 manager = get_manager()
@@ -102,6 +106,40 @@ def register_ws_handlers():
     dispatcher.register("profiles.update", profiles_handlers.handle_update_profile)
     dispatcher.register("profiles.delete", profiles_handlers.handle_delete_profile)
     dispatcher.register("profiles.activate", profiles_handlers.handle_activate_profile)
+    
+    # Projects handlers
+    dispatcher.register("projects.get", projects_handlers.handle_get_projects)
+    dispatcher.register("projects.add", projects_handlers.handle_add_project)
+    dispatcher.register("projects.remove", projects_handlers.handle_remove_project)
+    dispatcher.register("projects.updateSettings", projects_handlers.handle_update_project_settings)
+    dispatcher.register("projects.initialize", projects_handlers.handle_initialize_project)
+    dispatcher.register("projects.checkVersion", projects_handlers.handle_check_project_version)
+    dispatcher.register("projects.getAvailable", projects_handlers.handle_get_available_projects)
+    dispatcher.register("projects.createFolder", projects_handlers.handle_create_project_folder)
+    
+    # Tasks handlers
+    dispatcher.register("tasks.get", tasks_handlers.handle_get_tasks)
+    dispatcher.register("tasks.create", tasks_handlers.handle_create_task)
+    dispatcher.register("tasks.delete", tasks_handlers.handle_delete_task)
+    dispatcher.register("tasks.update", tasks_handlers.handle_update_task)
+    dispatcher.register("tasks.start", tasks_handlers.handle_start_task)
+    dispatcher.register("tasks.stop", tasks_handlers.handle_stop_task)
+    dispatcher.register("tasks.pause", tasks_handlers.handle_pause_task)
+    dispatcher.register("tasks.resume", tasks_handlers.handle_resume_task)
+    dispatcher.register("tasks.getStatus", tasks_handlers.handle_get_task_status)
+    
+    # Context handlers
+    dispatcher.register("context.get", context_handlers.handle_get_context)
+    dispatcher.register("context.refresh", context_handlers.handle_refresh_context)
+    dispatcher.register("context.searchMemories", context_handlers.handle_search_memories)
+    dispatcher.register("context.getRecentMemories", context_handlers.handle_get_recent_memories)
+    
+    # Misc handlers
+    dispatcher.register("tabs.get", misc_handlers.handle_get_tabs)
+    dispatcher.register("tabs.save", misc_handlers.handle_save_tabs)
+    dispatcher.register("health", misc_handlers.handle_health_check)
+    dispatcher.register("folders.browse", misc_handlers.handle_browse_folders)
+    dispatcher.register("connection.test", misc_handlers.handle_test_connection)
 
 
 # Register handlers on module load

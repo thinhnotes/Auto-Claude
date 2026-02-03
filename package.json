@@ -27,7 +27,7 @@
     "dev:web": "cd apps/frontend && npm run dev:web",
     "start:web": "cd apps/frontend && npm run start:web",
     "build:web": "cd apps/frontend && npm run build:web",
-    "backend:web": "cd apps/backend && python -m uvicorn web.main:app --reload --host 127.0.0.1 --port 8000",
+    "backend:web": "cd apps/backend && python -m uvicorn web.main:app --reload --host 0.0.0.0 --port 8000",
     "web": "npm run backend:web & sleep 2 && npm run dev:web",
     "web:start": "npm run backend:web & sleep 2 && npm run start:web"
   },

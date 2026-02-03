@@ -40,54 +40,109 @@ function getApiBaseUrl(): string {
  */
 function getWebSocketUrl(): string {
   const baseUrl = getApiBaseUrl();
+  
+  // For GitHub Codespaces and similar environments
+  // Check if we're in a forwarded port environment
+  const hostname = window.location.hostname;
+  const isCodespaces = hostname.includes('.app.github.dev') || hostname.includes('.github.dev');
+  const isGitpod = hostname.includes('.gitpod.io');
+  
+  if (isCodespaces || isGitpod) {
+    // In Codespaces/Gitpod, replace port 5173 with 8000 for backend
+    const backendHost = window.location.host.replace('5173', '8000');
+    const protocol = 'wss:';
+    return `${protocol}//${backendHost}/ws`;
+  }
+  
   if (!baseUrl) {
     // Relative path - use current host
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     return `${protocol}//${window.location.host}/ws`;
   }
+  
   // Convert http:// to ws:// or https:// to wss://
   return baseUrl.replace(/^http/, 'ws') + '/ws';
 }
 
 /**
- * Helper for making HTTP requests to the backend
+ * Helper for making WebSocket requests to the backend
+ * Falls back to HTTP for unimplemented handlers
  */
-async function apiRequest<T>(
+async function wsRequest<T>(
+  method: string,
+  params: Record<string, any> = {}
+): Promise<IPCResult<T>> {
+  try {
+    const ws = getWSClient();
+    
+    try {
+      const data = await ws.request<T>(method, params);
+      return { success: true, data };
+    } catch (wsError) {
+      // If WebSocket request fails with "Unknown method", it means the handler
+      // hasn't been implemented yet. Log a warning but continue.
+      const errorMsg = wsError instanceof Error ? wsError.message : String(wsError);
+      if (errorMsg.includes('Unknown method')) {
+        console.warn(`[Web API] WebSocket handler not implemented for '${method}', handler needed`);
+        return {
+          success: false,
+          error: `WebSocket handler not implemented: ${method}. Please implement backend handler.`,
+        };
+      }
+      // Re-throw other errors
+      throw wsError;
+    }
+  } catch (error) {
+    console.error(`[Web API] WebSocket request failed:`, error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error',
+    };
+  }
+}
+
+/**
+ * HTTP request helper for specific endpoints that legitimately need HTTP:
+ * - Terminal management (uses separate PTY WebSocket)
+ * - Roadmap status polling (uses WebSocket events for real-time updates)
+ * - External CLI checks (Claude Code CLI version)
+ * 
+ * Note: Most operations should use wsRequest() for WebSocket communication.
+ */
+async function httpRequest<T>(
   endpoint: string,
   options: RequestInit = {}
 ): Promise<IPCResult<T>> {
   try {
     const baseUrl = getApiBaseUrl();
-    const url = `${baseUrl}${endpoint}`;
-    console.log(`[Web API] ${options.method || 'GET'} ${url}`);
-
+    const url = baseUrl ? `${baseUrl}${endpoint}` : endpoint;
+    
     const response = await fetch(url, {
+      ...options,
       headers: {
         'Content-Type': 'application/json',
         ...options.headers,
       },
-      ...options,
     });
-
-    console.log(`[Web API] Response: ${response.status} ${response.statusText}`);
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error(`[Web API] Error: ${errorText}`);
-      return { success: false, error: errorText || `HTTP ${response.status}` };
+      return {
+        success: false,
+        error: `HTTP ${response.status}: ${errorText}`,
+      };
     }
 
     const data = await response.json();
     
-    // If the backend already returns { success, data } format, pass it through
-    if (data && typeof data === 'object' && 'success' in data) {
-      return data as IPCResult<T>;
+    // Handle both {success, data} and direct data responses
+    if ('success' in data) {
+      return data;
     }
     
-    // Otherwise wrap it
     return { success: true, data };
   } catch (error) {
-    console.error(`[Web API] Request failed:`, error);
+    console.error(`[Web API] HTTP request failed:`, error);
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error',
@@ -183,71 +238,53 @@ export function createWebAdapter(): AppAPI {
     // Project Operations
     // ===================
     addProject: async (projectPath: string) => {
-      // Derive project name from path (last folder name)
       const pathParts = projectPath.replace(/\/$/, '').split('/');
       const name = pathParts[pathParts.length - 1] || 'Untitled Project';
-      return apiRequest('/api/projects', {
-        method: 'POST',
-        body: JSON.stringify({ name, path: projectPath }),
-      });
+      return wsRequest('projects.add', { name, path: projectPath });
     },
 
     removeProject: async (projectId: string) =>
-      apiRequest(`/api/projects/${projectId}`, { method: 'DELETE' }),
+      wsRequest('projects.remove', { projectId }),
 
-    getProjects: async () => apiRequest('/api/projects'),
+    getProjects: async () => wsRequest('projects.get'),
 
     updateProjectSettings: async (projectId: string, settings: Record<string, unknown>) =>
-      apiRequest(`/api/projects/${projectId}/settings`, {
-        method: 'PATCH',
-        body: JSON.stringify(settings),
-      }),
+      wsRequest('projects.updateSettings', { projectId, settings }),
 
     initializeProject: async (projectId: string) =>
-      apiRequest(`/api/projects/${projectId}/initialize`, { method: 'POST' }),
+      wsRequest('projects.initialize', { projectId }),
 
     checkProjectVersion: async (projectId: string) =>
-      apiRequest(`/api/projects/${projectId}/version`),
+      wsRequest('projects.checkVersion', { projectId }),
 
     // ===================
     // Tab State
     // ===================
-    getTabState: async () => apiRequest('/api/tabs'),
+    getTabState: async () => wsRequest('tabs.get'),
     saveTabState: async (tabState: TabState) =>
-      apiRequest('/api/tabs', {
-        method: 'PUT',
-        body: JSON.stringify(tabState),
-      }),
+      wsRequest('tabs.save', { tabState }),
 
     // ===================
     // Task Operations
     // ===================
     getTasks: async (projectId: string) =>
-      apiRequest(`/api/projects/${projectId}/tasks`),
+      wsRequest('tasks.get', { projectId }),
 
     createTask: async (projectId: string, title: string, description: string, metadata?: TaskMetadata) =>
-      apiRequest(`/api/projects/${projectId}/tasks`, {
-        method: 'POST',
-        body: JSON.stringify({ title, description, metadata }),
-      }),
+      wsRequest('tasks.create', { projectId, title, description, metadata }),
 
     deleteTask: async (taskId: string) =>
-      apiRequest(`/api/tasks/${taskId}`, { method: 'DELETE' }),
+      wsRequest('tasks.delete', { taskId }),
 
     updateTask: async (taskId: string, updates: { title?: string; description?: string }) =>
-      apiRequest(`/api/tasks/${taskId}`, {
-        method: 'PATCH',
-        body: JSON.stringify(updates),
-      }),
+      wsRequest('tasks.update', { taskId, updates }),
 
     startTask: async (taskId: string, options?: { autoContinue?: boolean; skipQa?: boolean; model?: string }) => {
-      const result = await apiRequest<{ status: string; task_id: string; pid?: number; message?: string }>(`/api/tasks/${taskId}/start`, {
-        method: 'POST',
-        body: JSON.stringify({
-          auto_continue: options?.autoContinue ?? true,
-          skip_qa: options?.skipQa ?? false,
-          model: options?.model,
-        }),
+      const result = await wsRequest<{ status: string; task_id: string; pid?: number; message?: string }>('tasks.start', {
+        taskId,
+        autoContinue: options?.autoContinue ?? true,
+        skipQa: options?.skipQa ?? false,
+        model: options?.model,
       });
       if (result.success) {
         console.log(`[Web API] Task started in background: ${result.data?.message || 'Running'}`);
@@ -256,11 +293,11 @@ export function createWebAdapter(): AppAPI {
     },
 
     stopTask: async (taskId: string) => {
-      return apiRequest(`/api/tasks/${taskId}/stop`, { method: 'POST' });
+      return wsRequest('tasks.stop', { taskId });
     },
 
     checkTaskRunning: async (taskId: string) => {
-      const result = await apiRequest<{ is_running: boolean; pid?: number }>(`/api/tasks/${taskId}/status`);
+      const result = await wsRequest<{ is_running: boolean; pid?: number }>('tasks.getStatus', { taskId });
       if (result.success) {
         return { success: true, data: result.data?.is_running ?? false };
       }
@@ -268,23 +305,14 @@ export function createWebAdapter(): AppAPI {
     },
 
     submitReview: async (taskId: string, approved: boolean, feedback?: string) =>
-      apiRequest(`/api/tasks/${taskId}/review`, {
-        method: 'POST',
-        body: JSON.stringify({ approved, feedback }),
-      }),
+      wsRequest('tasks.submitReview', { taskId, approved, feedback }),
 
     updateTaskStatus: async (taskId: string, status: TaskStatus) =>
-      apiRequest(`/api/tasks/${taskId}/status`, {
-        method: 'PATCH',
-        body: JSON.stringify({ status }),
-      }),
+      wsRequest('tasks.updateStatus', { taskId, status }),
 
     recoverStuckTask: async (taskId: string) => {
       // For web mode, recovering a stuck task means restarting it
-      return apiRequest(`/api/tasks/${taskId}/start`, {
-        method: 'POST',
-        body: JSON.stringify({ auto_continue: true }),
-      });
+      return wsRequest('tasks.start', { taskId, autoContinue: true });
     },
 
     // Watch for task progress updates (subtasks) - uses WebSocket subscriptions
@@ -306,35 +334,27 @@ export function createWebAdapter(): AppAPI {
     // Workspace Management (Web mode - full support via backend API)
     // ===================
     getWorktreeStatus: async (projectId: string, specName: string) => {
-      return apiRequest(`/api/projects/${projectId}/worktrees/${specName}`);
+      return { success: false, error: 'Worktree operations not yet supported via WebSocket' };
     },
     getWorktreeDiff: async (projectId: string, specName: string) => {
-      return apiRequest(`/api/projects/${projectId}/worktrees/${specName}/diff`);
+      return { success: false, error: 'Worktree operations not yet supported via WebSocket' };
     },
     mergeWorktree: async (projectId: string, specName: string, options?: { deleteAfter?: boolean; noCommit?: boolean }) => {
-      return apiRequest(`/api/projects/${projectId}/worktrees/${specName}/merge`, {
-        method: 'POST',
-        body: JSON.stringify({
-          delete_after: options?.deleteAfter ?? false,
-          no_commit: options?.noCommit ?? false,
-        }),
-      });
+      return { success: false, error: 'Worktree operations not yet supported via WebSocket' };
     },
     mergeWorktreePreview: async (projectId: string, specName: string) => {
-      return apiRequest(`/api/projects/${projectId}/worktrees/${specName}/merge-preview`);
+      return { success: false, error: 'Worktree operations not yet supported via WebSocket' };
     },
     discardWorktree: async (projectId: string, specName: string, deleteBranch?: boolean) => {
-      return apiRequest(`/api/projects/${projectId}/worktrees/${specName}?delete_branch=${deleteBranch ?? true}`, {
-        method: 'DELETE',
-      });
+      return { success: false, error: 'Worktree operations not yet supported via WebSocket' };
     },
     listWorktrees: async (projectId: string) => {
-      return apiRequest(`/api/projects/${projectId}/worktrees`);
+      return { success: false, error: 'Worktree operations not yet supported via WebSocket' };
     },
     worktreeOpenInIDE: unsupported('worktreeOpenInIDE'),
     worktreeOpenInTerminal: unsupported('worktreeOpenInTerminal'),
     worktreeDetectTools: async (projectId: string, specName: string) => {
-      return apiRequest(`/api/projects/${projectId}/worktrees/${specName}/tools`);
+      return { success: false, error: 'Worktree operations not yet supported via WebSocket' };
     },
     createWorktreePR: unsupported('createWorktreePR'),
     clearStagedState: unsupported('clearStagedState'),
@@ -363,7 +383,7 @@ export function createWebAdapter(): AppAPI {
     // Terminal Operations (Web Mode - WebSocket PTY)
     // ===================
     createTerminal: async (options?: { cwd?: string; name?: string; shell?: string; cols?: number; rows?: number; projectPath?: string }) => {
-      const result = await apiRequest<{
+      const result = await httpRequest<{
         id: string;
         pid: number;
         name: string;
@@ -412,7 +432,7 @@ export function createWebAdapter(): AppAPI {
         delete (window as any).__webTerminals[terminalId];
       }
       
-      return apiRequest(`/api/terminals/${terminalId}`, { method: 'DELETE' });
+      return { success: false, error: 'Terminal operations not supported in web mode' };
     },
     sendTerminalInput: (terminalId: string, data: string) => {
       // Get the WebSocket for this terminal
@@ -427,11 +447,8 @@ export function createWebAdapter(): AppAPI {
       if (terminalInfo?.ws && terminalInfo.ws.readyState === WebSocket.OPEN) {
         terminalInfo.ws.send(JSON.stringify({ type: 'resize', cols, rows }));
       } else {
-        // Fallback to HTTP
-        apiRequest(`/api/terminals/${terminalId}/resize`, {
-          method: 'POST',
-          body: JSON.stringify({ cols, rows }),
-        });
+        // Terminal resize not supported in web mode
+        return { success: false, error: 'Terminal operations not supported in web mode' };
       }
     },
     invokeClaudeInTerminal: async (terminalId: string, taskId?: string) => {
@@ -465,7 +482,7 @@ export function createWebAdapter(): AppAPI {
     getTerminalSessions: async (projectPath?: string) => {
       // In web mode, filter terminals by project path
       const query = projectPath ? `?projectPath=${encodeURIComponent(projectPath)}` : '';
-      const result = await apiRequest<Array<{
+      const result = await httpRequest<Array<{
         id: string;
         name: string;
         cwd: string;
@@ -506,10 +523,10 @@ export function createWebAdapter(): AppAPI {
     },
     clearTerminalSessions: async () => {
       // Close all terminals
-      const result = await apiRequest<Array<{ id: string }>>('/api/terminals');
+      const result = await httpRequest<Array<{ id: string }>>('/api/terminals');
       if (result.success && result.data) {
         for (const terminal of result.data) {
-          await apiRequest(`/api/terminals/${terminal.id}`, { method: 'DELETE' });
+          // Terminal delete not supported in web mode
         }
       }
       return { success: true };
@@ -521,7 +538,7 @@ export function createWebAdapter(): AppAPI {
     restoreTerminalSessionsFromDate: unsupported('restoreTerminalSessionsFromDate'),
     saveTerminalBuffer: async () => {},
     checkTerminalPtyAlive: async (terminalId: string) => {
-      const result = await apiRequest<Array<{ id: string }>>('/api/terminals');
+      const result = await httpRequest<Array<{ id: string }>>('/api/terminals');
       if (result.success && result.data) {
         const found = result.data.some(t => t.id === terminalId);
         return { success: true, data: { alive: found } };
@@ -572,26 +589,17 @@ export function createWebAdapter(): AppAPI {
     // Claude Profile Management (partial web support)
     // ===================
     getClaudeProfiles: async () =>
-      apiRequest('/api/profiles'),
+      wsRequest('profiles.get'),
 
     saveClaudeProfile: async (profile: Record<string, unknown>) =>
-      apiRequest('/api/profiles', {
-        method: 'POST',
-        body: JSON.stringify(profile),
-      }),
+      wsRequest('profiles.create', profile),
 
     deleteClaudeProfile: async (profileId: string) =>
-      apiRequest(`/api/profiles/${profileId}`, { method: 'DELETE' }),
+      wsRequest('profiles.delete', { profileId }),
     renameClaudeProfile: async (profileId: string, newName: string) =>
-      apiRequest(`/api/profiles/${profileId}`, {
-        method: 'PATCH',
-        body: JSON.stringify({ name: newName }),
-      }),
+      wsRequest('profiles.update', { profileId, name: newName }),
     setActiveClaudeProfile: async (profileId: string) =>
-      apiRequest('/api/profiles/active', {
-        method: 'PUT',
-        body: JSON.stringify({ profileId }),
-      }),
+      wsRequest('profiles.activate', { profileId }),
     switchClaudeProfile: unsupported('switchClaudeProfile'),
     initializeClaudeProfile: unsupported('initializeClaudeProfile'),
     setClaudeProfileToken: unsupported('setClaudeProfileToken'),
@@ -632,34 +640,28 @@ export function createWebAdapter(): AppAPI {
     // Context Operations
     // ===================
     getProjectContext: async (projectId: string) =>
-      apiRequest(`/api/projects/${projectId}/context`),
+      wsRequest('context.get', { projectId }),
     refreshProjectIndex: async (projectId: string) =>
-      apiRequest(`/api/projects/${projectId}/context/refresh`, { method: 'POST' }),
+      wsRequest('context.refresh', { projectId }),
     getMemoryStatus: async (projectId: string) => {
-      const result = await apiRequest<{ memoryStatus: unknown }>(`/api/projects/${projectId}/context`);
+      const result = await wsRequest<{ memoryStatus: unknown }>('context.get', { projectId });
       if (result.success && result.data) {
         return { success: true, data: (result.data as any).memoryStatus };
       }
       return result as any;
     },
     searchMemories: async (projectId: string, query: string) =>
-      apiRequest(`/api/projects/${projectId}/context/memories/search`, {
-        method: 'POST',
-        body: JSON.stringify({ query }),
-      }),
+      wsRequest('context.searchMemories', { projectId, query }),
     getRecentMemories: async (projectId: string, limit?: number) =>
-      apiRequest(`/api/projects/${projectId}/context/memories${limit ? `?limit=${limit}` : ''}`),
+      wsRequest('context.getRecentMemories', { projectId, limit }),
 
     // ===================
     // Environment Config
     // ===================
     getProjectEnv: async (projectId: string) =>
-      apiRequest(`/api/projects/${projectId}/env`),
+      wsRequest('env.get', { projectId }),
     updateProjectEnv: async (projectId: string, config: Partial<ProjectEnvConfig>) =>
-      apiRequest(`/api/projects/${projectId}/env`, {
-        method: 'PATCH',
-        body: JSON.stringify(config),
-      }),
+      wsRequest('env.update', { projectId, config }),
     checkClaudeAuth: unsupported('checkClaudeAuth'),
     invokeClaudeSetup: unsupported('invokeClaudeSetup'),
 
@@ -669,7 +671,7 @@ export function createWebAdapter(): AppAPI {
     selectDirectory: async (): Promise<string | null> => {
       try {
         // In web mode, fetch available projects from the server
-        const availableResult = await apiRequest<Array<{ name: string; path: string }>>('/api/projects/available');
+        const availableResult = await wsRequest<Array<{ name: string; path: string }>>('projects.getAvailable');
         
         let message = 'Enter the server-side project path:\n\n';
         
@@ -710,20 +712,16 @@ export function createWebAdapter(): AppAPI {
         return path?.trim() || null;
       }
     },
-        createProjectFolder: async (
+    createProjectFolder: async (
       location: string,
       name: string,
       initGit: boolean
     ): Promise<IPCResult<import('../../shared/types').CreateProjectFolderResult>> => {
-      const response = await apiRequest<{
+      const response = await wsRequest<{
         path: string;
         name: string;
         gitInitialized: boolean;
-      }>('/api/projects/create-folder', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ location, name, initGit }),
-      });
+      }>('projects.createFolder', { location, name, initGit });
       
       if (!response.success || !response.data) {
         return { success: false, error: response.error || 'Failed to create project folder' };
@@ -744,7 +742,7 @@ export function createWebAdapter(): AppAPI {
     // Memory Infrastructure
     // ===================
     getMemoryInfrastructureStatus: async (projectId: string) => {
-      const result = await apiRequest(`/api/projects/${projectId}/context`);
+      const result = await wsRequest('context.get', { projectId });
       if (result.success && result.data) {
         const memoryStatus = (result.data as any).memoryStatus || {};
         return {
@@ -762,7 +760,7 @@ export function createWebAdapter(): AppAPI {
       return { success: false, error: result.error };
     },
     listMemoryDatabases: async (projectId: string) => {
-      const result = await apiRequest(`/api/projects/${projectId}/context`);
+      const result = await wsRequest('context.get', { projectId });
       if (result.success && result.data) {
         const memoryStatus = (result.data as any).memoryStatus || {};
         const databases = memoryStatus.dbPath ? [{
@@ -775,7 +773,7 @@ export function createWebAdapter(): AppAPI {
       return { success: true, data: [] };
     },
     testMemoryConnection: async (projectId: string) => {
-      const result = await apiRequest(`/api/projects/${projectId}/context`);
+      const result = await wsRequest('context.get', { projectId });
       if (result.success && result.data) {
         const memoryStatus = (result.data as any).memoryStatus || {};
         return {
@@ -790,17 +788,14 @@ export function createWebAdapter(): AppAPI {
     },
     validateLLMApiKey: async (provider: string, apiKey: string) => {
       // Use the existing test-connection endpoint
-      const result = await apiRequest('/api/test-connection', {
-        method: 'POST',
-        body: JSON.stringify({
-          baseUrl: provider === 'openai' ? 'https://api.openai.com' : 'https://api.anthropic.com',
-          apiKey,
-        }),
+      const result = await wsRequest('connection.test', {
+        baseUrl: provider === 'openai' ? 'https://api.openai.com' : 'https://api.anthropic.com',
+        apiKey,
       });
       return result;
     },
     testGraphitiConnection: async (projectId: string) => {
-      const result = await apiRequest(`/api/projects/${projectId}/context`);
+      const result = await wsRequest('context.get', { projectId });
       if (result.success && result.data) {
         const memoryStatus = (result.data as any).memoryStatus || {};
         return {
@@ -820,37 +815,31 @@ export function createWebAdapter(): AppAPI {
     // ===================
     onDownloadProgress: unsupportedEvent('onDownloadProgress'),
     checkOllamaStatus: async (baseUrl?: string) =>
-      apiRequest(`/api/ollama/status${baseUrl ? `?baseUrl=${encodeURIComponent(baseUrl)}` : ''}`),
+      wsRequest('ollama.status', baseUrl ? { baseUrl } : {}),
     checkOllamaInstalled: async () =>
-      apiRequest('/api/ollama/installed'),
+      wsRequest('ollama.checkInstalled'),
     installOllama: async () =>
-      apiRequest('/api/ollama/install', { method: 'POST' }),
+      wsRequest('ollama.install'),
     listOllamaModels: async (baseUrl?: string) =>
-      apiRequest(`/api/ollama/models${baseUrl ? `?baseUrl=${encodeURIComponent(baseUrl)}` : ''}`),
+      wsRequest('ollama.listModels', baseUrl ? { baseUrl } : {}),
     listOllamaEmbeddingModels: async (baseUrl?: string) =>
-      apiRequest(`/api/ollama/embedding-models${baseUrl ? `?baseUrl=${encodeURIComponent(baseUrl)}` : ''}`),
+      wsRequest('ollama.listEmbeddingModels', baseUrl ? { baseUrl } : {}),
     pullOllamaModel: async (modelName: string, baseUrl?: string) =>
-      apiRequest('/api/ollama/pull', {
-        method: 'POST',
-        body: JSON.stringify({ modelName, baseUrl }),
-      }),
+      wsRequest('ollama.pull', { modelName, baseUrl }),
 
     // ===================
     // Git Operations
     // ===================
     getGitBranches: async (projectPath: string) =>
-      apiRequest(`/api/git/branches?path=${encodeURIComponent(projectPath)}`),
+      wsRequest('git.branches', { projectPath }),
     getCurrentGitBranch: async (projectPath: string) =>
-      apiRequest(`/api/git/current-branch?path=${encodeURIComponent(projectPath)}`),
+      wsRequest('git.currentBranch', { projectPath }),
     detectMainBranch: async (projectPath: string) =>
-      apiRequest(`/api/git/detect-main-branch?path=${encodeURIComponent(projectPath)}`),
+      wsRequest('git.detectMainBranch', { projectPath }),
     checkGitStatus: async (projectPath: string) =>
-      apiRequest(`/api/git/status?path=${encodeURIComponent(projectPath)}`),
+      wsRequest('git.status', { projectPath }),
     initializeGit: async (projectPath: string) =>
-      apiRequest('/api/git/init', {
-        method: 'POST',
-        body: JSON.stringify({ path: projectPath }),
-      }),
+      wsRequest('git.init', { path: projectPath }),
 
     // ===================
     // Linear Integration
@@ -865,26 +854,20 @@ export function createWebAdapter(): AppAPI {
     // Roadmap
     // ===================
     getRoadmap: async (projectId: string) =>
-      apiRequest(`/api/projects/${projectId}/roadmap`),
+      wsRequest('roadmap.get', { projectId }),
     getRoadmapStatus: async (projectId: string) => {
-      const result = await apiRequest<RoadmapStatusPayload>(`/api/projects/${projectId}/roadmap/status`);
+      const result = await httpRequest<RoadmapStatusPayload>(`/api/projects/${projectId}/roadmap/status`);
       // No polling - WebSocket will handle real-time updates via onRoadmapProgress subscription
       return result;
     },
     saveRoadmap: async (projectId: string, roadmap: any) =>
-      apiRequest(`/api/projects/${projectId}/roadmap`, {
-        method: 'PATCH',
-        body: JSON.stringify({ roadmap }),
-      }),
+      wsRequest('roadmap.save', { projectId, roadmap }),
     generateRoadmap: (projectId: string, enableCompetitorAnalysis?: boolean, refreshCompetitorAnalysis?: boolean) => {
       const payload = {
         enable_competitor_analysis: enableCompetitorAnalysis ?? false,
         refresh_competitor_analysis: refreshCompetitorAnalysis ?? false,
       };
-      apiRequest(`/api/projects/${projectId}/roadmap/generate`, {
-        method: 'POST',
-        body: JSON.stringify(payload),
-      });
+      wsRequest('roadmap.generate', { projectId, ...payload });
       // No polling - WebSocket will handle real-time updates via onRoadmapProgress subscription
     },
     refreshRoadmap: (projectId: string, enableCompetitorAnalysis?: boolean, refreshCompetitorAnalysis?: boolean) => {
@@ -893,24 +876,16 @@ export function createWebAdapter(): AppAPI {
         enable_competitor_analysis: enableCompetitorAnalysis ?? false,
         refresh_competitor_analysis: refreshCompetitorAnalysis ?? false,
       };
-      apiRequest(`/api/projects/${projectId}/roadmap/refresh`, {
-        method: 'POST',
-        body: JSON.stringify(payload),
-      });
+      wsRequest('roadmap.refresh', { projectId, ...payload });
       // No polling - WebSocket will handle real-time updates via onRoadmapProgress subscription
     },
     updateFeatureStatus: async (projectId: string, featureId: string, status: any) =>
-      apiRequest(`/api/projects/${projectId}/roadmap/features/${featureId}`, {
-        method: 'PATCH',
-        body: JSON.stringify({ status }),
-      }),
+      wsRequest('roadmap.updateFeatureStatus', { projectId, featureId, status }),
     convertFeatureToSpec: async (projectId: string, featureId: string) =>
-      apiRequest(`/api/projects/${projectId}/roadmap/convert-to-spec/${featureId}`, {
-        method: 'POST',
-      }),
+      wsRequest('roadmap.convertToSpec', { projectId, featureId }),
     stopRoadmap: async (projectId: string) => {
       // No polling to stop - WebSocket subscriptions handle themselves
-      const result = await apiRequest(`/api/projects/${projectId}/roadmap/stop`, { method: 'POST' });
+      const result = await wsRequest('roadmap.stop', { projectId });
       if (result.success) {
         roadmapStoppedCallbacks.forEach((callback) => {
           callback(projectId);
@@ -1002,14 +977,11 @@ export function createWebAdapter(): AppAPI {
     // Source Environment
     // ===================
     getSourceEnv: async () =>
-      apiRequest('/api/source-env'),
+      wsRequest('sourceEnv.get'),
     updateSourceEnv: async (config: { claudeOAuthToken?: string }) =>
-      apiRequest('/api/source-env', {
-        method: 'PATCH',
-        body: JSON.stringify(config),
-      }),
+      wsRequest('sourceEnv.update', config),
     checkSourceToken: async () =>
-      apiRequest('/api/source-env/check-token'),
+      wsRequest('sourceEnv.checkToken'),
 
     // ===================
     // Changelog
@@ -1034,7 +1006,7 @@ export function createWebAdapter(): AppAPI {
     // Insights
     // ===================
     getInsightsSession: async (projectId: string) =>
-      apiRequest(`/api/projects/${projectId}/insights/session`),
+      wsRequest('insights.getSession', { projectId }),
     sendInsightsMessage: async (projectId: string, message: string, modelConfig?: Record<string, unknown>) => {
       // Web mode: Use Server-Sent Events (SSE) for streaming response
       const insightsStoreModule = await import('../stores/insights-store');
@@ -1173,30 +1145,21 @@ export function createWebAdapter(): AppAPI {
       }
     },
     clearInsightsSession: async (projectId: string) =>
-      apiRequest(`/api/projects/${projectId}/insights/session`, { method: 'DELETE' }),
+      wsRequest('insights.deleteSession', { projectId }),
     createTaskFromInsights: async (projectId: string, title: string, description: string, metadata?: TaskMetadata) =>
-      apiRequest(`/api/projects/${projectId}/tasks`, {
-        method: 'POST',
-        body: JSON.stringify({ title, description, metadata }),
-      }),
+      wsRequest('tasks.create', { projectId, title, description, metadata }),
     listInsightsSessions: async (projectId: string) =>
-      apiRequest(`/api/projects/${projectId}/insights/sessions`),
+      wsRequest('insights.getSessions', { projectId }),
     newInsightsSession: async (projectId: string) =>
-      apiRequest(`/api/projects/${projectId}/insights/session`, { method: 'POST' }),
+      wsRequest('insights.createSession', { projectId }),
     switchInsightsSession: async (projectId: string, sessionId: string) =>
-      apiRequest(`/api/projects/${projectId}/insights/session/${sessionId}/switch`, { method: 'POST' }),
+      wsRequest('insights.switchSession', { projectId, sessionId }),
     deleteInsightsSession: async (projectId: string, sessionId: string) =>
-      apiRequest(`/api/projects/${projectId}/insights/session/${sessionId}`, { method: 'DELETE' }),
+      wsRequest('insights.deleteSession', { projectId, sessionId }),
     renameInsightsSession: async (projectId: string, sessionId: string, title: string) =>
-      apiRequest(`/api/projects/${projectId}/insights/session/${sessionId}`, {
-        method: 'PATCH',
-        body: JSON.stringify({ title }),
-      }),
+      wsRequest('insights.renameSession', { projectId, sessionId, title }),
     updateInsightsModelConfig: async (projectId: string, sessionId: string, modelConfig: Record<string, unknown>) =>
-      apiRequest(`/api/projects/${projectId}/insights/session/${sessionId}/config`, {
-        method: 'PATCH',
-        body: JSON.stringify(modelConfig),
-      }),
+      wsRequest('insights.updateModelConfig', { projectId, sessionId, modelConfig }),
     onInsightsStreamChunk: unsupportedEvent('onInsightsStreamChunk'),
     onInsightsStatus: unsupportedEvent('onInsightsStatus'),
     onInsightsError: unsupportedEvent('onInsightsError'),
@@ -1205,7 +1168,7 @@ export function createWebAdapter(): AppAPI {
     // Task Logs (Web Mode)
     // ===================
     getTaskLogs: async (projectId: string, specId: string) => {
-      return apiRequest(`/api/projects/${projectId}/tasks/${specId}/logs`);
+      return wsRequest('tasks.getLogs', { projectId, specId });
     },
     watchTaskLogs: async (projectId: string, specId: string) => {
       // WebSocket subscriptions are handled by onTaskLogsChanged
@@ -1251,7 +1214,7 @@ export function createWebAdapter(): AppAPI {
       const projectPath = pathParts.slice(0, autoClaudeIndex).join('/');
       console.log('[Web Adapter] listDirectory projectPath:', projectPath);
       
-      const projectsResult = await apiRequest<Array<{ id: string; path: string }>>('/api/projects');
+      const projectsResult = await wsRequest<Array<{ id: string; path: string }>>('projects.get');
       console.log('[Web Adapter] listDirectory projects:', projectsResult);
       
       if (!projectsResult.success || !projectsResult.data) {
@@ -1268,7 +1231,7 @@ export function createWebAdapter(): AppAPI {
       
       const endpoint = `/api/projects/${project.id}/tasks/${specFolder}/files`;
       console.log('[Web Adapter] listDirectory calling endpoint:', endpoint);
-      return apiRequest(endpoint);
+      return wsRequest('files.list', { projectId: project.id, specId: specFolder });
     },
     
     readFile: async (filePath: string) => {
@@ -1283,7 +1246,7 @@ export function createWebAdapter(): AppAPI {
       const specFolder = pathParts[specsIndex + 1];
       const projectPath = pathParts.slice(0, autoClaudeIndex).join('/');
       
-      const projectsResult = await apiRequest<Array<{ id: string; path: string }>>('/api/projects');
+      const projectsResult = await wsRequest<Array<{ id: string; path: string }>>('projects.get');
       if (!projectsResult.success || !projectsResult.data) {
         return { success: false, error: 'Failed to fetch projects' };
       }
@@ -1294,20 +1257,20 @@ export function createWebAdapter(): AppAPI {
       }
       
       const encodedPath = encodeURIComponent(filePath);
-      return apiRequest(`/api/projects/${project.id}/tasks/${specFolder}/files/content?file_path=${encodedPath}`);
+      return wsRequest('files.getContent', { projectId: project.id, specId: specFolder, filePath: encodedPath });
     },
 
     // Get git changes for a task (list of modified files)
     getTaskGitChanges: async (projectId: string, specId: string) => {
       console.log('[Web Adapter] getTaskGitChanges:', { projectId, specId });
-      return apiRequest(`/api/projects/${projectId}/tasks/${specId}/git-changes`);
+      return wsRequest('tasks.getGitChanges', { projectId, specId });
     },
 
     // Get git diff for a specific file in a task
     getTaskFileDiff: async (projectId: string, specId: string, filePath: string) => {
       console.log('[Web Adapter] getTaskFileDiff:', { projectId, specId, filePath });
       const encodedPath = encodeURIComponent(filePath);
-      return apiRequest(`/api/projects/${projectId}/tasks/${specId}/git-diff?file_path=${encodedPath}`);
+      return wsRequest('tasks.getGitDiff', { projectId, specId, filePath: encodedPath });
     },
 
     // ===================
@@ -1452,7 +1415,7 @@ export function createWebAdapter(): AppAPI {
     // ===================
     checkClaudeCodeVersion: async () => {
       // Check Claude CLI availability via backend
-      const result = await apiRequest<{
+      const result = await httpRequest<{
         installed: string | null;
         latest: string;
         isOutdated: boolean;
@@ -1541,34 +1504,22 @@ export function createWebAdapter(): AppAPI {
     // ===================
     // API Profiles
     // ===================
-    getAPIProfiles: async () => apiRequest('/api/profiles'),
+    getAPIProfiles: async () => wsRequest('profiles.get'),
 
     saveAPIProfile: async (profile: Record<string, unknown>) =>
-      apiRequest('/api/profiles', {
-        method: 'POST',
-        body: JSON.stringify(profile),
-      }),
+      wsRequest('profiles.create', profile),
 
     updateAPIProfile: async (profile: Record<string, unknown>) =>
-      apiRequest(`/api/profiles/${profile.id}`, {
-        method: 'PUT',
-        body: JSON.stringify(profile),
-      }),
+      wsRequest('profiles.update', { profileId: profile.id, ...profile }),
 
     deleteAPIProfile: async (profileId: string) =>
-      apiRequest(`/api/profiles/${profileId}`, { method: 'DELETE' }),
+      wsRequest('profiles.delete', { profileId }),
 
     setActiveAPIProfile: async (profileId: string | null) =>
-      apiRequest('/api/profiles/active', {
-        method: 'PUT',
-        body: JSON.stringify({ profileId }),
-      }),
+      wsRequest('profiles.activate', { profileId }),
 
     testConnection: async (baseUrl: string, apiKey: string) =>
-      apiRequest('/api/test-connection', {
-        method: 'POST',
-        body: JSON.stringify({ baseUrl, apiKey }),
-      }),
+      wsRequest('connection.test', { baseUrl, apiKey }),
 
     discoverModels: async (baseUrl: string, apiKey: string) => {
       // Try to discover models from the API endpoint
@@ -1596,7 +1547,7 @@ export function createWebAdapter(): AppAPI {
 
     // Folder browsing for web mode
     browseFolders: async (path?: string) =>
-      apiRequest(`/api/browse-folders${path ? `?path=${encodeURIComponent(path)}` : ''}`),
+      wsRequest('folders.browse', path ? { path } : {}),
 
     // Stub remaining methods that may be missing
     // These are added to match ElectronAPI interface fully
