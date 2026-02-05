@@ -16,7 +16,7 @@ _PARENT_DIR = Path(__file__).parent.parent.parent.parent
 if str(_PARENT_DIR) not in sys.path:
     sys.path.insert(0, str(_PARENT_DIR))
 
-from ...routers.profiles import load_profiles, save_profiles
+from web.routers.profiles import load_profiles, save_profiles
 
 
 async def handle_get_profiles(params: dict[str, Any]) -> dict[str, Any]:

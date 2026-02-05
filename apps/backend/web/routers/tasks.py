@@ -44,6 +44,7 @@ from ..utils.plan_helpers import (
 )
 from ..utils.security import get_secure_logger
 from ..ws import publish_event, Channel
+from ..ws.events import get_event_emitter
 from .projects import load_projects
 
 router = APIRouter()
@@ -728,6 +729,31 @@ async def start_task(task_id: str, request: TaskStartRequest) -> dict[str, Any]:
         },
     )
 
+    # CRITICAL: Persist status to implementation_plan.json to prevent status inconsistency
+    # This ensures that when getTasks() is called (on refresh), it reads the correct status
+    # from the plan file. Without this, the old status would be shown after page refresh.
+    plan_file = spec_dir / "implementation_plan.json"
+    try:
+        if plan_file.exists():
+            plan_content = json.loads(plan_file.read_text())
+            plan_content["status"] = "in_progress"
+            plan_file.write_text(json.dumps(plan_content, indent=2))
+            logger.info(f"✅ [{func_name}] Updated plan status to 'in_progress' in {plan_file}")
+        else:
+            # Create minimal plan if it doesn't exist yet
+            plan_content = {
+                "feature": "Task",
+                "status": "in_progress",
+                "phases": [],
+                "created_at": datetime.utcnow().isoformat(),
+                "updated_at": datetime.utcnow().isoformat(),
+            }
+            plan_file.write_text(json.dumps(plan_content, indent=2))
+            logger.info(f"✅ [{func_name}] Created new plan with status 'in_progress' in {plan_file}")
+    except Exception as e:
+        logger.warning(f"⚠️ [{func_name}] Failed to update plan status: {e}")
+        # Don't fail the entire operation if plan update fails
+
     # Emit WebSocket event for task status change
     await publish_event(
         Channel.TASK_STATUS,
@@ -736,6 +762,19 @@ async def start_task(task_id: str, request: TaskStartRequest) -> dict[str, Any]:
             "status": "running",
             "startedAt": datetime.utcnow().isoformat(),
             "pid": process.pid,
+        },
+    )
+
+    event_emitter = get_event_emitter()
+    await event_emitter.emit_task_started(
+        project_id=project_id,
+        task_id=task_id,
+        spec_id=folder,
+        pid=process.pid,
+        metadata={
+            "auto_continue": request.auto_continue,
+            "skip_qa": request.skip_qa,
+            "model": request.model,
         },
     )
 
@@ -796,8 +835,26 @@ async def stop_task(task_id: str) -> dict[str, Any]:
     logger.info(f"🛑 [{func_name}] Task stopped: {task_id}")
     log_task_lifecycle("stop", task_id, {"status": "stopped"})
     
-    # Emit WebSocket event for task status change
+    # CRITICAL: Persist status to implementation_plan.json to prevent status inconsistency
+    # When a task is stopped, it should go back to "backlog" status
+    # This matches the behavior of the Electron app version
     project_id, folder = parse_task_id(task_id)
+    project_path = get_project_path(project_id)
+    spec_dir = find_spec(project_path, folder)
+    
+    if spec_dir:
+        plan_file = spec_dir / "implementation_plan.json"
+        try:
+            if plan_file.exists():
+                plan_content = json.loads(plan_file.read_text())
+                plan_content["status"] = "backlog"
+                plan_file.write_text(json.dumps(plan_content, indent=2))
+                logger.info(f"✅ [{func_name}] Updated plan status to 'backlog' in {plan_file}")
+        except Exception as e:
+            logger.warning(f"⚠️ [{func_name}] Failed to update plan status: {e}")
+            # Don't fail the entire operation if plan update fails
+    
+    # Emit WebSocket event for task status change
     await publish_event(
         Channel.TASK_STATUS,
         {"projectId": project_id, "taskId": task_id, "specId": folder},
@@ -805,6 +862,14 @@ async def stop_task(task_id: str) -> dict[str, Any]:
             "status": "stopped",
             "stoppedAt": datetime.utcnow().isoformat(),
         },
+    )
+
+    event_emitter = get_event_emitter()
+    await event_emitter.emit_task_cancelled(
+        project_id=project_id,
+        task_id=task_id,
+        spec_id=folder,
+        reason="Manually stopped by user",
     )
     
     return {"status": "stopped", "task_id": task_id}

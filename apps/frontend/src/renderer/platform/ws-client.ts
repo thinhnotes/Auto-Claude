@@ -119,6 +119,7 @@ export class WSClient {
     console.log(`[WSClient] Connecting to ${this.url}...`);
 
     try {
+      console.log('[WSClient] Creating raw WebSocket object', this.url);
       this.ws = new WebSocket(this.url);
 
       this.ws.onopen = () => {
@@ -126,6 +127,7 @@ export class WSClient {
         this.connecting = false;
         this.connected = true;
         this.reconnectAttempts = 0;
+        console.debug('[WSClient] ws readyState onopen =', this.ws?.readyState);
         this.sendHello();
         this.startHeartbeat();
         this.resubscribeAll();
@@ -137,12 +139,14 @@ export class WSClient {
       };
 
       this.ws.onerror = (event) => {
-        console.error('[WSClient] WebSocket error:', event);
+        console.error('[WSClient] WebSocket error event:', event);
+        console.debug('[WSClient] ws readyState onerror =', this.ws?.readyState);
         this.onErrorHandler?.('WebSocket connection error');
       };
 
       this.ws.onclose = (event) => {
         console.log(`[WSClient] Disconnected (code: ${event.code}, reason: ${event.reason})`);
+        console.debug('[WSClient] ws readyState onclose =', this.ws?.readyState);
         this.handleDisconnect();
       };
     } catch (error) {
@@ -233,6 +237,22 @@ export class WSClient {
    * Returns a promise that resolves with the response data
    */
   async request<T = any>(method: string, params?: any): Promise<T> {
+    // Wait for connection if not connected (with 5s timeout)
+    if (!this.isConnected()) {
+      console.log(`[WSClient] Waiting for connection before sending ${method}...`);
+      const connectionTimeout = 5000;
+      const start = Date.now();
+      
+      while (!this.isConnected() && Date.now() - start < connectionTimeout) {
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
+      console.log(`[WSClient] Wait finished for ${method}, connected=${this.isConnected()}, ws.readyState=${this.ws?.readyState}`);
+      
+      if (!this.isConnected()) {
+        throw new Error(`WebSocket not connected - cannot send ${method}`);
+      }
+    }
+
     const msgId = this.generateMessageId();
     const message: WSMessage = {
       v: 1,
@@ -252,7 +272,14 @@ export class WSClient {
         reject,
       });
 
-      this.send(message);
+      const sent = this.send(message);
+      if (!sent) {
+        console.error(`[WSClient] send() returned false for ${method}, ws readyState=`, this.ws?.readyState);
+        console.error(new Error('send failed').stack);
+        this.pendingRequests.delete(msgId);
+        reject(new Error(`Failed to send request: ${method}`));
+        return;
+      }
 
       // Timeout after 30s
       setTimeout(() => {
@@ -327,12 +354,15 @@ export class WSClient {
 
   /**
    * Send a message to the server
+   * @returns true if sent successfully, false otherwise
    */
-  private send(message: WSMessage): void {
+  private send(message: WSMessage): boolean {
     if (this.ws && this.ws.readyState === WebSocket.OPEN) {
       this.ws.send(JSON.stringify(message));
+      return true;
     } else {
       console.warn('[WSClient] Cannot send message - not connected');
+      return false;
     }
   }
 

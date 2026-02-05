@@ -85,12 +85,18 @@ from .ws.handlers import projects as projects_handlers
 from .ws.handlers import tasks as tasks_handlers
 from .ws.handlers import misc as misc_handlers
 from .ws.handlers import context as context_handlers
+from .ws.handlers import task_worktree as task_worktree_handlers
+
+from .ws.events import get_event_emitter
 
 # Get global WebSocket manager
 manager = get_manager()
 
 # Get global request dispatcher
 dispatcher = get_dispatcher()
+
+event_emitter = get_event_emitter()
+logger.info("📡 [Agent 1] Task event broadcasting system initialized")
 
 
 def register_ws_handlers():
@@ -122,11 +128,13 @@ def register_ws_handlers():
     dispatcher.register("tasks.create", tasks_handlers.handle_create_task)
     dispatcher.register("tasks.delete", tasks_handlers.handle_delete_task)
     dispatcher.register("tasks.update", tasks_handlers.handle_update_task)
+    dispatcher.register("tasks.updateStatus", tasks_handlers.handle_update_status)
     dispatcher.register("tasks.start", tasks_handlers.handle_start_task)
     dispatcher.register("tasks.stop", tasks_handlers.handle_stop_task)
     dispatcher.register("tasks.pause", tasks_handlers.handle_pause_task)
     dispatcher.register("tasks.resume", tasks_handlers.handle_resume_task)
     dispatcher.register("tasks.getStatus", tasks_handlers.handle_get_task_status)
+    dispatcher.register("tasks.submitReview", tasks_handlers.handle_submit_review)
     
     # Context handlers
     dispatcher.register("context.get", context_handlers.handle_get_context)
@@ -140,6 +148,15 @@ def register_ws_handlers():
     dispatcher.register("health", misc_handlers.handle_health_check)
     dispatcher.register("folders.browse", misc_handlers.handle_browse_folders)
     dispatcher.register("connection.test", misc_handlers.handle_test_connection)
+
+    # Worktree Operations (Agent 4)
+    dispatcher.register("tasks.worktree.status", task_worktree_handlers.handle_worktree_status)
+    dispatcher.register("tasks.worktree.diff", task_worktree_handlers.handle_worktree_diff)
+    dispatcher.register("tasks.worktree.merge", task_worktree_handlers.handle_worktree_merge)
+    dispatcher.register("tasks.worktree.mergePreview", task_worktree_handlers.handle_worktree_merge_preview)
+    dispatcher.register("tasks.worktree.discard", task_worktree_handlers.handle_worktree_discard)
+    dispatcher.register("tasks.listWorktrees", task_worktree_handlers.handle_list_worktrees)
+    dispatcher.register("tasks.clearStagedState", task_worktree_handlers.handle_clear_staged_state)
 
 
 # Register handlers on module load
@@ -168,9 +185,9 @@ async def lifespan(app: FastAPI):
 
     # Shutdown
     logger.info("👋 Auto Claude Web API shutting down...")
-    for connection in manager.active_connections:
+    for websocket in list(manager.connections.keys()):
         try:
-            await connection.close()
+            await websocket.close()
         except Exception:
             pass
 

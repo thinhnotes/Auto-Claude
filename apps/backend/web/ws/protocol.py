@@ -164,7 +164,7 @@ def create_request(method: str, params: dict[str, Any] | None = None, msg_id: st
     )
 
 
-def create_response(request_id: str, data: dict[str, Any] | None = None, error: str | None = None) -> dict[str, Any]:
+def create_response(request_id: str, data: Any = None, error: str | None = None) -> dict[str, Any]:
     """Create a response message."""
     if error:
         return create_message(
@@ -176,7 +176,7 @@ def create_response(request_id: str, data: dict[str, Any] | None = None, error: 
     return create_message(
         MessageType.RESPONSE,
         msg_id=request_id,
-        data=data or {},
+        data=data if data is not None else {},
     )
 
 

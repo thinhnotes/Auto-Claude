@@ -63,6 +63,19 @@ export default defineConfig({
           });
         },
       },
+      '/ws': {
+        target: 'http://127.0.0.1:8000',
+        changeOrigin: true,
+        ws: true, // Enable WebSocket proxying
+        configure: (proxy, _options) => {
+          proxy.on('error', (err, _req, _res) => {
+            console.log('[WS Proxy] Error:', err);
+          });
+          proxy.on('proxyReqWs', (proxyReq, req, socket) => {
+            console.log('[WS Proxy] WebSocket request:', req.url);
+          });
+        },
+      },
     },
     watch: {
       ignored: [
