@@ -155,11 +155,11 @@ async function httpRequest<T>(
 // ===================
 let wsClient: WSClient | null = null;
 
-function getWSClient(): WSClient {
+export function getWSClient(): WSClient {
   if (!wsClient) {
     const wsUrl = getWebSocketUrl();
     console.log('[Web Adapter] Creating WebSocket client:', wsUrl);
-    
+
     wsClient = new WSClient({
       url: wsUrl,
       autoReconnect: true,

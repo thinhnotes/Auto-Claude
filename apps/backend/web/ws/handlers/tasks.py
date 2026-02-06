@@ -42,18 +42,14 @@ from web.utils.plan_helpers import load_plan_from_spec
 async def handle_get_tasks(params: dict[str, Any]) -> dict[str, Any]:
     """Get all tasks for a project."""
     project_id = params.get("projectId")
-    
     if not project_id:
         return {"success": False, "error": "Missing projectId parameter"}
     
     try:
         project_path = get_project_path(project_id)
-        
         if not project_path.exists():
             return {"success": True, "data": []}
-        
         specs = list_specs(project_path)
-        
         tasks = []
         for spec in specs:
             task_id = get_task_id(project_id, spec["folder"])
@@ -97,7 +93,7 @@ async def handle_get_tasks(params: dict[str, Any]) -> dict[str, Any]:
             progress_pct = int((completed / total_subtasks * 100)) if total_subtasks > 0 else 0
             
             # Determine status
-            status = "idle"
+            status = "backlog"
             if is_running:
                 status = "running"
             elif plan and plan.get("status"):
@@ -122,7 +118,7 @@ async def handle_get_tasks(params: dict[str, Any]) -> dict[str, Any]:
                 "location": "worktree" if has_build else "main"
             })
         
-        # Return tasks array directly (same format as Electron API)
+        # Return tasks array in expected format
         return {"success": True, "data": tasks}
     
     except Exception as e:
@@ -186,7 +182,7 @@ Pending - run build to start implementation.
 """
         spec_file = spec_dir / "spec.md"
         spec_file.write_text(spec_content)
-        
+
         task_id = get_task_id(project_id, folder_name)
         now = datetime.utcnow().isoformat()
         

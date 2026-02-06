@@ -76,6 +76,7 @@ export class WSClient {
   private clientId: string;
   private connected = false;
   private connecting = false;
+  private connectCallbacks = new Set<() => void>();
 
   // Event handlers
   private onConnectHandler?: () => void;
@@ -132,6 +133,16 @@ export class WSClient {
         this.startHeartbeat();
         this.resubscribeAll();
         this.onConnectHandler?.();
+
+        // Call all registered connect callbacks
+        this.connectCallbacks.forEach(callback => {
+          try {
+            callback();
+          } catch (error) {
+            console.error('[WSClient] Error in connect callback:', error);
+          }
+        });
+        this.connectCallbacks.clear();
       };
 
       this.ws.onmessage = (event) => {
@@ -180,6 +191,27 @@ export class WSClient {
    */
   isConnected(): boolean {
     return this.connected && this.ws?.readyState === WebSocket.OPEN;
+  }
+
+  /**
+   * Register a callback to be called when connected
+   * If already connected, calls the callback immediately
+   * Returns a cleanup function to remove the callback
+   */
+  onConnect(callback: () => void): () => void {
+    if (this.isConnected()) {
+      // Already connected, call immediately
+      callback();
+      return () => {}; // No-op cleanup since already called
+    }
+
+    // Register callback for next connection
+    this.connectCallbacks.add(callback);
+
+    // Return cleanup function
+    return () => {
+      this.connectCallbacks.delete(callback);
+    };
   }
 
   /**
