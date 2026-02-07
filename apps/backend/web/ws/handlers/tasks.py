@@ -660,3 +660,145 @@ async def handle_submit_review(params: dict[str, Any]) -> dict[str, Any]:
     
     except Exception as e:
         return {"success": False, "error": str(e)}
+
+
+async def handle_get_logs(params: dict[str, Any]) -> dict[str, Any]:
+    """Get historical logs for a task (before streaming started).
+
+    Args:
+        params: Dict containing:
+            - projectId: Project identifier
+            - specId: Spec identifier
+
+    Returns:
+        Dict with success status and logs or error
+    """
+    project_id = params.get("projectId")
+    spec_id = params.get("specId")
+
+    if not project_id or not spec_id:
+        return {"success": False, "error": "Missing projectId or specId"}
+
+    try:
+        from pathlib import Path
+        # get_project_path is defined in this file
+
+        project_path = get_project_path(project_id)
+        log_file = project_path / ".auto-claude" / "specs" / spec_id / "task.log"
+
+        if not log_file.exists():
+            return {"success": True, "data": {"logs": ""}}
+
+        # Read log file content
+        with open(log_file, "r", encoding="utf-8") as f:
+            logs = f.read()
+
+        return {"success": True, "data": {"logs": logs}}
+
+    except UnicodeDecodeError:
+        return {"success": False, "error": "Log file contains invalid encoding"}
+    except Exception as e:
+        logger.error(f"Error reading logs for spec {spec_id}: {e}")
+        return {"success": False, "error": str(e)}
+
+
+async def handle_archive_tasks(params: dict[str, Any]) -> dict[str, Any]:
+    """Archive completed tasks.
+
+    Args:
+        params: Dict containing:
+            - projectId: Project identifier
+            - taskIds: List of task IDs to archive
+
+    Returns:
+        Dict with success status or error
+    """
+    project_id = params.get("projectId")
+    task_ids = params.get("taskIds", [])
+
+    if not project_id or not task_ids:
+        return {"success": False, "error": "Missing projectId or taskIds"}
+
+    try:
+        from pathlib import Path
+        # get_project_path is defined in this file
+        import json
+
+        project_path = get_project_path(project_id)
+        archived_count = 0
+
+        for task_id in task_ids:
+            # Update task metadata to mark as archived
+            spec_dir = project_path / ".auto-claude" / "specs" / task_id
+            metadata_file = spec_dir / "task_metadata.json"
+
+            if metadata_file.exists():
+                try:
+                    with open(metadata_file, "r") as f:
+                        metadata = json.load(f)
+
+                    metadata["archived"] = True
+
+                    with open(metadata_file, "w") as f:
+                        json.dump(metadata, f, indent=2)
+
+                    archived_count += 1
+                except Exception:
+                    continue
+
+        return {"success": True, "data": {"archived": archived_count}}
+
+    except Exception as e:
+        logger.error(f"Error archiving tasks: {e}")
+        return {"success": False, "error": str(e)}
+
+
+async def handle_unarchive_tasks(params: dict[str, Any]) -> dict[str, Any]:
+    """Unarchive tasks.
+
+    Args:
+        params: Dict containing:
+            - projectId: Project identifier
+            - taskIds: List of task IDs to unarchive
+
+    Returns:
+        Dict with success status or error
+    """
+    project_id = params.get("projectId")
+    task_ids = params.get("taskIds", [])
+
+    if not project_id or not task_ids:
+        return {"success": False, "error": "Missing projectId or taskIds"}
+
+    try:
+        from pathlib import Path
+        # get_project_path is defined in this file
+        import json
+
+        project_path = get_project_path(project_id)
+        unarchived_count = 0
+
+        for task_id in task_ids:
+            # Update task metadata to remove archived flag
+            spec_dir = project_path / ".auto-claude" / "specs" / task_id
+            metadata_file = spec_dir / "task_metadata.json"
+
+            if metadata_file.exists():
+                try:
+                    with open(metadata_file, "r") as f:
+                        metadata = json.load(f)
+
+                    metadata["archived"] = False
+
+                    with open(metadata_file, "w") as f:
+                        json.dump(metadata, f, indent=2)
+
+                    unarchived_count += 1
+                except Exception:
+                    continue
+
+        return {"success": True, "data": {"unarchived": unarchived_count}}
+
+    except Exception as e:
+        logger.error(f"Error unarchiving tasks: {e}")
+        return {"success": False, "error": str(e)}

@@ -334,36 +334,60 @@ export function createWebAdapter(): AppAPI {
     // Workspace Management (Web mode - full support via backend API)
     // ===================
     getWorktreeStatus: async (projectId: string, specName: string) => {
-      return { success: false, error: 'Worktree operations not yet supported via WebSocket' };
+      const taskId = `${projectId}:${specName}`;
+      return wsRequest('tasks.worktree.status', { projectId, taskId });
     },
     getWorktreeDiff: async (projectId: string, specName: string) => {
-      return { success: false, error: 'Worktree operations not yet supported via WebSocket' };
+      const taskId = `${projectId}:${specName}`;
+      return wsRequest('tasks.worktree.diff', { projectId, taskId });
     },
     mergeWorktree: async (projectId: string, specName: string, options?: { deleteAfter?: boolean; noCommit?: boolean }) => {
-      return { success: false, error: 'Worktree operations not yet supported via WebSocket' };
+      const taskId = `${projectId}:${specName}`;
+      return wsRequest('tasks.worktree.merge', {
+        projectId,
+        taskId,
+        deleteAfter: options?.deleteAfter,
+        noCommit: options?.noCommit,
+      });
     },
     mergeWorktreePreview: async (projectId: string, specName: string) => {
-      return { success: false, error: 'Worktree operations not yet supported via WebSocket' };
+      const taskId = `${projectId}:${specName}`;
+      return wsRequest('tasks.worktree.mergePreview', { projectId, taskId });
     },
     discardWorktree: async (projectId: string, specName: string, deleteBranch?: boolean) => {
-      return { success: false, error: 'Worktree operations not yet supported via WebSocket' };
+      const taskId = `${projectId}:${specName}`;
+      return wsRequest('tasks.worktree.discard', { projectId, taskId, deleteBranch });
     },
     listWorktrees: async (projectId: string) => {
-      return { success: false, error: 'Worktree operations not yet supported via WebSocket' };
+      return wsRequest('tasks.listWorktrees', { projectId });
     },
-    worktreeOpenInIDE: unsupported('worktreeOpenInIDE'),
-    worktreeOpenInTerminal: unsupported('worktreeOpenInTerminal'),
+    worktreeOpenInIDE: async () => ({
+      success: false,
+      error: 'Opening in IDE is not available in web mode. Use GitHub Codespaces or clone the worktree manually.',
+    }),
+    worktreeOpenInTerminal: async () => ({
+      success: true,
+      data: { message: 'Use the built-in terminal and navigate to the worktree path shown above.' },
+    }),
     worktreeDetectTools: async (projectId: string, specName: string) => {
-      return { success: false, error: 'Worktree operations not yet supported via WebSocket' };
+      return { success: false, error: 'Tool detection is not yet supported in web mode' };
     },
-    createWorktreePR: unsupported('createWorktreePR'),
-    clearStagedState: unsupported('clearStagedState'),
+    createWorktreePR: async () => ({
+      success: false,
+      error: 'PR creation from web mode is not yet implemented. Use GitHub CLI in terminal: gh pr create --title "..." --body "..."',
+    }),
+    clearStagedState: async (projectId: string, specName: string) => {
+      const taskId = `${projectId}:${specName}`;
+      return wsRequest('tasks.clearStagedState', { projectId, taskId });
+    },
 
     // ===================
     // Task Archive
     // ===================
-    archiveTasks: unsupported('archiveTasks'),
-    unarchiveTasks: unsupported('unarchiveTasks'),
+    archiveTasks: async (projectId: string, taskIds: string[]) =>
+      wsRequest('tasks.archive', { projectId, taskIds }),
+    unarchiveTasks: async (projectId: string, taskIds: string[]) =>
+      wsRequest('tasks.unarchive', { projectId, taskIds }),
 
     // ===================
     // Event Listeners (Web Mode - with polling for progress)
@@ -382,7 +406,9 @@ export function createWebAdapter(): AppAPI {
     // ===================
     // Terminal Operations (Web Mode - WebSocket PTY)
     // ===================
-    createTerminal: async (options?: { cwd?: string; name?: string; shell?: string; cols?: number; rows?: number; projectPath?: string }) => {
+    createTerminal: async (options?: { id?: string; cwd?: string; name?: string; shell?: string; cols?: number; rows?: number; projectPath?: string }) => {
+      const frontendTerminalId = options?.id;
+
       const result = await httpRequest<{
         id: string;
         pid: number;
@@ -403,59 +429,88 @@ export function createWebAdapter(): AppAPI {
           projectPath: options?.projectPath,
         }),
       });
-      
+
       if (result.success && result.data) {
-        // Store the terminal ID for WebSocket connection
-        const terminalId = result.data.id;
-        
-        // Create WebSocket connection for this terminal
-        const wsUrl = getApiBaseUrl().replace('http', 'ws') + `/api/terminals/${terminalId}/ws`;
-        
-        // Store connection info in a global map for the Terminal component to use
+        const terminalId = frontendTerminalId || result.data.id;
+        const backendTerminalId = result.data.id;
+
+        let wsUrl: string;
+        const apiBase = getApiBaseUrl();
+        if (apiBase) {
+          wsUrl = apiBase.replace('http', 'ws') + `/api/terminals/${backendTerminalId}/ws`;
+        } else {
+          const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+          wsUrl = `${protocol}//${window.location.host}/api/terminals/${backendTerminalId}/ws`;
+        }
+
         (window as any).__webTerminals = (window as any).__webTerminals || {};
+
+        const ws = new WebSocket(wsUrl);
+
+        ws.onopen = () => {
+          console.log(`[WebTerminal] Connected to terminal ${terminalId}`);
+        };
+
+        ws.onmessage = (event) => {
+          const callback = (window as any).__terminalOutputCallback;
+          if (callback && typeof event.data === 'string') {
+            callback(terminalId, event.data);
+          }
+        };
+
+        ws.onerror = (error) => {
+          console.error(`[WebTerminal] Error on terminal ${terminalId}:`, error);
+        };
+
+        ws.onclose = () => {
+          const exitCallback = (window as any).__terminalExitCallback;
+          if (exitCallback) {
+            exitCallback(terminalId, 0);
+          }
+        };
+
         (window as any).__webTerminals[terminalId] = {
+          ws,
           wsUrl,
           ...result.data,
         };
-        
+
         return {
           success: true,
           data: terminalId,
         };
       }
-      
+
       return result as any;
     },
     destroyTerminal: async (terminalId: string) => {
-      // Clean up WebSocket connection tracking
-      if ((window as any).__webTerminals?.[terminalId]) {
+      const terminalInfo = (window as any).__webTerminals?.[terminalId];
+      if (terminalInfo?.ws) {
+        terminalInfo.ws.close();
         delete (window as any).__webTerminals[terminalId];
       }
-      
-      return { success: false, error: 'Terminal operations not supported in web mode' };
+
+      const result = await httpRequest(`/api/terminals/${terminalId}`, {
+        method: 'DELETE',
+      });
+
+      return result;
     },
     sendTerminalInput: (terminalId: string, data: string) => {
-      // Get the WebSocket for this terminal
       const terminalInfo = (window as any).__webTerminals?.[terminalId];
       if (terminalInfo?.ws && terminalInfo.ws.readyState === WebSocket.OPEN) {
         terminalInfo.ws.send(data);
       }
     },
     resizeTerminal: (terminalId: string, cols: number, rows: number) => {
-      // Send resize command via WebSocket
       const terminalInfo = (window as any).__webTerminals?.[terminalId];
       if (terminalInfo?.ws && terminalInfo.ws.readyState === WebSocket.OPEN) {
         terminalInfo.ws.send(JSON.stringify({ type: 'resize', cols, rows }));
-      } else {
-        // Terminal resize not supported in web mode
-        return { success: false, error: 'Terminal operations not supported in web mode' };
       }
     },
     invokeClaudeInTerminal: async (terminalId: string, taskId?: string) => {
-      // In web mode, send a command to invoke Claude via the terminal WebSocket
       const terminalInfo = (window as any).__webTerminals?.[terminalId];
       if (terminalInfo?.ws && terminalInfo.ws.readyState === WebSocket.OPEN) {
-        // Send the claude command through the terminal
         terminalInfo.ws.send('claude\r');
         return { success: true };
       }
@@ -467,13 +522,8 @@ export function createWebAdapter(): AppAPI {
     }),
     setTerminalTitle: unsupportedVoid('setTerminalTitle'),
     setTerminalWorktreeConfig: async (terminalId: string, config: any) => {
-      // Store worktree config for this terminal
-      if (!(window as any).__webTerminals) {
-        (window as any).__webTerminals = {};
-      }
-      if (!(window as any).__webTerminals[terminalId]) {
-        (window as any).__webTerminals[terminalId] = {};
-      }
+      (window as any).__webTerminals = (window as any).__webTerminals || {};
+      (window as any).__webTerminals[terminalId] = (window as any).__webTerminals[terminalId] || {};
       (window as any).__webTerminals[terminalId].worktreeConfig = config;
       return { success: true };
     },
@@ -1470,13 +1520,24 @@ export function createWebAdapter(): AppAPI {
       debugReport: '[Web Mode] Debug report not available in browser',
     }),
     openLogsFolder: async () => ({
-      success: false,
-      error: 'Not available in web mode',
+      success: true,
+      data: {
+        message: 'Log files are stored on the server. Use the terminal to access: ~/.auto-claude/logs/',
+        path: '~/.auto-claude/logs/',
+      },
     }),
-    copyDebugInfo: async () => ({
-      success: false,
-      error: 'Not available in web mode',
-    }),
+    copyDebugInfo: async () => {
+      const debugInfo = await api.getDebugInfo();
+      if (debugInfo.debugReport) {
+        try {
+          await navigator.clipboard.writeText(debugInfo.debugReport);
+          return { success: true };
+        } catch (err) {
+          return { success: false, error: 'Clipboard access denied. Copy manually from debug view.' };
+        }
+      }
+      return { success: false, error: 'No debug info available' };
+    },
     getRecentErrors: async () => [],
     listLogFiles: async () => [],
 

@@ -86,6 +86,11 @@ from .ws.handlers import tasks as tasks_handlers
 from .ws.handlers import misc as misc_handlers
 from .ws.handlers import context as context_handlers
 from .ws.handlers import task_worktree as task_worktree_handlers
+from .ws.handlers import files as files_handlers
+from .ws.handlers import git as git_handlers
+from .ws.handlers import env as env_handlers
+from .ws.handlers import roadmap as roadmap_handlers
+from .ws.handlers import ollama as ollama_handlers
 
 from .ws.events import get_event_emitter
 
@@ -157,6 +162,39 @@ def register_ws_handlers():
     dispatcher.register("tasks.worktree.discard", task_worktree_handlers.handle_worktree_discard)
     dispatcher.register("tasks.listWorktrees", task_worktree_handlers.handle_list_worktrees)
     dispatcher.register("tasks.clearStagedState", task_worktree_handlers.handle_clear_staged_state)
+
+    # File Operations
+    dispatcher.register("files.list", files_handlers.handle_list_files)
+    dispatcher.register("files.getContent", files_handlers.handle_get_file_content)
+
+    # Git Operations
+    dispatcher.register("git.branches", git_handlers.handle_get_branches)
+    dispatcher.register("git.currentBranch", git_handlers.handle_get_current_branch)
+    dispatcher.register("git.detectMainBranch", git_handlers.handle_detect_main_branch)
+    dispatcher.register("git.status", git_handlers.handle_git_status)
+    dispatcher.register("git.init", git_handlers.handle_git_init)
+
+    # Environment Config
+    dispatcher.register("env.get", env_handlers.handle_get_env)
+    dispatcher.register("env.update", env_handlers.handle_update_env)
+
+    # Roadmap Operations
+    dispatcher.register("roadmap.get", roadmap_handlers.handle_get_roadmap)
+    dispatcher.register("roadmap.save", roadmap_handlers.handle_save_roadmap)
+    dispatcher.register("roadmap.generate", roadmap_handlers.handle_generate_roadmap)
+    dispatcher.register("roadmap.updateFeatureStatus", roadmap_handlers.handle_update_feature_status)
+
+    # Ollama Operations
+    dispatcher.register("ollama.status", ollama_handlers.handle_ollama_status)
+    dispatcher.register("ollama.checkInstalled", ollama_handlers.handle_ollama_check_installed)
+    dispatcher.register("ollama.listModels", ollama_handlers.handle_ollama_list_models)
+    dispatcher.register("ollama.listEmbeddingModels", ollama_handlers.handle_ollama_list_embedding_models)
+    dispatcher.register("ollama.pull", ollama_handlers.handle_ollama_pull)
+
+    # Task Logs and Archive
+    dispatcher.register("tasks.getLogs", tasks_handlers.handle_get_logs)
+    dispatcher.register("tasks.archive", tasks_handlers.handle_archive_tasks)
+    dispatcher.register("tasks.unarchive", tasks_handlers.handle_unarchive_tasks)
 
 
 # Register handlers on module load
