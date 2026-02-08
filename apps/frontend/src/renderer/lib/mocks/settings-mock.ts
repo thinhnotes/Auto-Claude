@@ -55,6 +55,8 @@ export const settingsMock = {
   onAppUpdateDownloaded: () => () => {},
   onAppUpdateProgress: () => () => {},
   onAppUpdateStableDowngrade: () => () => {},
+  onAppUpdateReadOnlyVolume: () => () => {},
+  onAppUpdateError: () => () => {},
 
   // Azure DevOps API (mock - not available in browser mode)
   azureDevOps: {
