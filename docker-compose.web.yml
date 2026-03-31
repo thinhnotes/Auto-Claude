@@ -22,6 +22,8 @@ services:
       - SSH_PRIVATE_KEY=${SSH_PRIVATE_KEY:-}
     env_file:
       - .env.docker
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     volumes:
       # Mount the code directory with full read-write access
       - ./code:/home/code:rw

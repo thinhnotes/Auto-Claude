@@ -23,8 +23,15 @@ fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2));"
 # Install dependencies (use npm install since lock file may be out of sync)
 RUN npm install --ignore-scripts
 
-# Copy source code
-COPY . .
+# Copy only files needed for the web build
+COPY src ./src
+COPY public ./public
+COPY package.json ./package.json
+COPY tsconfig.json ./tsconfig.json
+COPY vite.config.web.ts ./vite.config.web.ts
+COPY postcss.config.cjs ./postcss.config.cjs
+COPY nginx.conf ./nginx.conf
+COPY docker-entrypoint.sh ./docker-entrypoint.sh
 
 # Build the web version
 RUN npm run build:web
