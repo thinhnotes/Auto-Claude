@@ -14,6 +14,7 @@ import { DebugAPI, createDebugAPI } from './modules/debug-api';
 import { ClaudeCodeAPI, createClaudeCodeAPI } from './modules/claude-code-api';
 import { McpAPI, createMcpAPI } from './modules/mcp-api';
 import { ProfileAPI, createProfileAPI } from './profile-api';
+import { QueueAPI, createQueueAPI } from './queue-api';
 import { ScreenshotAPI, createScreenshotAPI } from './screenshot-api';
 
 export interface ElectronAPI extends
@@ -33,6 +34,8 @@ export interface ElectronAPI extends
   ProfileAPI,
   ScreenshotAPI {
   github: GitHubAPI;
+  /** Queue routing API for rate limit recovery */
+  queue: QueueAPI;
   azureDevOps: AzureDevOpsAPI;
 }
 
@@ -50,6 +53,7 @@ export const createElectronAPI = (): ElectronAPI => ({
   ...createProfileAPI(),
   ...createScreenshotAPI(),
   github: createGitHubAPI(),
+  queue: createQueueAPI(),  // Queue routing for rate limit recovery,
   azureDevOps: createAzureDevOpsAPI()
 });
 
@@ -69,7 +73,8 @@ export {
   createDebugAPI,
   createClaudeCodeAPI,
   createMcpAPI,
-  createScreenshotAPI
+  createScreenshotAPI,
+  createQueueAPI
 };
 
 export type {
@@ -89,5 +94,6 @@ export type {
   DebugAPI,
   ClaudeCodeAPI,
   McpAPI,
-  ScreenshotAPI
+  ScreenshotAPI,
+  QueueAPI,
 };

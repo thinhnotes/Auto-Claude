@@ -55,6 +55,7 @@ if str(_BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(_BACKEND_DIR))
 
 from .routers import (
+    azure_devops_router,
     claude_cli_router,
     context_router,
     git_router,
@@ -181,6 +182,7 @@ app.include_router(git_router, prefix="/api", tags=["git"])
 app.include_router(source_env_router, prefix="/api", tags=["source-env"])
 app.include_router(ollama_router, prefix="/api", tags=["ollama"])
 app.include_router(roadmap_router, prefix="/api", tags=["roadmap"])
+app.include_router(azure_devops_router, prefix="/api", tags=["azure-devops"])
 
 # Mount static files for web UI
 _STATIC_DIR = Path(__file__).parent / "static"

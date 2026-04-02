@@ -11,21 +11,18 @@ import {
   GitMerge,
   GitPullRequest,
   FileCode,
-  FilePlus,
-  FilePen,
-  FileX,
   Plus,
   Minus,
   ChevronRight,
   Check,
   X,
   Terminal,
-  Upload,
   CheckSquare2,
   CheckSquare,
   Square
 } from 'lucide-react';
 import { Button } from './ui/button';
+import { Badge } from './ui/badge';
 import { Checkbox } from './ui/checkbox';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from './ui/card';
 import { ScrollArea } from './ui/scroll-area';
@@ -38,14 +35,6 @@ import {
   DialogTitle
 } from './ui/dialog';
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from './ui/select';
-import { Badge } from './ui/badge';
-import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -57,9 +46,9 @@ import {
 } from './ui/alert-dialog';
 import { useProjectStore } from '../stores/project-store';
 import { useTaskStore } from '../stores/task-store';
-import type { WorktreeListItem, WorktreeMergeResult, TerminalWorktreeConfig, WorktreeStatus, Task, WorktreeCreatePROptions, WorktreeCreatePRResult, IPCResult, WorktreeListResult, WorktreeDiscardResult } from '../../shared/types';
+import { useToast } from '../hooks/use-toast';
+import type { WorktreeListItem, WorktreeMergeResult, TerminalWorktreeConfig, WorktreeStatus, Task, WorktreeCreatePROptions, WorktreeCreatePRResult } from '../../shared/types';
 import { CreatePRDialog } from './task-detail/task-review/CreatePRDialog';
-import { isWeb as isWebPlatform } from '../../shared/platform';
 
 // Prefix constants for worktree ID parsing
 const TASK_PREFIX = 'task:';
@@ -69,251 +58,16 @@ interface WorktreesProps {
   projectId: string;
 }
 
-function renderMergeDiff(diff: string) {
-  if (!diff) {
-    return <div className="text-xs text-muted-foreground">Select a file to view changes.</div>;
-  }
-
-  const lines = diff.split('\n');
-  return (
-    <div className="text-xs font-mono leading-relaxed">
-      {lines.map((line, idx) => {
-        let lineClass = 'px-2 py-0.5';
-
-        if (line.startsWith('+++') || line.startsWith('---')) {
-          lineClass += ' text-muted-foreground bg-muted/30';
-        } else if (line.startsWith('@@')) {
-          lineClass += ' text-purple-400 bg-purple-500/10';
-        } else if (line.startsWith('+')) {
-          lineClass += ' text-green-400 bg-green-500/10';
-        } else if (line.startsWith('-')) {
-          lineClass += ' text-red-400 bg-red-500/10';
-        } else if (line.startsWith('diff --git')) {
-          lineClass += ' text-muted-foreground font-medium border-t border-border mt-2 pt-2';
-        }
-
-        return (
-          <div key={`${idx}-${line}`} className={lineClass}>
-            {line}
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
 export function Worktrees({ projectId }: WorktreesProps) {
   const { t } = useTranslation(['common', 'dialogs']);
+  const { toast } = useToast();
   const projects = useProjectStore((state) => state.projects);
   const selectedProject = projects.find((p) => p.id === projectId);
   const tasks = useTaskStore((state) => state.tasks);
-  const isWeb =
-    isWebPlatform() ||
-    (typeof window !== 'undefined' &&
-      (window.location?.protocol?.startsWith('http') ||
-        (window as any).electronAPI?.platform === 'web' ||
-        (window as any).electronAPI?.isElectron === false));
 
   const [worktrees, setWorktrees] = useState<WorktreeListItem[]>([]);
   const [terminalWorktrees, setTerminalWorktrees] = useState<TerminalWorktreeConfig[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [availableBranches, setAvailableBranches] = useState<string[]>([]);
-  const [mergeBaseBranch, setMergeBaseBranch] = useState<string>('');
-  const [mergePreviewCounts, setMergePreviewCounts] = useState<{
-    commits: number;
-    files: number;
-  } | null>(null);
-  const [mergePreviewFiles, setMergePreviewFiles] = useState<Array<{ status: string; path: string }>>([]);
-  const [mergePreviewDiff, setMergePreviewDiff] = useState<string>('');
-  const [mergePreviewSelectedFile, setMergePreviewSelectedFile] = useState<string>('');
-  const [mergePreviewLoading, setMergePreviewLoading] = useState(false);
-
-  const normalizeWorktreeItem = (worktree: any): WorktreeListItem => {
-    const normalized = {
-      specName: worktree.spec_name ?? worktree.specName ?? '',
-      path: worktree.path ?? '',
-      branch: worktree.branch ?? '',
-      baseBranch: worktree.base_branch ?? worktree.baseBranch ?? '',
-      commitCount: worktree.commit_count ?? worktree.commitCount ?? 0,
-      filesChanged: worktree.files_changed ?? worktree.filesChanged ?? 0,
-      additions: worktree.additions ?? 0,
-      deletions: worktree.deletions ?? 0,
-    };
-    console.log('[Worktrees] Normalized worktree:', { original: worktree, normalized });
-    return normalized;
-  };
-
-  const listWorktreesWeb = async (id: string): Promise<IPCResult<WorktreeListResult>> => {
-    const response = await fetch(`/api/projects/${id}/worktrees`, {
-      headers: { 'Content-Type': 'application/json' },
-    });
-
-    if (!response.ok) {
-      const error = await response.text();
-      return { success: false, error };
-    }
-
-    const payload = await response.json();
-    if (!payload?.success || !payload?.data) {
-      return payload;
-    }
-
-    const normalized = (payload.data.worktrees || []).map(normalizeWorktreeItem);
-    return { success: true, data: { worktrees: normalized } };
-  };
-
-  const listBranchesWeb = async (projectPath: string): Promise<string[]> => {
-    if (!projectPath) {
-      return [];
-    }
-
-    const response = await fetch(
-      `/api/git/branches?path=${encodeURIComponent(projectPath)}`,
-      { headers: { 'Content-Type': 'application/json' } }
-    );
-
-    if (!response.ok) {
-      return [];
-    }
-
-    const payload = await response.json();
-    if (!payload?.success || !payload?.data) {
-      return [];
-    }
-
-    return (payload.data as string[]).map((branch) => branch.trim()).filter(Boolean);
-  };
-
-  const getCurrentBranchWeb = async (projectPath: string): Promise<string> => {
-    if (!projectPath) {
-      return '';
-    }
-
-    const response = await fetch(
-      `/api/git/current-branch?path=${encodeURIComponent(projectPath)}`,
-      { headers: { 'Content-Type': 'application/json' } }
-    );
-
-    if (!response.ok) {
-      return '';
-    }
-
-    const payload = await response.json();
-    if (!payload?.success || !payload?.data) {
-      return '';
-    }
-
-    return String(payload.data || '');
-  };
-
-  const mergeWorktreePreviewWeb = async (
-    id: string,
-    specName: string,
-    baseBranch?: string
-  ): Promise<IPCResult<{ preview: { commit_count?: number; files?: Array<{ status: string; path: string }> } | null }>> => {
-    const query = baseBranch ? `?base_branch=${encodeURIComponent(baseBranch)}` : '';
-    const response = await fetch(
-      `/api/projects/${id}/worktrees/${specName}/merge-preview${query}`,
-      { headers: { 'Content-Type': 'application/json' } }
-    );
-
-    if (!response.ok) {
-      const error = await response.text();
-      return { success: false, error };
-    }
-
-    return response.json();
-  };
-
-  const mergeWorktreeFileDiffWeb = async (
-    projectIdValue: string,
-    specName: string,
-    filePath: string,
-    baseBranch?: string
-  ): Promise<IPCResult<string>> => {
-    const params = new URLSearchParams({ file_path: filePath });
-    if (baseBranch) {
-      params.append('base_branch', baseBranch);
-    }
-
-    const response = await fetch(
-      `/api/projects/${projectIdValue}/tasks/${specName}/git-diff?${params.toString()}`,
-      { headers: { 'Content-Type': 'application/json' } }
-    );
-
-    if (!response.ok) {
-      const error = await response.text();
-      return { success: false, error };
-    }
-
-    const payload = await response.json();
-    if (!payload?.success) {
-      return { success: false, error: payload?.error || 'Failed to load diff' };
-    }
-
-    return { success: true, data: payload.data?.diff || '' };
-  };
-
-  const mergeWorktreeWeb = async (
-    id: string,
-    specName: string,
-    baseBranch?: string
-  ): Promise<IPCResult<WorktreeMergeResult>> => {
-    const response = await fetch(`/api/projects/${id}/worktrees/${specName}/merge`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        delete_after: false,
-        no_commit: false,
-        base_branch: baseBranch || undefined,
-      }),
-    });
-
-    if (!response.ok) {
-      const error = await response.text();
-      return { success: false, error };
-    }
-
-    const payload = await response.json();
-    if (!payload?.success) {
-      return { success: false, error: payload?.error || 'Merge failed' };
-    }
-
-    const message = payload?.data?.message || 'Merge completed';
-    return {
-      success: true,
-      data: {
-        success: true,
-        message,
-      },
-    };
-  };
-
-  const discardWorktreeWeb = async (id: string, specName: string): Promise<IPCResult<WorktreeDiscardResult>> => {
-    const response = await fetch(`/api/projects/${id}/worktrees/${specName}?delete_branch=true`, {
-      method: 'DELETE',
-      headers: { 'Content-Type': 'application/json' },
-    });
-
-    if (!response.ok) {
-      const error = await response.text();
-      return { success: false, error };
-    }
-
-    const payload = await response.json();
-    if (!payload?.success) {
-      return { success: false, error: payload?.error || 'Delete failed' };
-    }
-
-    const message = payload?.data?.message || 'Worktree discarded successfully';
-    return {
-      success: true,
-      data: {
-        success: true,
-        message,
-      },
-    };
-  };
   const [error, setError] = useState<string | null>(null);
 
   // Terminal worktree delete state
@@ -343,10 +97,6 @@ export function Worktrees({ projectId }: WorktreesProps) {
   // Selection state
   const [isSelectionMode, setIsSelectionMode] = useState(false);
   const [selectedWorktreeIds, setSelectedWorktreeIds] = useState<Set<string>>(new Set());
-
-  // Publish branch state
-  const [isPublishingBranch, setIsPublishingBranch] = useState(false);
-  const [publishingWorktreeId, setPublishingWorktreeId] = useState<string | null>(null);
 
   // Selection callbacks
   const toggleWorktree = useCallback((id: string) => {
@@ -416,41 +166,26 @@ export function Worktrees({ projectId }: WorktreesProps) {
     setError(null);
 
     try {
-      if (isWeb) {
-        // Web mode: only load from web API
-        console.log('[Worktrees] Loading worktrees from web API for project:', projectId);
-        const taskResult = await listWorktreesWeb(projectId);
-        console.log('[Worktrees] Web API worktrees result:', taskResult);
+      // Fetch both task worktrees and terminal worktrees in parallel
+      const [taskResult, terminalResult] = await Promise.all([
+        window.electronAPI.listWorktrees(projectId, { includeStats: true }),
+        window.electronAPI.listTerminalWorktrees(selectedProject.path)
+      ]);
 
-        if (taskResult.success && taskResult.data) {
-          setWorktrees(taskResult.data.worktrees);
-        } else {
-          setError(taskResult.error || 'Failed to load worktrees');
-        }
-        // In web mode, we don't have terminal worktrees
-        setTerminalWorktrees([]);
+      console.log('[Worktrees] Task worktrees result:', taskResult);
+      console.log('[Worktrees] Terminal worktrees result:', terminalResult);
+
+      if (taskResult.success && taskResult.data) {
+        setWorktrees(taskResult.data.worktrees);
       } else {
-        // Electron mode: fetch both task worktrees and terminal worktrees in parallel
-        const [taskResult, terminalResult] = await Promise.all([
-          window.electronAPI.listWorktrees(projectId),
-          window.electronAPI.listTerminalWorktrees(selectedProject.path)
-        ]);
+        setError(taskResult.error || 'Failed to load task worktrees');
+      }
 
-        console.log('[Worktrees] Task worktrees result:', taskResult);
-        console.log('[Worktrees] Terminal worktrees result:', terminalResult);
-
-        if (taskResult.success && taskResult.data) {
-          setWorktrees(taskResult.data.worktrees);
-        } else {
-          setError(taskResult.error || 'Failed to load task worktrees');
-        }
-
-        if (terminalResult.success && terminalResult.data) {
-          console.log('[Worktrees] Setting terminal worktrees:', terminalResult.data);
-          setTerminalWorktrees(terminalResult.data);
-        } else {
-          console.warn('[Worktrees] Terminal worktrees fetch failed or empty:', terminalResult);
-        }
+      if (terminalResult.success && terminalResult.data) {
+        console.log('[Worktrees] Setting terminal worktrees:', terminalResult.data);
+        setTerminalWorktrees(terminalResult.data);
+      } else {
+        console.warn('[Worktrees] Terminal worktrees fetch failed or empty:', terminalResult);
       }
     } catch (err) {
       console.error('[Worktrees] Error loading worktrees:', err);
@@ -458,7 +193,7 @@ export function Worktrees({ projectId }: WorktreesProps) {
     } finally {
       setIsLoading(false);
     }
-  }, [projectId, selectedProject, isWeb]);
+  }, [projectId, selectedProject]);
 
   // Load on mount and when project changes
   useEffect(() => {
@@ -472,37 +207,17 @@ export function Worktrees({ projectId }: WorktreesProps) {
 
   // Handle merge
   const handleMerge = async () => {
-    console.log('[Worktrees] handleMerge called');
-    console.log('[Worktrees] selectedWorktree:', selectedWorktree);
-    
-    if (!selectedWorktree) {
-      console.error('[Worktrees] No selectedWorktree!');
-      setMergeResult({
-        success: false,
-        message: 'No worktree selected'
-      });
-      return;
-    }
+    if (!selectedWorktree) return;
 
-    console.log('[Worktrees] selectedWorktree.specName:', selectedWorktree.specName);
-    
     const task = findTaskForWorktree(selectedWorktree.specName);
-    console.log('[Worktrees] Found task:', task);
-    console.log('[Worktrees] isWeb:', isWeb);
-    
-    if (!task && !isWeb) {
+    if (!task) {
       setError('Task not found for this worktree');
       return;
     }
 
     setIsMerging(true);
     try {
-      const result = await (isWeb
-        ? mergeWorktreeWeb(projectId, selectedWorktree.specName, mergeBaseBranch || selectedWorktree.baseBranch)
-        : window.electronAPI.mergeWorktree(task!.id));
-      
-      console.log('[Worktrees] Merge result:', result);
-      
+      const result = await window.electronAPI.mergeWorktree(task.id);
       if (result.success && result.data) {
         setMergeResult(result.data);
         if (result.data.success) {
@@ -516,7 +231,6 @@ export function Worktrees({ projectId }: WorktreesProps) {
         });
       }
     } catch (err) {
-      console.error('[Worktrees] Merge exception:', err);
       setMergeResult({
         success: false,
         message: err instanceof Error ? err.message : 'Merge failed'
@@ -531,20 +245,30 @@ export function Worktrees({ projectId }: WorktreesProps) {
     if (!worktreeToDelete) return;
 
     const task = findTaskForWorktree(worktreeToDelete.specName);
-    if (!task && !isWeb) {
-      setError('Task not found for this worktree');
-      return;
-    }
 
     setIsDeleting(true);
     try {
-      const result = await (isWeb
-        ? discardWorktreeWeb(projectId, worktreeToDelete.specName)
-        : window.electronAPI.discardWorktree(task!.id));
+      let result;
+      if (task) {
+        // Normal delete via task ID
+        result = await window.electronAPI.discardWorktree(task.id);
+      } else if (worktreeToDelete.isOrphaned) {
+        // Orphaned worktree - delete by spec name directly
+        result = await window.electronAPI.discardOrphanedWorktree(projectId, worktreeToDelete.specName);
+      } else {
+        setError(t('common:errors.taskNotFoundForWorktree', { specName: worktreeToDelete.specName }));
+        setIsDeleting(false);
+        return;
+      }
+
       if (result.success) {
         // Refresh worktrees after successful delete
         await loadWorktrees();
         setShowDeleteConfirm(false);
+        toast({
+          title: t('common:actions.success'),
+          description: t('common:worktrees.deleteSuccess', { branch: worktreeToDelete.branch || worktreeToDelete.specName }),
+        });
         setWorktreeToDelete(null);
       } else {
         setError(result.error || 'Failed to delete worktree');
@@ -557,51 +281,10 @@ export function Worktrees({ projectId }: WorktreesProps) {
   };
 
   // Open merge dialog
-  const openMergeDialog = async (worktree: WorktreeListItem) => {
-    console.log('[Worktrees] openMergeDialog called with:', worktree);
-    console.log('[Worktrees] isWeb:', isWeb);
-    console.log('[Worktrees] projectId:', projectId);
-    
+  const openMergeDialog = (worktree: WorktreeListItem) => {
     setSelectedWorktree(worktree);
     setMergeResult(null);
-    setMergePreviewCounts(null);
-    setMergePreviewFiles([]);
-    setMergePreviewDiff('');
-    setMergePreviewSelectedFile('');
     setShowMergeDialog(true);
-
-    if (isWeb) {
-      console.log('[Worktrees] Opening merge dialog for:', worktree);
-      const repoPath = worktree.path || selectedProject?.path || '';
-      const [branches, currentBranch] = await Promise.all([
-        listBranchesWeb(repoPath),
-        getCurrentBranchWeb(repoPath),
-      ]);
-      const preferred = currentBranch || worktree.baseBranch || branches[0] || '';
-      console.log('[Worktrees] Available branches:', branches);
-      console.log('[Worktrees] Preferred branch:', preferred);
-      setAvailableBranches(branches);
-      setMergeBaseBranch(preferred);
-
-      const preview = await mergeWorktreePreviewWeb(projectId, worktree.specName, preferred);
-      console.log('[Worktrees] Initial preview response:', preview);
-      
-      if (preview.success && preview.data?.preview) {
-        const files = preview.data.preview.files || [];
-        console.log('[Worktrees] Initial files:', files);
-        setMergePreviewFiles(files);
-        setMergePreviewCounts({
-          commits: preview.data.preview.commit_count ?? worktree.commitCount,
-          files: files.length || worktree.filesChanged,
-        });
-      } else {
-        console.warn('[Worktrees] Initial preview failed or empty:', preview);
-      }
-      return;
-    }
-
-    setAvailableBranches([]);
-    setMergeBaseBranch(worktree.baseBranch);
   };
 
   // Confirm delete
@@ -616,10 +299,10 @@ export function Worktrees({ projectId }: WorktreesProps) {
     worktreePath: worktree.path,
     branch: worktree.branch,
     baseBranch: worktree.baseBranch,
-    commitCount: worktree.commitCount,
-    filesChanged: worktree.filesChanged,
-    additions: worktree.additions,
-    deletions: worktree.deletions
+    commitCount: worktree.commitCount ?? 0,
+    filesChanged: worktree.filesChanged ?? 0,
+    additions: worktree.additions ?? 0,
+    deletions: worktree.deletions ?? 0
   });
 
   // Open Create PR dialog
@@ -631,125 +314,28 @@ export function Worktrees({ projectId }: WorktreesProps) {
 
   // Handle Create PR
   const handleCreatePR = async (options: WorktreeCreatePROptions): Promise<WorktreeCreatePRResult | null> => {
-    if (!prTask || !prWorktree) return null;
+    if (!prTask) return null;
 
     try {
-      if (isWeb) {
-        // Web mode: use API
-        console.log('[Worktrees] Creating PR via web API');
-
-        const response = await fetch(
-          `/api/projects/${projectId}/worktrees/${prWorktree.specName}/create-pr`,
-          {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              target_branch: options.targetBranch,
-              title: options.title,
-              draft: options.draft,
-              force_push: options.forcePush
-            })
-          }
-        );
-
-        if (!response.ok) {
-          const error = await response.text();
-          return {
-            success: false,
-            error,
-            prUrl: undefined,
-            alreadyExists: false
-          };
+      const result = await window.electronAPI.createWorktreePR(prTask.id, options);
+      if (result.success && result.data) {
+        if (result.data.success && result.data.prUrl && !result.data.alreadyExists) {
+          // Update task in store
+          useTaskStore.getState().updateTask(prTask.id, {
+            status: 'done',
+            metadata: { ...prTask.metadata, prUrl: result.data.prUrl }
+          });
         }
-
-        const result = await response.json();
-        if (result.success && result.data) {
-          if (result.data.success && result.data.prUrl && !result.data.alreadyExists) {
-            // Update task in store
-            useTaskStore.getState().updateTask(prTask.id, {
-              status: 'done',
-              metadata: { ...prTask.metadata, prUrl: result.data.prUrl }
-            });
-          }
-          return {
-            success: result.data.success,
-            error: result.data.error,
-            prUrl: result.data.prUrl,
-            alreadyExists: result.data.alreadyExists
-          };
-        }
-        return {
-          success: false,
-          error: result.error || 'Failed to create PR',
-          prUrl: undefined,
-          alreadyExists: false
-        };
-      } else {
-        // Electron mode: use IPC
-        const result = await window.electronAPI.createWorktreePR(prTask.id, options);
-        if (result.success && result.data) {
-          if (result.data.success && result.data.prUrl && !result.data.alreadyExists) {
-            // Update task in store
-            useTaskStore.getState().updateTask(prTask.id, {
-              status: 'pr_created',
-              metadata: { ...prTask.metadata, prUrl: result.data.prUrl }
-            });
-          }
-          return result.data;
-        }
-        // Propagate IPC error; let CreatePRDialog use its i18n fallback
-        return { success: false, error: result.error, prUrl: undefined, alreadyExists: false };
+        return result.data;
       }
+      // Propagate IPC error; let CreatePRDialog use its i18n fallback
+      return { success: false, error: result.error, prUrl: undefined, alreadyExists: false };
     } catch (err) {
-      console.error('[Worktrees] Create PR error:', err);
       // Propagate actual error message; let CreatePRDialog handle i18n fallback for undefined
       return { success: false, error: err instanceof Error ? err.message : undefined, prUrl: undefined, alreadyExists: false };
     }
   };
 
-  // Handle Publish Branch
-  const handlePublishBranch = async (worktree: WorktreeListItem) => {
-    console.log('[Worktrees] Publishing branch for worktree:', worktree.specName);
-    
-    setIsPublishingBranch(true);
-    setPublishingWorktreeId(worktree.specName);
-
-    try {
-      if (isWeb) {
-        // Web mode: use API
-        const response = await fetch(
-          `/api/projects/${projectId}/worktrees/${worktree.specName}/publish-branch`,
-          {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              force_push: false
-            })
-          }
-        );
-
-        const result = await response.json();
-        
-        if (result.success && result.data?.success) {
-          console.log('[Worktrees] Branch published successfully');
-        } else {
-          console.error('[Worktrees] Failed to publish branch:', result.data?.error || result.error);
-          setError(result.data?.error || result.error || 'Failed to publish branch');
-        }
-      } else {
-        // Electron mode: use IPC
-        // Note: You'll need to add this IPC method to the electron API
-        console.warn('[Worktrees] Publish branch not yet implemented for Electron mode');
-        setError('Publish branch is only available in web mode');
-      }
-    } catch (err) {
-      console.error('[Worktrees] Publish branch error:', err);
-      setError(err instanceof Error ? err.message : 'Failed to publish branch');
-    } finally {
-      setIsPublishingBranch(false);
-      setPublishingWorktreeId(null);
-    }
-  };
   // Handle bulk delete - triggered from selection bar
   const handleBulkDelete = useCallback(() => {
     if (selectedWorktreeIds.size === 0) return;
@@ -778,13 +364,21 @@ export function Worktrees({ projectId }: WorktreesProps) {
     // Delete task worktrees
     for (const specName of taskSpecNames) {
       const task = findTaskForWorktree(specName);
-      if (!task) {
-        errors.push(t('common:errors.taskNotFoundForWorktree', { specName }));
-        continue;
-      }
+      const worktree = worktrees.find(w => w.specName === specName);
 
       try {
-        const result = await window.electronAPI.discardWorktree(task.id);
+        let result;
+        if (task) {
+          // Normal delete via task ID
+          result = await window.electronAPI.discardWorktree(task.id);
+        } else if (worktree?.isOrphaned) {
+          // Orphaned worktree - delete by spec name directly
+          result = await window.electronAPI.discardOrphanedWorktree(projectId, specName);
+        } else {
+          errors.push(t('common:errors.taskNotFoundForWorktree', { specName }));
+          continue;
+        }
+
         if (!result.success) {
           errors.push(result.error || t('common:errors.failedToDeleteTaskWorktree', { specName }));
         }
@@ -820,16 +414,23 @@ export function Worktrees({ projectId }: WorktreesProps) {
     setShowBulkDeleteConfirm(false);
     await loadWorktrees();
 
-    // Show error if any failures occurred
+    const deletedCount = taskSpecNames.length + terminalNames.length;
+
+    // Show error if any failures occurred, otherwise show success toast
     if (errors.length > 0) {
       setError(`${t('common:errors.bulkDeletePartialFailure')}\n${errors.join('\n')}`);
+    } else {
+      toast({
+        title: t('common:actions.success'),
+        description: t('common:worktrees.bulkDeleteSuccess', { count: deletedCount }),
+      });
     }
 
     setIsBulkDeleting(false);
-  }, [selectedWorktreeIds, selectedProject, terminalWorktrees, findTaskForWorktree, loadWorktrees, t]);
+  }, [selectedWorktreeIds, selectedProject, worktrees, terminalWorktrees, projectId, findTaskForWorktree, loadWorktrees, t, toast]);
 
   // Handle terminal worktree delete
-  const handleDeleteTerminalWorktree = async () => {
+  const handleDeleteTerminalWorktree = useCallback(async () => {
     if (!terminalWorktreeToDelete || !selectedProject) return;
 
     setIsDeletingTerminal(true);
@@ -851,7 +452,7 @@ export function Worktrees({ projectId }: WorktreesProps) {
     } finally {
       setIsDeletingTerminal(false);
     }
-  };
+  }, [terminalWorktreeToDelete, selectedProject, loadWorktrees]);
 
   if (!selectedProject) {
     return (
@@ -995,7 +596,7 @@ export function Worktrees({ projectId }: WorktreesProps) {
                             <div className="flex-1 min-w-0">
                               <CardTitle className="text-base flex items-center gap-2">
                                 <GitBranch className="h-4 w-4 text-info shrink-0" />
-                                <span className="truncate">{worktree.branch}</span>
+                                <span className="truncate">{worktree.isOrphaned ? t('common:labels.orphaned') : worktree.branch}</span>
                               </CardTitle>
                               {task && (
                                 <CardDescription className="mt-1 truncate">
@@ -1014,27 +615,27 @@ export function Worktrees({ projectId }: WorktreesProps) {
                         <div className="flex flex-wrap gap-4 text-sm mb-4">
                           <div className="flex items-center gap-1.5 text-muted-foreground">
                             <FileCode className="h-3.5 w-3.5" />
-                            <span>{worktree.filesChanged} files changed</span>
+                            <span>{worktree.filesChanged ?? 0} files changed</span>
                           </div>
                           <div className="flex items-center gap-1.5 text-muted-foreground">
                             <ChevronRight className="h-3.5 w-3.5" />
-                            <span>{worktree.commitCount} commits ahead</span>
+                            <span>{worktree.commitCount ?? 0} commits ahead</span>
                           </div>
                           <div className="flex items-center gap-1.5 text-success">
                             <Plus className="h-3.5 w-3.5" />
-                            <span>{worktree.additions}</span>
+                            <span>{worktree.additions ?? 0}</span>
                           </div>
                           <div className="flex items-center gap-1.5 text-destructive">
                             <Minus className="h-3.5 w-3.5" />
-                            <span>{worktree.deletions}</span>
+                            <span>{worktree.deletions ?? 0}</span>
                           </div>
                         </div>
 
                         {/* Branch info */}
                         <div className="flex items-center gap-2 text-xs text-muted-foreground mb-4 bg-muted/50 rounded-md p-2">
-                          <span className="font-mono">{worktree.baseBranch}</span>
+                          <span className="font-mono">{worktree.baseBranch || t('common:labels.orphaned')}</span>
                           <ChevronRight className="h-3 w-3" />
-                          <span className="font-mono text-info">{worktree.branch}</span>
+                          <span className="font-mono text-info">{worktree.isOrphaned ? t('common:labels.orphaned') : worktree.branch}</span>
                         </div>
 
                         {/* Actions */}
@@ -1043,27 +644,10 @@ export function Worktrees({ projectId }: WorktreesProps) {
                             variant="default"
                             size="sm"
                             onClick={() => openMergeDialog(worktree)}
+                            disabled={!task}
                           >
                             <GitMerge className="h-3.5 w-3.5 mr-1.5" />
                             Merge to {worktree.baseBranch}
-                          </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handlePublishBranch(worktree)}
-                            disabled={isPublishingBranch && publishingWorktreeId === worktree.specName}
-                          >
-                            {isPublishingBranch && publishingWorktreeId === worktree.specName ? (
-                              <>
-                                <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
-                                Publishing...
-                              </>
-                            ) : (
-                              <>
-                                <Upload className="h-3.5 w-3.5 mr-1.5" />
-                                Publish Branch
-                              </>
-                            )}
                           </Button>
                           {task && (
                             <Button
@@ -1101,7 +685,7 @@ export function Worktrees({ projectId }: WorktreesProps) {
                             size="sm"
                             className="text-destructive hover:text-destructive hover:bg-destructive/10"
                             onClick={() => confirmDelete(worktree)}
-                            disabled={!task}
+                            disabled={!task && !worktree.isOrphaned}
                           >
                             <Trash2 className="h-3.5 w-3.5 mr-1.5" />
                             Delete
@@ -1206,7 +790,7 @@ export function Worktrees({ projectId }: WorktreesProps) {
 
       {/* Merge Dialog */}
       <Dialog open={showMergeDialog} onOpenChange={setShowMergeDialog}>
-        <DialogContent className="max-w-4xl">
+        <DialogContent>
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <GitMerge className="h-5 w-5" />
@@ -1222,146 +806,23 @@ export function Worktrees({ projectId }: WorktreesProps) {
               <div className="rounded-lg bg-muted p-4 text-sm space-y-3">
                 <div className="flex items-center justify-between">
                   <span className="text-muted-foreground">Source Branch</span>
-                  <span className="font-mono text-info">{selectedWorktree.branch}</span>
+                  <span className="font-mono text-info">{selectedWorktree.isOrphaned ? t('common:labels.orphaned') : selectedWorktree.branch}</span>
                 </div>
                 <div className="flex items-center justify-center">
                   <ChevronRight className="h-4 w-4 text-muted-foreground rotate-90" />
                 </div>
-                <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center justify-between">
                   <span className="text-muted-foreground">Target Branch</span>
-                  {isWeb ? (
-                    <Select
-                      value={mergeBaseBranch || selectedWorktree.baseBranch}
-                      onValueChange={async (value) => {
-                        console.log('[Worktrees] Branch changed to:', value);
-                        setMergeBaseBranch(value);
-                        setMergePreviewCounts(null);
-                        setMergePreviewFiles([]);
-                        setMergePreviewDiff('');
-                        setMergePreviewSelectedFile('');
-                        
-                        try {
-                          const preview = await mergeWorktreePreviewWeb(
-                            projectId,
-                            selectedWorktree.specName,
-                            value
-                          );
-                          console.log('[Worktrees] Preview response:', preview);
-                          
-                          if (preview.success && preview.data?.preview) {
-                            const files = preview.data.preview.files || [];
-                            console.log('[Worktrees] Setting files:', files);
-                            setMergePreviewFiles(files);
-                            setMergePreviewCounts({
-                              commits: preview.data.preview.commit_count ?? selectedWorktree.commitCount,
-                              files: files.length || selectedWorktree.filesChanged,
-                            });
-                          } else {
-                            console.warn('[Worktrees] Preview failed or empty:', preview);
-                          }
-                        } catch (err) {
-                          console.error('[Worktrees] Error loading preview:', err);
-                        }
-                      }}
-                    >
-                      <SelectTrigger className="h-8 w-48">
-                        <SelectValue placeholder="Select branch" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {(availableBranches.length > 0 ? availableBranches : [selectedWorktree.baseBranch])
-                          .filter(Boolean)
-                          .map((branch) => (
-                            <SelectItem key={branch} value={branch}>
-                              {branch}
-                            </SelectItem>
-                          ))}
-                      </SelectContent>
-                    </Select>
-                  ) : (
-                    <span className="font-mono">{selectedWorktree.baseBranch}</span>
-                  )}
+                  <span className="font-mono">{selectedWorktree.baseBranch}</span>
                 </div>
                 <div className="border-t border-border pt-3 mt-3">
                   <div className="flex items-center justify-between text-xs">
                     <span className="text-muted-foreground">Changes</span>
                     <span>
-                      {(mergePreviewCounts?.commits ?? selectedWorktree.commitCount)} commits, {(mergePreviewCounts?.files ?? selectedWorktree.filesChanged)} files
+                      {selectedWorktree.commitCount ?? 0} commits, {selectedWorktree.filesChanged ?? 0} files
                     </span>
                   </div>
                 </div>
-
-                {isWeb && (
-                  <div className="border-t border-border pt-3 mt-3">
-                    <div className="mt-3">
-                      <div className="grid grid-cols-[220px_1fr] gap-0 border border-border rounded-lg overflow-hidden">
-                        <ScrollArea className="h-64 border-r border-border">
-                          <div className="p-2 space-y-1">
-                            {mergePreviewFiles.length === 0 && (
-                              <div className="text-xs text-muted-foreground">No files changed</div>
-                            )}
-                            {mergePreviewFiles.map((file) => (
-                              <button
-                                key={file.path}
-                                type="button"
-                                className={`w-full text-left rounded px-2 py-2 hover:bg-muted ${mergePreviewSelectedFile === file.path ? 'bg-muted' : ''}`}
-                                onClick={async () => {
-                                  setMergePreviewSelectedFile(file.path);
-                                  setMergePreviewLoading(true);
-                                  const diff = await mergeWorktreeFileDiffWeb(
-                                    projectId,
-                                    selectedWorktree.specName,
-                                    file.path,
-                                    mergeBaseBranch || selectedWorktree.baseBranch
-                                  );
-                                  if (diff.success && diff.data) {
-                                    setMergePreviewDiff(diff.data);
-                                  } else {
-                                    setMergePreviewDiff(diff.error || 'Failed to load diff');
-                                  }
-                                  setMergePreviewLoading(false);
-                                }}
-                              >
-                                <div className="flex items-center gap-2">
-                                  {file.status === 'added' && <FilePlus className="h-3.5 w-3.5 text-green-500" />}
-                                  {file.status === 'modified' && <FilePen className="h-3.5 w-3.5 text-blue-500" />}
-                                  {file.status === 'deleted' && <FileX className="h-3.5 w-3.5 text-red-500" />}
-                                  {file.status === 'renamed' && <FileCode className="h-3.5 w-3.5 text-yellow-500" />}
-                                  {!['added', 'modified', 'deleted', 'renamed'].includes(file.status) && (
-                                    <FileCode className="h-3.5 w-3.5 text-muted-foreground" />
-                                  )}
-                                  <span className="text-xs font-mono truncate">{file.path.split('/').pop() || file.path}</span>
-                                </div>
-                                <div className="text-[10px] text-muted-foreground mt-0.5 truncate">{file.path}</div>
-                              </button>
-                            ))}
-                          </div>
-                        </ScrollArea>
-                        <div className="h-64 bg-muted/10">
-                          <div className="px-3 py-2 border-b border-border text-xs font-medium flex items-center justify-between">
-                            <span className="truncate">{mergePreviewSelectedFile || 'Select a file'}</span>
-                            {mergePreviewSelectedFile && (
-                              <Badge variant="outline" className="text-[10px]">
-                                {mergePreviewFiles.find((f) => f.path === mergePreviewSelectedFile)?.status || ''}
-                              </Badge>
-                            )}
-                          </div>
-                          <div className="p-2 h-[calc(100%-33px)] overflow-auto">
-                            {mergePreviewLoading ? (
-                              <div className="flex items-center gap-2 text-muted-foreground text-xs">
-                                <Loader2 className="h-3 w-3 animate-spin" />
-                                Loading diff...
-                              </div>
-                            ) : (
-                              <div className="whitespace-pre-wrap">
-                                {renderMergeDiff(mergePreviewDiff)}
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                )}
               </div>
             </div>
           )}
@@ -1441,7 +902,7 @@ export function Worktrees({ projectId }: WorktreesProps) {
               This will permanently delete the worktree and all uncommitted changes.
               {worktreeToDelete && (
                 <span className="block mt-2 font-mono text-sm">
-                  {worktreeToDelete.branch}
+                  {worktreeToDelete.isOrphaned ? t('common:labels.orphaned') : worktreeToDelete.branch}
                 </span>
               )}
               This action cannot be undone.
