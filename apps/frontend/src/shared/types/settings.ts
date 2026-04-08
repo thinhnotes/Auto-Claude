@@ -224,6 +224,7 @@ export interface AppSettings {
   pythonPath?: string;
   gitPath?: string;
   githubCLIPath?: string;
+  gitlabCLIPath?: string;
   claudePath?: string;
   autoBuildPath?: string;
   autoUpdateAutoBuild: boolean;
@@ -245,6 +246,7 @@ export interface AppSettings {
   memoryOllamaEmbeddingModel?: string;
   memoryOllamaEmbeddingDim?: number;
   memoryVoyageApiKey?: string;
+  memoryVoyageEmbeddingModel?: string;
   memoryAzureApiKey?: string;
   memoryAzureBaseUrl?: string;
   memoryAzureEmbeddingDeployment?: string;
@@ -267,6 +269,8 @@ export interface AppSettings {
   changelogEmojiLevel?: ChangelogEmojiLevel;
   // UI Scale setting (75-200%, default 100)
   uiScale?: number;
+  // Log order setting for task detail view
+  logOrder?: 'chronological' | 'reverse-chronological';
   // Beta updates opt-in (receive pre-release updates)
   betaUpdates?: boolean;
   // Migration flags (internal use)
@@ -287,7 +291,9 @@ export interface AppSettings {
   autoNameClaudeTerminals?: boolean;
   // Track which version warnings have been shown (e.g., ["2.7.5"])
   seenVersionWarnings?: string[];
-  // Navigation bar display mode (icon-only or icon-and-text)
+  // Sidebar collapsed state (icons only when true)
+  sidebarCollapsed?: boolean;
+  // Navigation mode - icons only or full sidebar
   navigationMode?: 'icons' | 'full';
 }
 

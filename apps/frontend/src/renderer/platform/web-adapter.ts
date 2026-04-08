@@ -1521,6 +1521,8 @@ export function createWebAdapter(): AppAPI {
         can_approve: false,
       }),
       approveWorkflow: async () => true,
+      markReviewPosted: async () => true,
+      updatePRBranch: async () => ({ success: false, error: 'Not supported in web mode' }),
       onPRReviewProgress: () => () => {},
       onPRReviewComplete: () => () => {},
       onPRReviewError: () => () => {},
@@ -1534,6 +1536,7 @@ export function createWebAdapter(): AppAPI {
       onAnalyzePreviewProgress: () => () => {},
       onAnalyzePreviewComplete: () => () => {},
       onAnalyzePreviewError: () => () => {},
+      onGitHubAuthChanged: () => () => {},
     },
 
     // ===================
@@ -1579,6 +1582,49 @@ export function createWebAdapter(): AppAPI {
     onGitLabInvestigationProgress: unsupportedEvent('onGitLabInvestigationProgress'),
     onGitLabInvestigationComplete: unsupportedEvent('onGitLabInvestigationComplete'),
     onGitLabInvestigationError: unsupportedEvent('onGitLabInvestigationError'),
+
+    // ===================
+    // Azure DevOps API
+    // ===================
+    azureDevOps: {
+      getConfig: async (projectId: string) =>
+        apiRequest(`/api/projects/${projectId}/azure-devops/config`),
+
+      getIterations: async (projectId: string) =>
+        apiRequest(`/api/projects/${projectId}/azure-devops/iterations`),
+
+      getCurrentIteration: async (projectId: string) =>
+        apiRequest(`/api/projects/${projectId}/azure-devops/current-iteration`),
+
+      getWorkItemsForIteration: async (projectId: string, iterationPath: string, areaPath?: string) => {
+        const params = new URLSearchParams({ iterationPath });
+        if (areaPath) params.append('areaPath', areaPath);
+        return apiRequest(`/api/projects/${projectId}/azure-devops/work-items?${params.toString()}`);
+      },
+
+      getWorkItem: async (projectId: string, workItemId: number) =>
+        apiRequest(`/api/projects/${projectId}/azure-devops/work-items/${workItemId}`),
+
+      getAreas: async (projectId: string) =>
+        apiRequest(`/api/projects/${projectId}/azure-devops/areas`),
+
+      checkConnection: async (projectId: string) =>
+        apiRequest(`/api/projects/${projectId}/azure-devops/connection`),
+    },
+
+    // ===================
+    // Queue API (Rate Limit Recovery)
+    // ===================
+    queue: {
+      getRunningTasksByProfile: unsupported('queue.getRunningTasksByProfile'),
+      getBestProfileForTask: unsupported('queue.getBestProfileForTask'),
+      assignProfileToTask: unsupported('queue.assignProfileToTask'),
+      updateTaskSession: unsupported('queue.updateTaskSession'),
+      getTaskSession: unsupported('queue.getTaskSession'),
+      onQueueProfileSwapped: () => () => {},
+      onQueueSessionCaptured: () => () => {},
+      onQueueBlockedNoProfiles: () => () => {},
+    },
 
     // ===================
     // Claude Code CLI

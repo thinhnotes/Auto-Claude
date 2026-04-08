@@ -77,9 +77,23 @@
     "discard": "Abandonner",
     "switch": "Changer",
     "add": "Ajouter",
+    "apply": "Appliquer",
     "gotIt": "Compris",
     "continue": "Continuer",
-    "saving": "Enregistrement..."
+    "saving": "Enregistrement...",
+    "deleting": "Suppression..."
+  },
+  "actions": {
+    "save": "Enregistrer",
+    "apply": "Appliquer",
+    "delete": "Supprimer",
+    "settings": "Paramètres"
+  },
+  "os": {
+    "windows": "Windows",
+    "macos": "macOS",
+    "linux": "Linux",
+    "unknown": "Inconnu"
   },
   "labels": {
     "loading": "Chargement...",
@@ -91,7 +105,9 @@
     "noData": "Aucune donnée",
     "optional": "Optionnel",
     "required": "Requis",
-    "dismiss": "Ignorer"
+    "dismiss": "Ignorer",
+    "important": "Important",
+    "orphaned": "(orphelin)"
   },
   "selection": {
     "select": "Sélectionner",
@@ -120,6 +136,11 @@
     "failedToDeleteTaskWorktree": "Échec de la suppression du worktree de tâche : {{specName}}",
     "terminalWorktreeNotFound": "Worktree terminal introuvable : {{name}}",
     "failedToDeleteTerminalWorktree": "Échec de la suppression du worktree terminal : {{name}}"
+  },
+  "worktrees": {
+    "deleteSuccess": "Worktree '{{branch}}' supprimé avec succès",
+    "bulkDeleteSuccess": "{{count}} worktree supprimé avec succès",
+    "bulkDeleteSuccess_plural": "{{count}} worktrees supprimés avec succès"
   },
   "notification": {
     "accountSwitched": "Compte changé",
@@ -222,6 +243,12 @@
     "selectedCount": "{{count}} sélectionné(s)",
     "noResultsFound": "Aucun résultat trouvé",
     "reset": "Réinitialiser",
+    "sort": {
+      "label": "Trier",
+      "newest": "Plus récent",
+      "oldest": "Plus ancien",
+      "largest": "Plus grand"
+    },
     "pullRequests": "Pull Requests",
     "open": "ouvert",
     "selectPRToView": "Sélectionnez une pull request pour voir les détails",
@@ -347,9 +374,10 @@
     "updatingBranch": "Mise à jour...",
     "branchUpdated": "Branche mise à jour",
     "branchUpdateFailed": "Échec de la mise à jour de la branche",
-    "loadingMore": "Chargement des PRs...",
-    "scrollForMore": "Défiler pour plus",
     "allPRsLoaded": "Tous les PRs chargés",
+    "maxPRsShown": "Affichage des 100 premières PRs",
+    "loadMore": "Charger plus",
+    "loadingMore": "Chargement...",
     "workflowsAwaitingApproval": "{{count}} workflow en attente d'approbation",
     "workflowsAwaitingApproval_plural": "{{count}} workflows en attente d'approbation",
     "blockedByWorkflows": "Bloqué",
@@ -418,7 +446,11 @@
     "authenticationAriaLabel": "Authentification : {{provider}}",
     "authenticationDetails": "Détails de l'authentification",
     "apiProfile": "Profil API",
+    "apiKey": "Clé API",
     "oauth": "OAuth",
+    "claudeCode": "Claude Code",
+    "claudeCodeSubscription": "Abonnement Claude Code",
+    "subscription": "Abonnement",
     "provider": "Fournisseur",
     "providerAnthropic": "Anthropic",
     "providerZai": "z.ai",
@@ -441,7 +473,20 @@
     "window5Hour": "Fenêtre de 5 heures",
     "window7Day": "Fenêtre de 7 jours",
     "window5HoursQuota": "Quota de 5 heures",
-    "windowMonthlyToolsQuota": "Quota mensuel d'outils"
+    "windowMonthlyToolsQuota": "Quota mensuel d'outils",
+    "otherAccounts": "Autres comptes",
+    "next": "Suivant",
+    "weeklyLimitReached": "Limite hebdomadaire atteinte",
+    "sessionLimitReached": "Limite de session atteinte",
+    "notAuthenticated": "Non authentifié",
+    "needsReauth": "Réauth requise",
+    "reauthRequired": "Ré-authentification requise",
+    "reauthRequiredDescription": "Votre session a expiré. Ré-authentifiez-vous pour voir l'utilisation et continuer à utiliser ce compte.",
+    "reauthButton": "Ré-authentifier",
+    "clickToOpenSettings": "Cliquez pour ouvrir les Paramètres →",
+    "sessionShort": "Utilisation session 5 heures",
+    "weeklyShort": "Utilisation hebdomadaire 7 jours",
+    "swap": "Changer"
   },
   "oauth": {
     "enterCode": "Saisie manuelle du code (secours)",
@@ -543,6 +588,41 @@
     "step3": "Cliquez sur « Authentifier » pour terminer la connexion",
     "footer": "Le compte sera disponible une fois l'authentification terminée."
   },
+  "roadmapGeneration": {
+    "progress": "Progression",
+    "elapsed": "Écoulé : {{time}}",
+    "stillWorking": "Toujours en cours...",
+    "stopping": "Arrêt...",
+    "stop": "Arrêter",
+    "stopTooltip": "Arrêter la génération",
+    "phases": {
+      "analyzing": {
+        "label": "Analyse",
+        "description": "Analyse de la structure et du code du projet..."
+      },
+      "discovering": {
+        "label": "Découverte",
+        "description": "Découverte du public cible et des besoins des utilisateurs..."
+      },
+      "generating": {
+        "label": "Génération",
+        "description": "Génération de la feuille de route des fonctionnalités..."
+      },
+      "complete": {
+        "label": "Terminé",
+        "description": "Génération de la feuille de route terminée !"
+      },
+      "error": {
+        "label": "Erreur",
+        "description": "La génération a échoué"
+      }
+    },
+    "steps": {
+      "analyze": "Analyser",
+      "discover": "Découvrir",
+      "generate": "Générer"
+    }
+  },
   "auth": {
     "failure": {
       "title": "Authentification requise",
@@ -557,5 +637,55 @@
       "technicalDetails": "Détails techniques",
       "goToSettings": "Aller aux paramètres"
     }
+  },
+  "git": {
+    "branchGroups": {
+      "local": "Branches Locales",
+      "remote": "Branches Distantes"
+    },
+    "branchType": {
+      "local": "Locale",
+      "remote": "Distante"
+    }
+  },
+  "roadmapProgress": {
+    "elapsedTime": "Écoulé",
+    "lastActivity": "Dernière activité",
+    "staleWarning": "Aucune activité depuis un moment",
+    "staleWarningTooltip": "Cette tâche n'a eu aucune activité depuis {{minutes}} minutes",
+    "phases": {
+      "analyzing": {
+        "label": "Analyse",
+        "description": "Analyse de la structure du projet et du code..."
+      },
+      "discovering": {
+        "label": "Découverte",
+        "description": "Découverte du public cible et des besoins utilisateurs..."
+      },
+      "generating": {
+        "label": "Génération",
+        "description": "Génération de la feuille de route..."
+      },
+      "complete": {
+        "label": "Terminé",
+        "description": "Génération de la feuille de route terminée !"
+      },
+      "error": {
+        "label": "Erreur",
+        "description": "La génération a échoué"
+      }
+    },
+    "steps": {
+      "analyze": "Analyser",
+      "discover": "Découvrir",
+      "generate": "Générer"
+    },
+    "processing": "En cours",
+    "processActiveTooltip": "Le processus est en cours d'exécution",
+    "stopGeneration": "Arrêter la génération",
+    "stopping": "Arrêt...",
+    "progress": "Progression",
+    "lastActivityPrefix": "dernière activité",
+    "lastProgressUpdateTooltip": "Dernière mise à jour de progression reçue"
   }
 }

@@ -98,6 +98,7 @@ export function GitHubPRs({ onOpenSettings, isActive = false }: GitHubPRsProps) 
     setSearchQuery,
     setContributors,
     setStatuses,
+    setSortBy,
     clearFilters,
     hasActiveFilters,
   } = usePRFiltering(prs, getReviewStateForPR);
@@ -228,18 +229,19 @@ export function GitHubPRs({ onOpenSettings, isActive = false }: GitHubPRsProps) 
               onSearchChange={setSearchQuery}
               onContributorsChange={setContributors}
               onStatusesChange={setStatuses}
+              onSortChange={setSortBy}
               onClearFilters={clearFilters}
             />
             <PRList
               prs={filteredPRs}
               selectedPRNumber={selectedPRNumber}
               isLoading={isLoading}
-              isLoadingMore={isLoadingMore}
               hasMore={hasMore}
               error={error}
               getReviewStateForPR={getReviewStateForPR}
               onSelectPR={selectPR}
               onLoadMore={loadMore}
+              isLoadingMore={isLoadingMore}
             />
           </div>
         }

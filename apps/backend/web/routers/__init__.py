@@ -16,10 +16,12 @@ FastAPI routers for different API endpoints.
 - git: Git operations (branches, status, etc.)
 - source_env: Source environment configuration
 - ollama: Ollama model management
+- azure_devops: Azure DevOps integration endpoints
 """
 
 import sys
 
+from .azure_devops import router as azure_devops_router
 from .claude_cli import router as claude_cli_router
 from .context import router as context_router
 from .git import router as git_router
@@ -56,4 +58,5 @@ __all__ = [
     "source_env_router",
     "ollama_router",
     "roadmap_router",
+    "azure_devops_router",
 ]
