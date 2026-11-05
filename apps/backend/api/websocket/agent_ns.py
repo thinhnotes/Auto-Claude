@@ -75,8 +75,10 @@ class AgentNamespace(socketio.AsyncNamespace):
     # Connection lifecycle
     # ------------------------------------------------------------------
 
-    async def on_connect(self, sid: str, environ: dict[str, Any]) -> None:
-        if not validate_socketio_token(environ):
+    async def on_connect(
+        self, sid: str, environ: dict[str, Any], auth: dict[str, Any] | None = None
+    ) -> None:
+        if not validate_socketio_token(environ, auth):
             logger.warning("[AgentNS] Rejected unauthenticated client: %s", sid)
             raise ConnectionRefusedError("Authentication required")
         logger.info("[AgentNS] Client connected: %s", sid)

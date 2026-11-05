@@ -78,8 +78,10 @@ class TerminalNamespace(socketio.AsyncNamespace):
     # Connection lifecycle
     # ------------------------------------------------------------------
 
-    async def on_connect(self, sid: str, environ: dict[str, Any]) -> None:
-        if not validate_socketio_token(environ):
+    async def on_connect(
+        self, sid: str, environ: dict[str, Any], auth: dict[str, Any] | None = None
+    ) -> None:
+        if not validate_socketio_token(environ, auth):
             logger.warning("[TerminalNS] Rejected unauthenticated client: %s", sid)
             raise ConnectionRefusedError("Authentication required")
         self._sid_sessions[sid] = set()
@@ -119,18 +121,18 @@ class TerminalNamespace(socketio.AsyncNamespace):
         """
         session_id: str = data.get("sessionId", "")
         if not session_id:
-            await self.emit(
-                "terminal:error", {"error": "sessionId is required"}, to=sid
-            )
+            payload = {"error": "sessionId is required"}
+            await self.emit("terminal:error", payload, to=sid)
+            await self.emit("error", payload, to=sid)
             return {"ok": False, "error": "sessionId is required"}
 
         raw_cwd = data.get("cwd")
         cwd = _validate_cwd(raw_cwd)
         if raw_cwd is not None and cwd is None:
             error_msg = "cwd is not within a registered project directory"
-            await self.emit(
-                "terminal:error", {"sessionId": session_id, "error": error_msg}, to=sid
-            )
+            payload = {"sessionId": session_id, "error": error_msg}
+            await self.emit("terminal:error", payload, to=sid)
+            await self.emit("error", payload, to=sid)
             return {"ok": False, "error": error_msg}
 
         cols = int(data.get("cols", 80))
@@ -140,14 +142,13 @@ class TerminalNamespace(socketio.AsyncNamespace):
 
             async def _on_output(sess_id: str, raw: bytes) -> None:
                 if raw:
-                    await self.emit(
-                        "terminal:output",
-                        {
-                            "sessionId": sess_id,
-                            "data": raw.decode("utf-8", errors="replace"),
-                        },
-                        to=sid,
-                    )
+                    decoded = raw.decode("utf-8", errors="replace")
+                    payload = {
+                        "sessionId": sess_id,
+                        "data": decoded,
+                    }
+                    await self.emit("terminal:output", payload, to=sid)
+                    await self.emit("output", payload, to=sid)
 
             await self.service.spawn(session_id, cwd, cols, rows, on_output=_on_output)
             # Track this session for cleanup on disconnect
@@ -159,10 +160,14 @@ class TerminalNamespace(socketio.AsyncNamespace):
             return {"ok": True, "sessionId": session_id}
         except Exception as exc:
             logger.exception("[TerminalNS] Failed to create session %s", session_id)
-            await self.emit(
-                "terminal:error", {"sessionId": session_id, "error": str(exc)}, to=sid
-            )
+            payload = {"sessionId": session_id, "error": str(exc)}
+            await self.emit("terminal:error", payload, to=sid)
+            await self.emit("error", payload, to=sid)
             return {"ok": False, "error": str(exc)}
+
+    async def on_create(self, sid: str, data: dict[str, Any]) -> dict[str, Any]:
+        """Alias for client event ``create``."""
+        return await self.on_terminal_create(sid, data)
 
     async def on_terminal_input(self, sid: str, data: dict[str, Any]) -> None:
         """
@@ -180,11 +185,13 @@ class TerminalNamespace(socketio.AsyncNamespace):
         try:
             await self.service.write(session_id, input_data)
         except KeyError:
-            await self.emit(
-                "terminal:error",
-                {"sessionId": session_id, "error": "Session not found"},
-                to=sid,
-            )
+            payload = {"sessionId": session_id, "error": "Session not found"}
+            await self.emit("terminal:error", payload, to=sid)
+            await self.emit("error", payload, to=sid)
+
+    async def on_input(self, sid: str, data: dict[str, Any]) -> None:
+        """Alias for client event ``input``."""
+        await self.on_terminal_input(sid, data)
 
     async def on_terminal_resize(self, sid: str, data: dict[str, Any]) -> None:
         """
@@ -204,11 +211,13 @@ class TerminalNamespace(socketio.AsyncNamespace):
         try:
             await self.service.resize(session_id, cols, rows)
         except KeyError:
-            await self.emit(
-                "terminal:error",
-                {"sessionId": session_id, "error": "Session not found"},
-                to=sid,
-            )
+            payload = {"sessionId": session_id, "error": "Session not found"}
+            await self.emit("terminal:error", payload, to=sid)
+            await self.emit("error", payload, to=sid)
+
+    async def on_resize(self, sid: str, data: dict[str, Any]) -> None:
+        """Alias for client event ``resize``."""
+        await self.on_terminal_resize(sid, data)
 
     async def on_terminal_close(self, sid: str, data: dict[str, Any]) -> None:
         """
@@ -226,8 +235,14 @@ class TerminalNamespace(socketio.AsyncNamespace):
         # Remove from tracking
         if sid in self._sid_sessions:
             self._sid_sessions[sid].discard(session_id)
-        await self.emit("terminal:exit", {"sessionId": session_id}, to=sid)
+        payload = {"sessionId": session_id, "code": 0}
+        await self.emit("terminal:exit", payload, to=sid)
+        await self.emit("exit", payload, to=sid)
         logger.info("[TerminalNS] Closed session %s for client %s", session_id, sid)
+
+    async def on_kill(self, sid: str, data: dict[str, Any]) -> None:
+        """Alias for client event ``kill``."""
+        await self.on_terminal_close(sid, data)
 
 
 def register_terminal_namespace(sio_server: socketio.AsyncServer) -> None:

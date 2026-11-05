@@ -37,8 +37,10 @@ class EventsNamespace(socketio.AsyncNamespace):
     # Lifecycle
     # ------------------------------------------------------------------
 
-    async def on_connect(self, sid: str, environ: dict) -> None:
-        if not validate_socketio_token(environ):
+    async def on_connect(
+        self, sid: str, environ: dict, auth: dict[str, Any] | None = None
+    ) -> None:
+        if not validate_socketio_token(environ, auth):
             logger.warning("Events: rejected unauthenticated client: %s", sid)
             raise ConnectionRefusedError("Authentication required")
         logger.info("Events client connected: %s", sid)

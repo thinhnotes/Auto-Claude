@@ -22,7 +22,7 @@ export function TaskSelector({
 }: TaskSelectorProps) {
   if (associatedTask) {
     return (
-      <span className="flex items-center gap-1 text-[10px] font-medium text-blue-500 bg-blue-500/10 px-1.5 py-0.5 rounded max-w-40">
+      <span className="flex items-center gap-1 text-xs font-medium text-blue-500 bg-blue-500/10 px-1.5 py-0.5 rounded max-w-40">
         <ListTodo className="h-2.5 w-2.5 flex-shrink-0" />
         <span className="truncate">{associatedTask.title}</span>
         <button
@@ -45,21 +45,26 @@ export function TaskSelector({
         <Button
           variant="ghost"
           size="sm"
-          className="h-5 px-1.5 text-[10px] text-muted-foreground hover:text-foreground"
+          className="h-5 px-1.5 text-xs text-muted-foreground hover:text-foreground"
         >
           <ListTodo className="h-3 w-3" />
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="start" className="w-56">
+      <DropdownMenuContent align="start" className="w-64">
         {backlogTasks.length === 0 ? (
-          <DropdownMenuItem disabled>No backlog tasks</DropdownMenuItem>
+          <DropdownMenuItem disabled>No tasks available</DropdownMenuItem>
         ) : (
           backlogTasks.map((task) => (
             <DropdownMenuItem
               key={task.id}
+              data-testid={`terminal-task-option-${task.id}`}
               onClick={() => onTaskSelect(task.id)}
+              className="flex items-center justify-between gap-2"
             >
-              <span className="truncate">{task.title}</span>
+              <span className="truncate text-xs">{task.title}</span>
+              <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 font-mono text-xs text-muted-foreground">
+                {task.status}
+              </span>
             </DropdownMenuItem>
           ))
         )}

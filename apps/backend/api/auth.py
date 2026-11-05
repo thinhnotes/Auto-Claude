@@ -43,14 +43,17 @@ async def require_auth(
     return credentials.credentials
 
 
-def validate_socketio_token(environ: dict) -> bool:
+def validate_socketio_token(environ: dict, auth: dict | None = None) -> bool:
     """Validate the Bearer token from a Socket.IO connection handshake.
 
-    The client should pass the token as a query parameter ``token`` or in
-    the ``Authorization`` header.
+    The client should pass the token in the ``auth`` dict, as a query
+    parameter ``token``, or in the ``Authorization`` header.
 
     Returns ``True`` if valid, ``False`` otherwise.
     """
+    if isinstance(auth, dict) and auth.get("token") == API_TOKEN:
+        return True
+
     # Check query string first (Socket.IO commonly uses query params)
     query_string: str = environ.get("QUERY_STRING", "")
     for part in query_string.split("&"):

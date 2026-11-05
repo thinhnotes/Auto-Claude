@@ -99,7 +99,20 @@ class TerminalService:
             await self.kill(session_id)
 
         work_dir = cwd or os.path.expanduser("~")
-        shell = os.environ.get("SHELL", "/bin/bash")
+        shell = os.environ.get("APERANT_SHELL")
+        if not shell:
+            for candidate in (
+                "/usr/lib/powershell-7/pwsh",
+                "/usr/bin/pwsh",
+                "/usr/local/bin/pwsh",
+                os.environ.get("SHELL", ""),
+                "/bin/bash",
+            ):
+                if candidate and os.path.isfile(candidate) and os.access(candidate, os.X_OK):
+                    shell = candidate
+                    break
+        if not shell:
+            shell = "/bin/bash"
 
         # Spawn PTY
         child_pid, master_fd = pty.fork()
@@ -113,7 +126,10 @@ class TerminalService:
                 "COLORTERM": "truecolor",
                 "PROMPT_EOL_MARK": "",
             }
-            os.execvpe(shell, [shell, "-l"], env)
+            if os.path.basename(shell) in ("pwsh", "powershell"):
+                os.execvpe(shell, [shell, "-NoLogo"], env)
+            else:
+                os.execvpe(shell, [shell, "-l"], env)
             # execvpe never returns
 
         # Parent process
