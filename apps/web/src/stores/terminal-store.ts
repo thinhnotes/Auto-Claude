@@ -1,14 +1,23 @@
 import { create } from "zustand";
 
-export type TerminalStatus = "idle" | "running" | "claude-active" | "exited";
+export type TerminalStatus =
+  | "idle"
+  | "running"
+  | "claude-active"
+  | "agy-active"
+  | "exited";
 
 export interface Terminal {
   id: string;
   title: string;
   status: TerminalStatus;
   cwd: string;
+  worktreePath?: string;
   createdAt: Date;
   isClaudeMode: boolean;
+  isAgyMode?: boolean;
+  isVSCodeMode?: boolean;
+  vscodeUrl?: string;
   claudeSessionId?: string;
   isRestored?: boolean;
   associatedTaskId?: string;
@@ -73,11 +82,22 @@ interface TerminalState {
     cwd?: string,
     projectPath?: string,
   ) => Terminal | null;
+  openOrCreateTaskTerminal: (
+    task: {
+      id: string;
+      title: string;
+      projectId?: string;
+      worktreePath?: string;
+    },
+    projectPath?: string,
+  ) => Terminal;
   removeTerminal: (id: string) => void;
   updateTerminal: (id: string, updates: Partial<Terminal>) => void;
   setActiveTerminal: (id: string | null) => void;
   setTerminalStatus: (id: string, status: TerminalStatus) => void;
   setClaudeMode: (id: string, isClaudeMode: boolean) => void;
+  setAgyMode: (id: string, isAgyMode: boolean) => void;
+  setVSCodeMode: (id: string, isVSCodeMode: boolean, vscodeUrl?: string) => void;
   setClaudeSessionId: (id: string, sessionId: string) => void;
   setAssociatedTask: (id: string, taskId: string | undefined) => void;
   setClaudeBusy: (id: string, isBusy: boolean) => void;
@@ -173,6 +193,53 @@ export const useTerminalStore = create<TerminalState>((set, get) => ({
     return newTerminal;
   },
 
+  openOrCreateTaskTerminal: (task, projectPath) => {
+    const state = get();
+    const expectedId = `term-task-${task.id}`;
+    const targetCwd =
+      task.worktreePath || projectPath || `.auto-claude/worktrees/${task.id}`;
+    const existing = state.terminals.find(
+      (t) => t.associatedTaskId === task.id || t.id === expectedId,
+    );
+
+    if (existing) {
+      const updated: Terminal = {
+        ...existing,
+        title: `Task: ${task.title}`,
+        cwd: targetCwd,
+        worktreePath: task.worktreePath || existing.worktreePath || targetCwd,
+        associatedTaskId: task.id,
+        projectPath: projectPath || existing.projectPath,
+        status: existing.status === "exited" || existing.status === "idle" ? "running" : existing.status,
+      };
+      set((s) => ({
+        terminals: s.terminals.map((t) => (t.id === existing.id ? updated : t)),
+        activeTerminalId: existing.id,
+      }));
+      return updated;
+    }
+
+    const newTerminal: Terminal = {
+      id: expectedId,
+      title: `Task: ${task.title}`,
+      status: "running",
+      cwd: targetCwd,
+      worktreePath: task.worktreePath || targetCwd,
+      createdAt: new Date(),
+      isClaudeMode: false,
+      associatedTaskId: task.id,
+      projectPath,
+      displayOrder: state.terminals.length,
+    };
+
+    set((s) => ({
+      terminals: [...s.terminals, newTerminal],
+      activeTerminalId: newTerminal.id,
+    }));
+
+    return newTerminal;
+  },
+
   removeTerminal: (id) => {
     set((state) => {
       const filtered = state.terminals.filter((t) => t.id !== id);
@@ -207,6 +274,28 @@ export const useTerminalStore = create<TerminalState>((set, get) => ({
     set((state) => ({
       terminals: state.terminals.map((t) =>
         t.id === id ? { ...t, isClaudeMode } : t,
+      ),
+    }));
+  },
+
+  setAgyMode: (id, isAgyMode) => {
+    set((state) => ({
+      terminals: state.terminals.map((t) =>
+        t.id === id ? { ...t, isAgyMode } : t,
+      ),
+    }));
+  },
+
+  setVSCodeMode: (id, isVSCodeMode, vscodeUrl) => {
+    set((state) => ({
+      terminals: state.terminals.map((t) =>
+        t.id === id
+          ? {
+              ...t,
+              isVSCodeMode,
+              vscodeUrl: vscodeUrl !== undefined ? vscodeUrl : t.vscodeUrl,
+            }
+          : t,
       ),
     }));
   },

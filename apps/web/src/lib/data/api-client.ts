@@ -1292,6 +1292,36 @@ class ApiClient {
     );
   }
 
+  async openVSCodeWeb(
+    projectId: string | undefined,
+    payload: {
+      sessionId?: string;
+      folderPath?: string;
+    },
+    opts?: RequestOptions,
+  ): Promise<{
+    success: boolean;
+    port: number;
+    folderPath: string;
+    ready: boolean;
+    data?: {
+      port: number;
+      folderPath: string;
+      ready: boolean;
+    };
+  }> {
+    const pid = projectId ? encodeURIComponent(projectId) : "";
+    return this.request(
+      `/api/projects?action=openVSCodeWeb&projectId=${pid}`,
+      {
+        method: "POST",
+        body: JSON.stringify(payload),
+      },
+      opts?.timeoutMs ?? 15000,
+      opts?.signal,
+    );
+  }
+
   // ============================================
   // Azure DevOps Integration (Work Items & 2-Way Sync)
   // ============================================

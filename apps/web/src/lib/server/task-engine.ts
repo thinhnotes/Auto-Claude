@@ -1,7 +1,8 @@
 import fs from "node:fs";
 import path from "node:path";
+import os from "node:os";
 import crypto from "node:crypto";
-import { execSync, execFileSync } from "node:child_process";
+import { execSync, execFileSync, spawn } from "node:child_process";
 
 function getStoreDir(): string {
   return (
@@ -9938,6 +9939,196 @@ export function importAzureDevOpsTicketsForProject(
   };
 }
 
+// ============================================================================
+// Local Self-Hosted VS Code Web IDE (`code serve-web` / `code-server`)
+// ============================================================================
 
+const VSCODE_WEB_DEFAULT_PORT = Number(process.env.VSCODE_WEB_PORT) || 8443;
+let vscodeWebStartPromise: Promise<boolean> | null = null;
 
+function findLocalVSCodeWebBinary(): {
+  command: string;
+  argsPrefix: string[];
+} {
+  const homeDir = os.homedir() || "/home/thinhnguyen";
+  const serveWebRoot = path.join(homeDir, ".vscode", "cli", "serve-web");
+  try {
+    if (fs.existsSync(serveWebRoot)) {
+      const entries = fs
+        .readdirSync(serveWebRoot, { withFileTypes: true })
+        .filter(
+          (d) =>
+            d.isDirectory() &&
+            !d.name.startsWith(".") &&
+            !d.name.includes(".staging"),
+        );
+      for (const entry of entries) {
+        const candidate = path.join(
+          serveWebRoot,
+          entry.name,
+          "bin",
+          "code-server",
+        );
+        if (fs.existsSync(candidate)) {
+          return { command: candidate, argsPrefix: [] };
+        }
+      }
+    }
+  } catch {
+    // Ignore read errors and fall back
+  }
 
+  return { command: "/usr/bin/code", argsPrefix: ["serve-web"] };
+}
+
+async function isVSCodeWebPortReady(port: number): Promise<boolean> {
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 1200);
+    const res = await fetch(`http://127.0.0.1:${port}/vscode-web/`, {
+      method: "GET",
+      signal: controller.signal,
+    });
+    clearTimeout(timer);
+    return res.status >= 200 && res.status < 400;
+  } catch {
+    return false;
+  }
+}
+
+async function ensureLocalVSCodeWebServer(port: number): Promise<boolean> {
+  if (await isVSCodeWebPortReady(port)) {
+    return true;
+  }
+
+  if (vscodeWebStartPromise) {
+    return vscodeWebStartPromise;
+  }
+
+  vscodeWebStartPromise = (async () => {
+    try {
+      const { command, argsPrefix } = findLocalVSCodeWebBinary();
+      const serverDataDir = path.join(STORE_DIR, "vscode-web-data");
+      fs.mkdirSync(serverDataDir, { recursive: true });
+
+      const args = [
+        ...argsPrefix,
+        "--host",
+        "0.0.0.0",
+        "--port",
+        String(port),
+        "--server-base-path",
+        "/vscode-web",
+        "--without-connection-token",
+        "--accept-server-license-terms",
+        "--server-data-dir",
+        serverDataDir,
+      ];
+
+      const child = spawn(command, args, {
+        detached: true,
+        stdio: "ignore",
+        env: {
+          ...process.env,
+        },
+      });
+      child.unref();
+
+      for (let i = 0; i < 30; i++) {
+        await new Promise((r) => setTimeout(r, 250));
+        if (await isVSCodeWebPortReady(port)) {
+          return true;
+        }
+      }
+      return await isVSCodeWebPortReady(port);
+    } catch {
+      return false;
+    } finally {
+      vscodeWebStartPromise = null;
+    }
+  })();
+
+  return vscodeWebStartPromise;
+}
+
+export async function openVSCodeWebForProject(
+  projectId: string,
+  opts?: {
+    sessionId?: string;
+    folderPath?: string;
+  },
+): Promise<{
+  success: boolean;
+  port: number;
+  folderPath: string;
+  url: string;
+  ready: boolean;
+  data: {
+    port: number;
+    folderPath: string;
+    url: string;
+    ready: boolean;
+  };
+}> {
+  const project = findProject(projectId);
+  const fallbackBase = project?.path || os.homedir() || "/home/thinhnguyen";
+
+  let sessionCwd: string | undefined;
+  let sessionWorktree: string | undefined;
+
+  if (project && opts?.sessionId) {
+    try {
+      const termFile = getTerminalsFile(project);
+      const stored = readJson<{ sessions?: StoredTerminalSession[] }>(termFile);
+      const session = (stored?.sessions || []).find(
+        (s) => s.id === opts.sessionId,
+      );
+      if (session) {
+        sessionCwd = session.cwd;
+        sessionWorktree = session.worktreePath;
+      }
+    } catch {
+      // Ignore terminal file read error
+    }
+  }
+
+  const candidates = [
+    opts?.folderPath,
+    sessionCwd,
+    sessionWorktree,
+    project?.path,
+    fallbackBase,
+  ];
+
+  let targetFolder = fallbackBase;
+  for (const raw of candidates) {
+    if (!raw || raw.trim() === "" || raw.trim() === "~") continue;
+    const resolved = path.resolve(raw.trim());
+    try {
+      if (fs.existsSync(resolved) && fs.statSync(resolved).isDirectory()) {
+        targetFolder = resolved;
+        break;
+      }
+    } catch {
+      // Continue to next candidate
+    }
+  }
+
+  const port = VSCODE_WEB_DEFAULT_PORT;
+  const ready = await ensureLocalVSCodeWebServer(port);
+  const url = `/vscode-web/?folder=${encodeURIComponent(targetFolder)}`;
+
+  return {
+    success: true,
+    port,
+    folderPath: targetFolder,
+    url,
+    ready,
+    data: {
+      port,
+      folderPath: targetFolder,
+      url,
+      ready,
+    },
+  };
+}

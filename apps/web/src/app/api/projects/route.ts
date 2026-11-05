@@ -43,6 +43,7 @@ import {
   execAgyCommandForProject,
   autocompleteTerminalForProject,
   closeTerminalForProject,
+  openVSCodeWebForProject,
   getAzureDevOpsForProject,
   refreshAzureDevOpsForProject,
   saveAzureDevOpsConfigForProject,
@@ -481,6 +482,18 @@ export async function POST(req: Request) {
       const sessionId =
         url.searchParams.get("sessionId") || body.sessionId || "default";
       const res = closeTerminalForProject(projectId, sessionId);
+      return NextResponse.json(res);
+    }
+
+    if (action === "openVSCodeWeb") {
+      const body = (await req.json().catch(() => ({}))) as {
+        sessionId?: string;
+        folderPath?: string;
+      };
+      const res = await openVSCodeWebForProject(projectId, {
+        sessionId: body.sessionId,
+        folderPath: body.folderPath,
+      });
       return NextResponse.json(res);
     }
 

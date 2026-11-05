@@ -397,5 +397,57 @@ describe("Interactive Terminal Engine & Direct Terminal Actions", () => {
     autocompleteSpy.mockRestore();
     execSpy.mockRestore();
   });
+
+  it("opens local self-hosted VS Code Online IDE at the terminal's current working directory and toggles back without losing PowerShell session state", async () => {
+    const { openVSCodeWebForProject } = await import(
+      "@/lib/server/task-engine"
+    );
+    const { VSCodeWebPanel } = await import(
+      "@/components/terminal/VSCodeWebPanel"
+    );
+    const { apiClient } = await import("@/lib/data/api-client");
+
+    // Create a subdirectory and cd into it in the terminal session
+    const subDir = path.join(tmpDir, "IR");
+    fs.mkdirSync(subDir, { recursive: true });
+    execTerminalCommandForProject(projectId, "vscode-sess-1", "cd IR", tmpDir);
+
+    const vscodeRes = await openVSCodeWebForProject(projectId, {
+      sessionId: "vscode-sess-1",
+    });
+    expect(vscodeRes.success).toBe(true);
+    expect(vscodeRes.port).toBe(8443);
+    expect(vscodeRes.folderPath).toBe(subDir);
+
+    const openSpy = vi
+      .spyOn(apiClient, "openVSCodeWeb")
+      .mockResolvedValue(vscodeRes);
+    const onBack = vi.fn();
+
+    render(
+      <VSCodeWebPanel
+        sessionId="vscode-sess-1"
+        projectId={projectId}
+        cwd={subDir}
+        onBackToTerminal={onBack}
+      />,
+    );
+
+    const iframeEl = (await waitFor(() =>
+      screen.getByTestId("vscode-web-iframe-vscode-sess-1"),
+    )) as HTMLIFrameElement;
+
+    expect(iframeEl.src).toContain("/vscode-web/?folder=");
+    expect(decodeURIComponent(iframeEl.src)).toContain(subDir);
+
+    const backBtn = screen.getByTestId(
+      "vscode-web-back-terminal-vscode-sess-1",
+    );
+    fireEvent.click(backBtn);
+    expect(onBack).toHaveBeenCalledTimes(1);
+
+    openSpy.mockRestore();
+  });
 });
+
 

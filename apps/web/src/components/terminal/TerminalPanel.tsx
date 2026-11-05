@@ -17,6 +17,7 @@ import {
   XCircle,
   Terminal as TerminalIcon,
   History,
+  Code2,
 } from "lucide-react";
 import { terminalSocket } from "@/lib/websocket-client";
 import { DEFAULT_TERMINAL_THEME } from "@/lib/terminal-theme";
@@ -54,6 +55,7 @@ interface TerminalPanelProps {
   cwd?: string;
   isAgyMode?: boolean;
   onResize?: (cols: number, rows: number) => void;
+  onOpenVSCodeWeb?: (cwd: string) => void;
 }
 
 const QUICK_COMMANDS = ["pwd", "ls -la", "git status", "Get-History", "clear"] as const;
@@ -111,6 +113,7 @@ export function TerminalPanel({
   cwd,
   isAgyMode = false,
   onResize,
+  onOpenVSCodeWeb,
 }: TerminalPanelProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const transcriptRef = useRef<HTMLPreElement>(null);
@@ -361,6 +364,7 @@ export function TerminalPanel({
           );
           const nextCwd = res.cwd || currentCwd;
           setCurrentCwd(nextCwd);
+          useTerminalStore.getState().updateTerminal(sessionId, { cwd: nextCwd });
           syncInteractiveStateFromResponse(res);
           const block =
             res.formattedOutput ||
@@ -439,6 +443,7 @@ export function TerminalPanel({
               : activeShell;
           setCurrentCwd(nextCwd);
           setActiveShell(nextShell);
+          useTerminalStore.getState().updateTerminal(sessionId, { cwd: nextCwd });
           syncInteractiveStateFromResponse(res);
           if ((res as any)?.isAgyMode) {
             prevAgyModeRef.current = true;
@@ -1183,6 +1188,22 @@ export function TerminalPanel({
             <History className="inline h-3 w-3 mr-1 text-emerald-400" />
             F2: {predictionViewStyle}
           </button>
+
+          {onOpenVSCodeWeb && (
+            <button
+              type="button"
+              data-testid={`terminal-cwd-vscode-btn-${sessionId}`}
+              onClick={(e) => {
+                e.stopPropagation();
+                onOpenVSCodeWeb(currentCwd);
+              }}
+              title={`Open ${currentCwd} in local VS Code Online IDE`}
+              className="flex items-center gap-1 rounded bg-sky-500/20 px-1.5 py-0.5 font-mono text-xs font-semibold text-sky-300 hover:bg-sky-500/30 transition-colors"
+            >
+              <Code2 className="h-3 w-3 flex-shrink-0" />
+              <span>VS Code Web</span>
+            </button>
+          )}
 
           {isAgyMode && (
             <span
