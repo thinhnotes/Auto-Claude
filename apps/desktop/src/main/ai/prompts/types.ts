@@ -32,6 +32,10 @@ export interface PromptContext {
   recoveryHints?: string[];
   /** Phase-specific planning retry context */
   planningRetryContext?: string;
+  /** Dynamically discovered skills catalog summary */
+  availableSkillsCatalog?: string | null;
+  /** Active skill instructions when a skill is selected for the task or phase */
+  activeSkillContent?: string | null;
 }
 
 // =============================================================================

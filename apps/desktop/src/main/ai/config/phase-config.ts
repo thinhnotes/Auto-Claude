@@ -143,6 +143,14 @@ export interface TaskMetadataConfig {
   fastMode?: boolean;
   /** Per-phase provider override for cross-provider (Custom) profile */
   phaseProviders?: Partial<Record<Phase, string>>;
+  /** Active skill ID (SKILL.md) selected for this task */
+  skillId?: string;
+  /** Custom dynamic workflow phases override */
+  customPhases?: string[];
+  /** Require human review before starting coding */
+  requireReviewBeforeCoding?: boolean;
+  /** Plan-only mode (Plan -> AI Review -> Human Review -> Done) */
+  planOnly?: boolean;
 }
 
 /**

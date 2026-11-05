@@ -89,18 +89,20 @@ async function resolveFromProviderAccount(ctx: AuthResolverContext): Promise<Res
   const account = accounts.find(a => a.provider === ctx.provider && a.isActive);
   if (!account) return null;
 
-  // File-based OAuth accounts (e.g., OpenAI Codex)
-  if (account.authType === 'oauth' && account.provider === 'openai') {
+  // File-based OAuth accounts (e.g., OpenAI Codex or GitHub Copilot)
+  if (account.authType === 'oauth' && (account.provider === 'openai' || account.provider === 'github-copilot')) {
     // Resolve token file path on main thread (has electron.app access)
     const { app } = await import('electron');
-    const tokenFilePath = path.join(app.getPath('userData'), 'codex-auth.json');
+    const fileName = account.provider === 'github-copilot' ? 'copilot-auth.json' : 'codex-auth.json';
+    const tokenFilePath = path.join(app.getPath('userData'), fileName);
     const { ensureValidOAuthToken } = await import('../providers/oauth-fetch');
-    const token = await ensureValidOAuthToken(tokenFilePath, 'openai');
+    const token = await ensureValidOAuthToken(tokenFilePath, account.provider);
     if (token) {
       return {
-        apiKey: 'codex-oauth-placeholder', // Dummy key; real token injected via custom fetch
-        source: 'codex-oauth',
+        apiKey: `${account.provider}-oauth-placeholder`, // Dummy key; real token injected via custom fetch
+        source: account.provider === 'github-copilot' ? 'copilot-oauth' : 'codex-oauth',
         oauthTokenFilePath: tokenFilePath,
+        baseURL: account.baseUrl,
       };
     }
     return null;
@@ -231,9 +233,32 @@ function resolveFromProfileApiKey(ctx: AuthResolverContext): ResolvedAuth | null
  */
 function resolveFromEnvironment(ctx: AuthResolverContext): ResolvedAuth | null {
   const envVar = PROVIDER_ENV_VARS[ctx.provider];
-  if (!envVar) return null;
+  let apiKey = envVar ? process.env[envVar] : undefined;
 
-  const apiKey = process.env[envVar];
+  // Dynamic fallbacks for GitHub Copilot & Google Antigravity
+  if (!apiKey && ctx.provider === 'github-copilot') {
+    apiKey = process.env.GITHUB_TOKEN || process.env.GH_TOKEN;
+    if (!apiKey) {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const { discoverLocalGitHubCopilotOAuthToken } = require('../providers/oauth-fetch') as typeof import('../providers/oauth-fetch');
+      apiKey = discoverLocalGitHubCopilotOAuthToken() ?? undefined;
+    }
+  } else if (!apiKey && ctx.provider === 'antigravity') {
+    apiKey = process.env.GOOGLE_GENERATIVE_AI_API_KEY || process.env.GEMINI_API_KEY;
+    if (!apiKey) {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const { discoverLocalAntigravityAuth } = require('../providers/oauth-fetch') as typeof import('../providers/oauth-fetch');
+      const localAgy = discoverLocalAntigravityAuth();
+      if (localAgy?.apiKey) {
+        return {
+          apiKey: localAgy.apiKey,
+          source: 'antigravity-auth',
+          baseURL: localAgy.baseURL,
+        };
+      }
+    }
+  }
+
   if (!apiKey) return null;
 
   const resolved: ResolvedAuth = {
@@ -324,6 +349,8 @@ const BUILTIN_TO_SUPPORTED: Record<string, SupportedProvider> = {
   anthropic: 'anthropic',
   openai: 'openai',
   google: 'google',
+  'github-copilot': 'github-copilot',
+  antigravity: 'antigravity',
   'amazon-bedrock': 'bedrock',
   azure: 'azure',
   mistral: 'mistral',
@@ -505,22 +532,49 @@ async function resolveCredentialsForAccount(
     };
   }
 
-  // File-based OAuth (e.g., OpenAI Codex subscription)
-  if (account.authType === 'oauth' && account.provider === 'openai') {
+  // File-based OAuth (e.g., OpenAI Codex or GitHub Copilot subscription)
+  if (account.authType === 'oauth' && (account.provider === 'openai' || account.provider === 'github-copilot')) {
     try {
       const { app } = await import('electron');
-      const tokenFilePath = path.join(app.getPath('userData'), 'codex-auth.json');
-      const { ensureValidOAuthToken } = await import('../providers/oauth-fetch');
-      const token = await ensureValidOAuthToken(tokenFilePath, 'openai');
+      const fileName = account.provider === 'github-copilot' ? 'copilot-auth.json' : 'codex-auth.json';
+      const tokenFilePath = path.join(app.getPath('userData'), fileName);
+      const { ensureValidOAuthToken, discoverLocalGitHubCopilotOAuthToken } = await import('../providers/oauth-fetch');
+      const token = await ensureValidOAuthToken(tokenFilePath, account.provider);
       if (token) {
         return {
-          apiKey: 'codex-oauth-placeholder',
-          source: 'codex-oauth',
+          apiKey: `${account.provider}-oauth-placeholder`,
+          source: account.provider === 'github-copilot' ? 'copilot-oauth' : 'codex-oauth',
           oauthTokenFilePath: tokenFilePath,
+          baseURL: account.baseUrl,
         };
+      }
+      if (account.provider === 'github-copilot') {
+        const localGhToken = discoverLocalGitHubCopilotOAuthToken();
+        if (localGhToken) {
+          return {
+            apiKey: localGhToken,
+            source: 'copilot-oauth',
+            baseURL: account.baseUrl,
+          };
+        }
       }
     } catch { /* fall through */ }
     return null;
+  }
+
+  // Antigravity OAuth / local CLI credential discovery
+  if (account.authType === 'oauth' && account.provider === 'antigravity') {
+    try {
+      const { discoverLocalAntigravityAuth } = await import('../providers/oauth-fetch');
+      const localAgy = discoverLocalAntigravityAuth();
+      if (localAgy?.apiKey) {
+        return {
+          apiKey: localAgy.apiKey,
+          source: 'antigravity-auth',
+          baseURL: account.baseUrl || localAgy.baseURL,
+        };
+      }
+    } catch { /* fall through */ }
   }
 
   // Anthropic OAuth — refresh token via existing claude-profile system

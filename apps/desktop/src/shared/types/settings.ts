@@ -147,11 +147,13 @@ export type SupportedTerminal =
 
 // CLI tools for AI-powered terminal sessions
 export type SupportedCLI =
-  | 'claude-code'   // Claude Code CLI
-  | 'gemini'        // Gemini CLI
-  | 'opencode'      // OpenCode
-  | 'kilocode'      // Kilo Code CLI
-  | 'codex'         // Codex CLI
+  | 'claude-code'     // Claude Code CLI
+  | 'antigravity'     // Google Antigravity CLI (agy)
+  | 'github-copilot'  // GitHub Copilot CLI (copilot / gh copilot)
+  | 'gemini'          // Gemini CLI
+  | 'opencode'        // OpenCode
+  | 'kilocode'        // Kilo Code CLI
+  | 'codex'           // Codex CLI
   | 'custom';
 
 export interface ThemePreviewColors {

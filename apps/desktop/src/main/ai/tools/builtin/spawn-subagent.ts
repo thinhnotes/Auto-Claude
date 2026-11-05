@@ -47,6 +47,11 @@ const SpawnSubagentInputSchema = z.object({
   expect_structured_output: z
     .boolean()
     .describe('Whether to expect structured JSON output from the subagent'),
+  skill_name: z
+    .string()
+    .nullable()
+    .optional()
+    .describe('Optional skill ID or name (SKILL.md) to load into the subagent system prompt'),
 });
 
 export type SpawnSubagentInput = z.infer<typeof SpawnSubagentInputSchema>;
@@ -68,6 +73,7 @@ export interface SubagentSpawnParams {
   task: string;
   context?: string;
   expectStructuredOutput: boolean;
+  skillName?: string;
 }
 
 export interface SubagentResult {
@@ -136,6 +142,7 @@ Tips:
         task: input.task,
         context: input.context ?? undefined,
         expectStructuredOutput: input.expect_structured_output,
+        skillName: input.skill_name ?? undefined,
       });
 
       if (result.error) {

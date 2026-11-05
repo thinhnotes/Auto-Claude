@@ -20,6 +20,18 @@ export const PROVIDER_REGISTRY: ProviderInfo[] = [
     configFields: [], website: 'https://aistudio.google.com/apikey',
   },
   {
+    id: 'github-copilot', name: 'GitHub Copilot', description: 'Copilot subscription & GitHub Models (Claude, GPT, Gemini)',
+    category: 'popular',
+    authMethods: ['oauth', 'api-key'], envVars: ['GITHUB_COPILOT_TOKEN', 'GITHUB_TOKEN'],
+    configFields: ['baseUrl'], website: 'https://github.com/settings/copilot',
+  },
+  {
+    id: 'antigravity', name: 'Google Antigravity', description: 'Antigravity (agy) agentic models & Gemini 2.5',
+    category: 'popular',
+    authMethods: ['oauth', 'api-key'], envVars: ['ANTIGRAVITY_API_KEY', 'GOOGLE_GENERATIVE_AI_API_KEY'],
+    configFields: ['baseUrl'], website: 'https://ai.google.dev',
+  },
+  {
     id: 'openrouter', name: 'OpenRouter', description: 'Access 300+ models from all providers',
     category: 'popular',
     authMethods: ['api-key'], envVars: ['OPENROUTER_API_KEY'],

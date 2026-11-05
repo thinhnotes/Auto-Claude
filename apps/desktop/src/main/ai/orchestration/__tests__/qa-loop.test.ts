@@ -448,4 +448,32 @@ describe('QALoop', () => {
     expect(completedEvents).toHaveLength(1);
     expect((completedEvents[0] as { approved: boolean }).approved).toBe(true);
   });
+
+  it('emits qa-fix-start, qa-fix-complete, qa-iteration-start, and qa-review-complete when processing human review feedback', async () => {
+    mockReadFile.mockImplementation((filePath: string) => {
+      if (filePath.endsWith('QA_FIX_REQUEST.md')) return Promise.resolve('Please fix line 12');
+      if (filePath.endsWith('implementation_plan.json')) return Promise.resolve(completedPlan('approved'));
+      return Promise.reject(new Error('ENOENT'));
+    });
+
+    const runSession = vi.fn().mockResolvedValue(makeSessionResult('completed'));
+    const config = makeConfig({ runSession, maxIterations: 3 });
+    const loop = new QALoop(config);
+
+    const emittedEvents: string[] = [];
+    loop.on('qa-fix-start', (iter) => emittedEvents.push(`qa-fix-start:${iter}`));
+    loop.on('qa-fix-complete', (iter) => emittedEvents.push(`qa-fix-complete:${iter}`));
+    loop.on('qa-iteration-start', (iter, max) => emittedEvents.push(`qa-iteration-start:${iter}/${max}`));
+    loop.on('qa-review-complete', (iter, status) => emittedEvents.push(`qa-review-complete:${iter}:${status}`));
+
+    const outcome = await loop.run();
+
+    expect(outcome.approved).toBe(true);
+    expect(emittedEvents).toEqual([
+      'qa-fix-start:0',
+      'qa-fix-complete:0',
+      'qa-iteration-start:1/3',
+      'qa-review-complete:1:approved',
+    ]);
+  });
 });

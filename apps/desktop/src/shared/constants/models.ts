@@ -71,6 +71,14 @@ export const ALL_AVAILABLE_MODELS: ModelOption[] = [
   { value: 'glm-4.7', label: 'GLM-4.7', provider: 'zai', description: 'Previous flagship', capabilities: { thinking: false, tools: true, vision: false, contextWindow: 128000 } },
   { value: 'glm-4.6v', label: 'GLM-4.6V', provider: 'zai', description: 'Multimodal', capabilities: { thinking: false, tools: true, vision: true, contextWindow: 128000 } },
   { value: 'glm-4.5-flash', label: 'GLM-4.5 Flash', provider: 'zai', description: 'Fast', capabilities: { thinking: false, tools: true, vision: false, contextWindow: 128000 } },
+  // GitHub Copilot
+  { value: 'claude-sonnet-4', label: 'Copilot Claude Sonnet 4', provider: 'github-copilot', description: 'Balanced coding & review', capabilities: { thinking: true, tools: true, vision: true, contextWindow: 200000 } },
+  { value: 'gpt-4.1', label: 'Copilot GPT-4.1', provider: 'github-copilot', description: 'Flagship coding', capabilities: { thinking: false, tools: true, vision: true, contextWindow: 1047576 } },
+  { value: 'o3-mini', label: 'Copilot o3-mini', provider: 'github-copilot', description: 'Fast reasoning', capabilities: { thinking: true, tools: true, vision: false, contextWindow: 200000 } },
+  // Google Antigravity
+  { value: 'gemini-2.5-pro', label: 'Antigravity Pro (Gemini 2.5 Pro)', provider: 'antigravity', description: 'Deep reasoning & planning', capabilities: { thinking: true, tools: true, vision: true, contextWindow: 1048576 } },
+  { value: 'gemini-2.5-flash', label: 'Antigravity Flash (Gemini 2.5 Flash)', provider: 'antigravity', description: 'Fast agentic coding', capabilities: { thinking: true, tools: true, vision: true, contextWindow: 1048576 } },
+  { value: 'gemini-2.5-flash-lite', label: 'Antigravity Flash-Lite', provider: 'antigravity', description: 'Lightweight tasks', capabilities: { thinking: true, tools: true, vision: true, contextWindow: 1048576 } },
 ];
 
 // Maps model shorthand to actual Claude model IDs
@@ -322,6 +330,18 @@ export const PROVIDER_PRESET_DEFINITIONS: Partial<Record<BuiltinProvider, Record
     balanced: { primaryModel: '', primaryThinking: 'low', phaseModels: { spec: '', planning: '', coding: '', qa: '' }, phaseThinking: { spec: 'low', planning: 'low', coding: 'low', qa: 'low' } },
     quick:    { primaryModel: '', primaryThinking: 'low', phaseModels: { spec: '', planning: '', coding: '', qa: '' }, phaseThinking: { spec: 'low', planning: 'low', coding: 'low', qa: 'low' } },
   },
+  'github-copilot': {
+    auto:     { primaryModel: 'claude-sonnet-4', primaryThinking: 'high',   phaseModels: { spec: 'claude-sonnet-4', planning: 'claude-sonnet-4', coding: 'gpt-4.1', qa: 'claude-sonnet-4' }, phaseThinking: { spec: 'high', planning: 'high', coding: 'low', qa: 'low' } },
+    complex:  { primaryModel: 'claude-sonnet-4', primaryThinking: 'high',   phaseModels: { spec: 'claude-sonnet-4', planning: 'claude-sonnet-4', coding: 'claude-sonnet-4', qa: 'claude-sonnet-4' }, phaseThinking: { spec: 'high', planning: 'high', coding: 'high', qa: 'high' } },
+    balanced: { primaryModel: 'gpt-4.1',         primaryThinking: 'medium', phaseModels: { spec: 'gpt-4.1', planning: 'gpt-4.1', coding: 'gpt-4.1', qa: 'gpt-4.1' }, phaseThinking: { spec: 'medium', planning: 'medium', coding: 'medium', qa: 'medium' } },
+    quick:    { primaryModel: 'o3-mini',         primaryThinking: 'low',    phaseModels: { spec: 'o3-mini', planning: 'o3-mini', coding: 'o3-mini', qa: 'o3-mini' }, phaseThinking: { spec: 'low', planning: 'low', coding: 'low', qa: 'low' } },
+  },
+  antigravity: {
+    auto:     { primaryModel: 'gemini-2.5-pro',        primaryThinking: 'high',   phaseModels: { spec: 'gemini-2.5-pro', planning: 'gemini-2.5-pro', coding: 'gemini-2.5-pro', qa: 'gemini-2.5-pro' }, phaseThinking: { spec: 'high', planning: 'high', coding: 'low', qa: 'low' } },
+    complex:  { primaryModel: 'gemini-2.5-pro',        primaryThinking: 'high',   phaseModels: { spec: 'gemini-2.5-pro', planning: 'gemini-2.5-pro', coding: 'gemini-2.5-pro', qa: 'gemini-2.5-pro' }, phaseThinking: { spec: 'high', planning: 'high', coding: 'high', qa: 'high' } },
+    balanced: { primaryModel: 'gemini-2.5-flash',      primaryThinking: 'medium', phaseModels: { spec: 'gemini-2.5-flash', planning: 'gemini-2.5-flash', coding: 'gemini-2.5-flash', qa: 'gemini-2.5-flash' }, phaseThinking: { spec: 'medium', planning: 'medium', coding: 'medium', qa: 'medium' } },
+    quick:    { primaryModel: 'gemini-2.5-flash-lite', primaryThinking: 'low',    phaseModels: { spec: 'gemini-2.5-flash-lite', planning: 'gemini-2.5-flash-lite', coding: 'gemini-2.5-flash-lite', qa: 'gemini-2.5-flash-lite' }, phaseThinking: { spec: 'low', planning: 'low', coding: 'low', qa: 'low' } },
+  },
 };
 
 /**
@@ -410,6 +430,8 @@ export const DEFAULT_MODEL_EQUIVALENCES: Record<string, Partial<Record<BuiltinPr
     anthropic: { modelId: 'claude-opus-4-6', reasoning: { type: 'adaptive_effort', level: 'high' } },
     openai: { modelId: 'gpt-5.3-codex', reasoning: { type: 'reasoning_effort', level: 'high' } },
     google: { modelId: 'gemini-2.5-pro', reasoning: { type: 'thinking_toggle', level: 'high' } },
+    'github-copilot': { modelId: 'claude-sonnet-4', reasoning: { type: 'none' } },
+    antigravity: { modelId: 'gemini-2.5-pro', reasoning: { type: 'thinking_toggle', level: 'high' } },
     xai: { modelId: 'grok-4-0709', reasoning: { type: 'reasoning_effort', level: 'high' } },
     mistral: { modelId: 'mistral-large-latest', reasoning: { type: 'none' } },
     groq: { modelId: 'meta-llama/llama-4-maverick', reasoning: { type: 'none' } },
@@ -429,16 +451,22 @@ export const DEFAULT_MODEL_EQUIVALENCES: Record<string, Partial<Record<BuiltinPr
     anthropic: { modelId: 'claude-opus-4-6', reasoning: { type: 'adaptive_effort', level: 'high' } },
     openai: { modelId: 'gpt-5.2', reasoning: { type: 'reasoning_effort', level: 'high' } },
     google: { modelId: 'gemini-2.5-pro', reasoning: { type: 'thinking_toggle', level: 'high' } },
+    'github-copilot': { modelId: 'claude-sonnet-4', reasoning: { type: 'none' } },
+    antigravity: { modelId: 'gemini-2.5-pro', reasoning: { type: 'thinking_toggle', level: 'high' } },
   },
   'opus-4.5': {
     anthropic: { modelId: 'claude-opus-4-5-20251101', reasoning: { type: 'thinking_tokens', level: 'high' } },
     openai: { modelId: 'gpt-5.3-codex', reasoning: { type: 'reasoning_effort', level: 'high' } },
     google: { modelId: 'gemini-2.5-pro', reasoning: { type: 'thinking_toggle', level: 'high' } },
+    'github-copilot': { modelId: 'claude-sonnet-4', reasoning: { type: 'none' } },
+    antigravity: { modelId: 'gemini-2.5-pro', reasoning: { type: 'thinking_toggle', level: 'high' } },
   },
   'sonnet': {
     anthropic: { modelId: 'claude-sonnet-4-6', reasoning: { type: 'thinking_tokens', level: 'medium' } },
     openai: { modelId: 'gpt-5.2-codex', reasoning: { type: 'reasoning_effort', level: 'medium' } },
     google: { modelId: 'gemini-2.5-flash', reasoning: { type: 'thinking_toggle', level: 'medium' } },
+    'github-copilot': { modelId: 'gpt-4.1', reasoning: { type: 'none' } },
+    antigravity: { modelId: 'gemini-2.5-flash', reasoning: { type: 'thinking_toggle', level: 'medium' } },
     mistral: { modelId: 'mistral-large-latest', reasoning: { type: 'none' } },
     groq: { modelId: 'llama-3.3-70b-versatile', reasoning: { type: 'none' } },
     xai: { modelId: 'grok-3-mini', reasoning: { type: 'reasoning_effort', level: 'medium' } },
@@ -448,6 +476,8 @@ export const DEFAULT_MODEL_EQUIVALENCES: Record<string, Partial<Record<BuiltinPr
     anthropic: { modelId: 'claude-haiku-4-5-20251001', reasoning: { type: 'none' } },
     openai: { modelId: 'gpt-5.1-codex-mini', reasoning: { type: 'reasoning_effort', level: 'low' } },
     google: { modelId: 'gemini-2.5-flash-lite', reasoning: { type: 'thinking_toggle', level: 'low' } },
+    'github-copilot': { modelId: 'o3-mini', reasoning: { type: 'reasoning_effort', level: 'low' } },
+    antigravity: { modelId: 'gemini-2.5-flash-lite', reasoning: { type: 'thinking_toggle', level: 'low' } },
     mistral: { modelId: 'mistral-small-latest', reasoning: { type: 'none' } },
     groq: { modelId: 'llama-3.3-70b-versatile', reasoning: { type: 'none' } },
     zai: { modelId: 'glm-4.5-flash', reasoning: { type: 'none' } },

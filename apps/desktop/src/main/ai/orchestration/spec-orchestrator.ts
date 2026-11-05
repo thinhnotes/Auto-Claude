@@ -126,6 +126,10 @@ export interface SpecOrchestratorConfig {
   taskDescription?: string;
   /** Complexity override (skip AI assessment) */
   complexityOverride?: ComplexityTier;
+  /** Custom phase pipeline override (from task metadata or active SKILL.md frontmatter) */
+  customPhases?: SpecPhase[];
+  /** Force AI review (self_critique) phase in the workflow */
+  requireAiReview?: boolean;
   /** Whether to use AI for complexity assessment (default: true) */
   useAiAssessment?: boolean;
   /** Pre-generated project index JSON content (injected into all phases) */
@@ -225,6 +229,7 @@ interface ComplexityAssessment {
   reasoning: string;
   needs_research?: boolean;
   needs_self_critique?: boolean;
+  recommended_phases?: SpecPhase[];
 }
 
 // =============================================================================
@@ -259,7 +264,7 @@ export class SpecOrchestrator extends EventEmitter {
    *
    * Phase progression:
    * 1. Complexity assessment — gate the workflow (uses task description + project index)
-   * 2. Phases based on complexity tier (SIMPLE skips discovery/requirements entirely)
+   * 2. Phases based on customPhases, AI recommended_phases, or complexity tier
    *
    * After each phase, output files are captured and injected into subsequent phases
    * to eliminate redundant file re-reads between agents.
@@ -274,55 +279,73 @@ export class SpecOrchestrator extends EventEmitter {
       // ===================================================================
       let complexity: ComplexityTier;
 
-      // Fast-path heuristic: catch obviously simple tasks before expensive AI assessment
-      const heuristicResult = this.assessComplexityHeuristic(this.config.taskDescription ?? '');
-      if (heuristicResult) {
-        complexity = heuristicResult;
-        this.assessment = {
-          complexity: heuristicResult,
-          confidence: 0.9,
-          reasoning: `Heuristic: task description matches ${heuristicResult} pattern`,
-        };
-        this.emitTyped('log', `Complexity heuristic: ${heuristicResult} (skipping AI assessment)`);
-        phasesExecuted.push('complexity_assessment');
-      } else if (this.config.complexityOverride) {
-        complexity = this.config.complexityOverride;
-        this.emitTyped('log', `Complexity override: ${complexity}`);
-      } else if (this.config.useAiAssessment !== false) {
-        // Run AI complexity assessment as the first phase
-        if (this.aborted) {
-          return this.outcome(false, phasesExecuted, Date.now() - startTime, 'Cancelled');
-        }
+      if (this.config.customPhases && this.config.customPhases.length > 0) {
+        complexity = this.config.complexityOverride ?? 'standard';
+        this.emitTyped('log', `Using custom dynamic workflow phases: ${this.config.customPhases.join(' → ')}`);
+      } else {
+        // Fast-path heuristic: catch obviously simple tasks before expensive AI assessment
+        const heuristicResult = this.assessComplexityHeuristic(this.config.taskDescription ?? '');
+        if (heuristicResult) {
+          complexity = heuristicResult;
+          this.assessment = {
+            complexity: heuristicResult,
+            confidence: 0.9,
+            reasoning: `Heuristic: task description matches ${heuristicResult} pattern`,
+          };
+          this.emitTyped('log', `Complexity heuristic: ${heuristicResult} (skipping AI assessment)`);
+          phasesExecuted.push('complexity_assessment');
+        } else if (this.config.complexityOverride) {
+          complexity = this.config.complexityOverride;
+          this.emitTyped('log', `Complexity override: ${complexity}`);
+        } else if (this.config.useAiAssessment !== false) {
+          // Run AI complexity assessment as the first phase
+          if (this.aborted) {
+            return this.outcome(false, phasesExecuted, Date.now() - startTime, 'Cancelled');
+          }
 
-        const assessResult = await this.runComplexityAssessment(1);
-        phasesExecuted.push('complexity_assessment');
-        await this.capturePhaseOutput('complexity_assessment');
+          const assessResult = await this.runComplexityAssessment(1);
+          phasesExecuted.push('complexity_assessment');
+          await this.capturePhaseOutput('complexity_assessment');
 
-        if (!assessResult.success) {
-          // Fall back to standard on assessment failure
+          if (!assessResult.success) {
+            // Fall back to standard on assessment failure
+            this.assessment = {
+              complexity: 'standard',
+              confidence: 0.5,
+              reasoning: 'Fallback: AI assessment failed',
+            };
+          }
+
+          complexity = this.assessment?.complexity ?? 'standard';
+        } else {
+          // Heuristic fallback
+          complexity = 'standard';
           this.assessment = {
             complexity: 'standard',
             confidence: 0.5,
-            reasoning: 'Fallback: AI assessment failed',
+            reasoning: 'Heuristic assessment (AI disabled)',
           };
+          phasesExecuted.push('complexity_assessment');
         }
-
-        complexity = this.assessment?.complexity ?? 'standard';
-      } else {
-        // Heuristic fallback
-        complexity = 'standard';
-        this.assessment = {
-          complexity: 'standard',
-          confidence: 0.5,
-          reasoning: 'Heuristic assessment (AI disabled)',
-        };
-        phasesExecuted.push('complexity_assessment');
       }
 
       // ===================================================================
-      // Step 2: Determine and run phases based on assessed complexity
+      // Step 2: Determine and run phases based on custom override, AI recommendation, or complexity
       // ===================================================================
-      const phasesToRun = [...COMPLEXITY_PHASES[complexity]];
+      const validPhases = new Set<string>(Object.keys(PHASE_AGENT_MAP));
+      let phasesToRun: SpecPhase[];
+
+      if (this.config.customPhases && this.config.customPhases.length > 0) {
+        phasesToRun = this.config.customPhases.filter((p): p is SpecPhase => validPhases.has(p));
+      } else if (
+        this.assessment?.recommended_phases &&
+        Array.isArray(this.assessment.recommended_phases) &&
+        this.assessment.recommended_phases.length > 0
+      ) {
+        phasesToRun = this.assessment.recommended_phases.filter((p): p is SpecPhase => validPhases.has(p));
+      } else {
+        phasesToRun = [...COMPLEXITY_PHASES[complexity]];
+      }
 
       // Inject research/self-critique if flagged but not already in the tier
       if (this.assessment?.needs_research && !phasesToRun.includes('research')) {
@@ -335,10 +358,17 @@ export class SpecOrchestrator extends EventEmitter {
         }
       }
 
-      if (this.assessment?.needs_self_critique && !phasesToRun.includes('self_critique')) {
+      if (
+        (this.assessment?.needs_self_critique || this.config.requireAiReview) &&
+        !phasesToRun.includes('self_critique')
+      ) {
         const planningIdx = phasesToRun.indexOf('planning');
-        if (planningIdx !== -1) {
-          phasesToRun.splice(planningIdx, 0, 'self_critique');
+        const validationIdx = phasesToRun.indexOf('validation');
+        const insertIdx = planningIdx !== -1 ? planningIdx : validationIdx;
+        if (insertIdx !== -1) {
+          phasesToRun.splice(insertIdx, 0, 'self_critique');
+        } else {
+          phasesToRun.push('self_critique');
         }
       }
 

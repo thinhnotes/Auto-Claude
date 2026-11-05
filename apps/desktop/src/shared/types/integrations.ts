@@ -478,3 +478,47 @@ export interface RoadmapProviderConfig {
  * Canny-specific status values
  */
 export type CannyStatus = 'open' | 'under review' | 'planned' | 'in progress' | 'complete' | 'closed';
+
+// ============================================
+// Azure DevOps Integration Types
+// ============================================
+
+export interface AzureDevOpsWorkItem {
+  id: number;
+  rev?: number;
+  title: string;
+  description?: string;
+  acceptanceCriteria?: string;
+  workItemType: string; // e.g., 'User Story' | 'Bug' | 'Task' | 'Feature'
+  state: string; // e.g., 'New' | 'Active' | 'Resolved' | 'Closed'
+  priority?: number; // 1-4
+  tags: string[];
+  assignedTo?: {
+    displayName: string;
+    uniqueName?: string;
+  };
+  organization: string;
+  project: string;
+  url: string;
+  htmlUrl: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface AzureDevOpsSyncStatus {
+  connected: boolean;
+  organization?: string;
+  project?: string;
+  workItemCount?: number;
+  lastSyncedAt?: string;
+  error?: string;
+}
+
+export interface AzureDevOpsImportResult {
+  success: boolean;
+  imported: number;
+  failed: number;
+  specIds?: string[];
+  errors?: string[];
+}
+

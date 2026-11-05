@@ -20,6 +20,8 @@ import type { ReasoningConfig } from '../../../shared/constants/models';
 export type AuthSource =
   | 'profile-oauth'       // OAuth token from claude-profile credential store
   | 'codex-oauth'         // OAuth token from OpenAI Codex PKCE flow
+  | 'copilot-oauth'       // OAuth token from GitHub Copilot CLI / IDE config
+  | 'antigravity-auth'    // Credentials from Google Antigravity CLI (~/.gemini/antigravity-cli)
   | 'profile-api-key'     // API key stored in profile settings
   | 'environment'         // Environment variable (ANTHROPIC_API_KEY, OPENAI_API_KEY, etc.)
   | 'default'             // Default provider credentials (e.g., built-in defaults)
@@ -72,6 +74,8 @@ export const PROVIDER_ENV_VARS: Record<SupportedProvider, string | undefined> = 
   anthropic: 'ANTHROPIC_API_KEY',
   openai: 'OPENAI_API_KEY',
   google: 'GOOGLE_GENERATIVE_AI_API_KEY',
+  'github-copilot': 'GITHUB_COPILOT_TOKEN',
+  antigravity: 'ANTIGRAVITY_API_KEY',
   bedrock: undefined,  // Uses AWS credential chain, not a single env var
   azure: 'AZURE_OPENAI_API_KEY',
   mistral: 'MISTRAL_API_KEY',
@@ -90,6 +94,8 @@ export const PROVIDER_SETTINGS_KEY: Partial<Record<SupportedProvider, string>> =
   anthropic: 'globalAnthropicApiKey',
   openai: 'globalOpenAIApiKey',
   google: 'globalGoogleApiKey',
+  'github-copilot': 'globalGitHubCopilotApiKey',
+  antigravity: 'globalAntigravityApiKey',
   groq: 'globalGroqApiKey',
   mistral: 'globalMistralApiKey',
   xai: 'globalXAIApiKey',
@@ -104,6 +110,8 @@ export const PROVIDER_SETTINGS_KEY: Partial<Record<SupportedProvider, string>> =
 export const PROVIDER_BASE_URL_ENV: Partial<Record<SupportedProvider, string>> = {
   anthropic: 'ANTHROPIC_BASE_URL',
   openai: 'OPENAI_BASE_URL',
+  'github-copilot': 'GITHUB_COPILOT_BASE_URL',
+  antigravity: 'ANTIGRAVITY_BASE_URL',
   azure: 'AZURE_OPENAI_ENDPOINT',
 } as const;
 

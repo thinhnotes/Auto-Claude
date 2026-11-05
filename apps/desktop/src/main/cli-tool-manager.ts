@@ -55,7 +55,7 @@ import {
 /**
  * Supported CLI tools managed by this system
  */
-export type CLITool = 'python' | 'git' | 'gh' | 'glab' | 'claude';
+export type CLITool = 'python' | 'git' | 'gh' | 'glab' | 'claude' | 'agy' | 'copilot';
 
 /**
  * User configuration for CLI tool paths
@@ -67,6 +67,8 @@ export interface ToolConfig {
   githubCLIPath?: string;
   gitlabCLIPath?: string;
   claudePath?: string;
+  agyPath?: string;
+  copilotPath?: string;
 }
 
 /**
@@ -376,6 +378,10 @@ class CLIToolManager {
         return this.detectGitLabCLI();
       case 'claude':
         return this.detectClaude();
+      case 'agy':
+        return this.detectSimpleCLI('agy', this.userConfig.agyPath, 'Antigravity CLI');
+      case 'copilot':
+        return this.detectSimpleCLI('copilot', this.userConfig.copilotPath, 'GitHub Copilot CLI');
       default:
         return {
           found: false,
@@ -383,6 +389,41 @@ class CLIToolManager {
           message: `Unknown tool: ${tool}`,
         };
     }
+  }
+
+  /**
+   * Detect a standard CLI executable (e.g., Antigravity 'agy' or GitHub Copilot 'copilot')
+   * via user config or system PATH.
+   */
+  private detectSimpleCLI(
+    binaryName: string,
+    userPath: string | undefined,
+    displayName: string
+  ): ToolDetectionResult {
+    if (userPath && !isWrongPlatformPath(userPath) && existsSync(userPath)) {
+      return {
+        found: true,
+        path: userPath,
+        source: 'user-config',
+        message: `Using user-configured ${displayName}: ${userPath}`,
+      };
+    }
+
+    const foundPath = findExecutable(binaryName);
+    if (foundPath) {
+      return {
+        found: true,
+        path: foundPath,
+        source: 'system-path',
+        message: `Using system ${displayName}: ${foundPath}`,
+      };
+    }
+
+    return {
+      found: false,
+      source: 'fallback',
+      message: `${displayName} not found in standard locations. Using fallback "${binaryName}".`,
+    };
   }
 
   /**

@@ -5,7 +5,8 @@ export type CredentialSource = 'oauth' | 'api-key' | 'env' | 'keychain';
 
 /** Supported built-in providers (matches @ai-sdk/* packages) */
 export type BuiltinProvider =
-  | 'anthropic' | 'openai' | 'google' | 'amazon-bedrock' | 'azure'
+  | 'anthropic' | 'openai' | 'google' | 'github-copilot' | 'antigravity'
+  | 'amazon-bedrock' | 'azure'
   | 'mistral' | 'groq' | 'xai' | 'openrouter' | 'zai'
   | 'ollama' | 'openai-compatible';
 

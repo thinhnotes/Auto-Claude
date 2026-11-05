@@ -243,7 +243,25 @@ export function injectContext(promptTemplate: string, context: PromptContext): s
     );
   }
 
-  // 5. Base prompt
+  // 5. Available Skills Catalog
+  if (context.availableSkillsCatalog) {
+    sections.push(
+      `## AVAILABLE SKILLS\n\n` +
+      `${context.availableSkillsCatalog}\n\n` +
+      `---\n\n`
+    );
+  }
+
+  // 6. Active Skill Instructions (if selected for this task/phase)
+  if (context.activeSkillContent) {
+    sections.push(
+      `## ACTIVE SKILL INSTRUCTIONS (FOLLOW THIS WORKFLOW & CHECKLIST)\n\n` +
+      `${context.activeSkillContent}\n\n` +
+      `---\n\n`
+    );
+  }
+
+  // 7. Base prompt
   sections.push(promptTemplate);
 
   return sections.join('');

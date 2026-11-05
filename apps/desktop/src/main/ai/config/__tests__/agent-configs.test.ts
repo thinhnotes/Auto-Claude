@@ -102,9 +102,10 @@ describe('AGENT_CONFIGS', () => {
     expect(config.thinkingDefault).toBe('high');
   });
 
-  it('should configure spec_critic with spec tools (no Edit/Bash) and context7', () => {
+  it('should configure spec_critic with spec tools (no Edit/Bash), UseSkill, and context7', () => {
     const config = AGENT_CONFIGS.spec_critic;
     expect(config.tools).toContain('Read');
+    expect(config.tools).toContain('UseSkill');
     expect(config.tools).toContain('Write');
     expect(config.tools).not.toContain('Edit');
     expect(config.tools).not.toContain('Bash');

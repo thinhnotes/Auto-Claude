@@ -44,6 +44,8 @@ import type {
 function getCLICommand(cli: SupportedCLI, customPath?: string): string {
   if (cli === 'custom' && customPath) return customPath;
   const commands: Record<string, string> = {
+    'antigravity': 'agy',
+    'github-copilot': 'gh copilot',
     'gemini': 'gemini',
     'opencode': 'opencode',
     'kilocode': 'kilocode',

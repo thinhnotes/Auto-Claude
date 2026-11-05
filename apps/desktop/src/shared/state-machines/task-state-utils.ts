@@ -14,7 +14,7 @@ import type { TaskStatus, ReviewReason, ExecutionPhase } from '../types';
  * If you add/remove a state in the machine, update this array.
  */
 export const TASK_STATE_NAMES = [
-  'backlog', 'planning', 'plan_review', 'coding',
+  'backlog', 'queue', 'planning', 'plan_review', 'coding',
   'qa_review', 'qa_fixing', 'human_review', 'error',
   'creating_pr', 'pr_created', 'done'
 ] as const;
@@ -47,6 +47,7 @@ export const XSTATE_ACTIVE_STATES: ReadonlySet<string> = new Set<TaskStateName>(
 /** Maps XState states to execution phases. */
 export const XSTATE_TO_PHASE: Record<TaskStateName, ExecutionPhase> & Record<string, ExecutionPhase | undefined> = {
   'backlog': 'idle',
+  'queue': 'idle',
   'planning': 'planning',
   'plan_review': 'planning',
   'coding': 'coding',
@@ -73,6 +74,8 @@ export function mapStateToLegacy(
   switch (state) {
     case 'backlog':
       return { status: 'backlog' };
+    case 'queue':
+      return { status: 'queue' };
     case 'planning':
     case 'coding':
       return { status: 'in_progress' };

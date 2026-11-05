@@ -142,6 +142,8 @@ export const MODEL_PROVIDER_MAP: Record<string, SupportedProvider> = {
   'o4-': 'openai',
   'codex-': 'openai',           // OpenAI Codex subscription models
   'gemini-': 'google',
+  'copilot-': 'github-copilot',
+  'antigravity-': 'antigravity',
   'mistral-': 'mistral',
   'codestral-': 'mistral',
   'llama-': 'groq',
@@ -230,7 +232,8 @@ export function buildThinkingProviderOptions(
       return undefined;
     }
 
-    case 'google': {
+    case 'google':
+    case 'antigravity': {
       return { google: { thinkingConfig: { thinkingBudget: budgetTokens } } };
     }
 

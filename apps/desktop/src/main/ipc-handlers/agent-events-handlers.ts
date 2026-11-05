@@ -201,7 +201,7 @@ export function registerAgenteventsHandlers(
 
     if (processType === "spec-creation") {
       console.warn(`[Task ${taskId}] Spec creation completed with code ${code}`);
-      // When spec creation succeeds, automatically transition to task execution (build phase)
+      // When spec creation succeeds, check if human plan review is required before starting coding
       if (code === 0) {
         const { task: specTask, project: specProject } = findTaskAndProject(taskId, projectId);
         if (specTask && specProject) {
@@ -209,6 +209,14 @@ export function registerAgenteventsHandlers(
           const specDir = path.join(specProject.path, specsBaseDir, specTask.specId);
           const specFilePath = path.join(specDir, AUTO_BUILD_PATHS.SPEC_FILE);
           if (existsSync(specFilePath)) {
+            if (specTask.metadata?.requireReviewBeforeCoding || specTask.metadata?.planOnly) {
+              console.warn(
+                `[Task ${taskId}] Spec & AI review completed — pausing in Human Review (requireReviewBeforeCoding=${Boolean(specTask.metadata?.requireReviewBeforeCoding)}, planOnly=${Boolean(specTask.metadata?.planOnly)})`
+              );
+              const taskTitle = specTask.title || specTask.specId;
+              notificationService.notifyReviewNeeded(taskTitle, specProject.id, taskId);
+              return;
+            }
             console.warn(`[Task ${taskId}] Spec created successfully — starting task execution`);
             // Re-watch the spec directory for the build phase
             fileWatcher.watch(taskId, specDir).catch((err) => {

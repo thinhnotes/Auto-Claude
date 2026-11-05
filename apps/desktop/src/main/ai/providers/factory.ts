@@ -21,7 +21,7 @@ import { createXai } from '@ai-sdk/xai';
 import type { LanguageModel } from 'ai';
 
 import { MODEL_PROVIDER_MAP } from '../config/types';
-import { createOAuthProviderFetch } from './oauth-fetch';
+import { COPILOT_DEFAULT_HEADERS, createOAuthProviderFetch } from './oauth-fetch';
 import { type ProviderConfig, SupportedProvider } from './types';
 
 // =============================================================================
@@ -93,6 +93,46 @@ function createProviderInstance(config: ProviderConfig) {
         baseURL,
         headers,
       });
+
+    case SupportedProvider.GitHubCopilot: {
+      const copilotHeaders = {
+        ...COPILOT_DEFAULT_HEADERS,
+        ...headers,
+      };
+      if (config.oauthTokenFilePath) {
+        return createOpenAICompatible({
+          name: 'github-copilot',
+          apiKey: apiKey ?? 'github-copilot-oauth-placeholder',
+          baseURL: baseURL ?? 'https://api.githubcopilot.com',
+          headers: copilotHeaders,
+          fetch: createOAuthProviderFetch(config.oauthTokenFilePath, 'github-copilot'),
+        });
+      }
+      return createOpenAICompatible({
+        name: 'github-copilot',
+        apiKey,
+        baseURL: baseURL ?? 'https://api.githubcopilot.com',
+        headers: copilotHeaders,
+      });
+    }
+
+    case SupportedProvider.Antigravity: {
+      // If a custom OpenAI-compatible gateway URL is configured (not Google's generativeai endpoint),
+      // support OpenAI-compatible routing; otherwise use Google Generative AI (Gemini 2.5 Pro/Flash).
+      if (baseURL && !baseURL.includes('googleapis.com')) {
+        return createOpenAICompatible({
+          name: 'antigravity',
+          apiKey: apiKey ?? 'antigravity',
+          baseURL,
+          headers,
+        });
+      }
+      return createGoogleGenerativeAI({
+        apiKey,
+        baseURL,
+        headers,
+      });
+    }
 
     case SupportedProvider.Bedrock:
       return createAmazonBedrock({

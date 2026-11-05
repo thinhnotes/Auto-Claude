@@ -56,6 +56,14 @@ describe('PROVIDER_ENV_VARS', () => {
   it('maps ollama to undefined (no auth required)', () => {
     expect(PROVIDER_ENV_VARS.ollama).toBeUndefined();
   });
+
+  it('maps github-copilot to GITHUB_COPILOT_TOKEN', () => {
+    expect(PROVIDER_ENV_VARS['github-copilot']).toBe('GITHUB_COPILOT_TOKEN');
+  });
+
+  it('maps antigravity to ANTIGRAVITY_API_KEY', () => {
+    expect(PROVIDER_ENV_VARS.antigravity).toBe('ANTIGRAVITY_API_KEY');
+  });
 });
 
 describe('PROVIDER_SETTINGS_KEY', () => {
@@ -69,6 +77,14 @@ describe('PROVIDER_SETTINGS_KEY', () => {
 
   it('maps google to globalGoogleApiKey', () => {
     expect(PROVIDER_SETTINGS_KEY.google).toBe('globalGoogleApiKey');
+  });
+
+  it('maps github-copilot to globalGitHubCopilotApiKey', () => {
+    expect(PROVIDER_SETTINGS_KEY['github-copilot']).toBe('globalGitHubCopilotApiKey');
+  });
+
+  it('maps antigravity to globalAntigravityApiKey', () => {
+    expect(PROVIDER_SETTINGS_KEY.antigravity).toBe('globalAntigravityApiKey');
   });
 
   it('maps groq to globalGroqApiKey', () => {
@@ -111,6 +127,14 @@ describe('PROVIDER_BASE_URL_ENV', () => {
 
   it('maps openai to OPENAI_BASE_URL', () => {
     expect(PROVIDER_BASE_URL_ENV.openai).toBe('OPENAI_BASE_URL');
+  });
+
+  it('maps github-copilot to GITHUB_COPILOT_BASE_URL', () => {
+    expect(PROVIDER_BASE_URL_ENV['github-copilot']).toBe('GITHUB_COPILOT_BASE_URL');
+  });
+
+  it('maps antigravity to ANTIGRAVITY_BASE_URL', () => {
+    expect(PROVIDER_BASE_URL_ENV.antigravity).toBe('ANTIGRAVITY_BASE_URL');
   });
 
   it('maps azure to AZURE_OPENAI_ENDPOINT', () => {

@@ -58,6 +58,25 @@ function createProviderSDKInstance(
     case SupportedProvider.Google:
       return createGoogleGenerativeAI({ apiKey, baseURL, headers });
 
+    case SupportedProvider.GitHubCopilot:
+      return createOpenAICompatible({
+        name: 'github-copilot',
+        apiKey,
+        baseURL: baseURL ?? 'https://api.githubcopilot.com',
+        headers,
+      });
+
+    case SupportedProvider.Antigravity:
+      if (baseURL && !baseURL.includes('googleapis.com')) {
+        return createOpenAICompatible({
+          name: 'antigravity',
+          apiKey: apiKey ?? 'antigravity',
+          baseURL,
+          headers,
+        });
+      }
+      return createGoogleGenerativeAI({ apiKey, baseURL, headers });
+
     case SupportedProvider.Bedrock:
       return createAmazonBedrock({ region: config.region ?? 'us-east-1', apiKey });
 

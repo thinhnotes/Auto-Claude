@@ -19,8 +19,8 @@ import { runAgentSession } from '../session/runner';
 import { runContinuableSession } from '../session/continuation';
 import { createProvider } from '../providers/factory';
 import type { SupportedProvider } from '../providers/types';
-import { getModelContextWindow } from '../../../shared/constants/models';
-import { refreshOAuthTokenReactive } from '../auth/resolver';
+import { getModelContextWindow, resolveModelEquivalent } from '../../../shared/constants/models';
+import { refreshOAuthTokenReactive, resolveAuth } from '../auth/resolver';
 import { buildToolRegistry } from '../tools/build-registry';
 import type { ToolRegistry } from '../tools/registry';
 import { SubagentExecutorImpl } from '../orchestration/subagent-executor';
@@ -42,9 +42,16 @@ import type { SpecPhase } from '../orchestration/spec-orchestrator';
 import type { AgentType } from '../config/agent-configs';
 import type { Phase } from '../config/types';
 import type { ExecutionPhase } from '../../../shared/constants/phase-protocol';
-import { getPhaseThinking } from '../config/phase-config';
+import { getPhaseThinking, loadTaskMetadata, resolveModelId } from '../config/phase-config';
 import { TaskLogWriter } from '../logging/task-log-writer';
 import { loadProjectInstructions, injectContext } from '../prompts/prompt-loader';
+import {
+  discoverSkills,
+  formatActiveSkillForPrompt,
+  formatSkillCatalogForPrompt,
+  loadSkillById,
+  type SkillDefinition,
+} from '../prompts/skill-loader';
 import { createMcpClientsForAgent, mergeMcpTools, closeAllMcpClients } from '../mcp/client';
 import type { McpClientResult } from '../mcp/types';
 import { runProjectIndexer } from '../project/project-indexer';
@@ -201,11 +208,32 @@ let mcpClients: McpClientResult[] = [];
 
 let cachedProjectInstructions: string | null | undefined;
 let cachedProjectInstructionsSource: string | null = null;
+let cachedSkillsCatalog: string | null | undefined;
+let cachedActiveSkill: SkillDefinition | null | undefined;
+
+/**
+ * Resolve the active skill configured in task_metadata.json (if any).
+ */
+async function getActiveTaskSkill(specDir: string, projectDir: string): Promise<SkillDefinition | null> {
+  if (cachedActiveSkill !== undefined) return cachedActiveSkill;
+  const metadata = await loadTaskMetadata(specDir);
+  if (metadata?.skillId) {
+    cachedActiveSkill = await loadSkillById(projectDir, metadata.skillId);
+    if (cachedActiveSkill) {
+      postLog(`Loaded active skill "${cachedActiveSkill.name}" (${cachedActiveSkill.id}) from ${cachedActiveSkill.sourcePath}`);
+    } else {
+      postLog(`Configured skill "${metadata.skillId}" not found in skill directories`);
+    }
+  } else {
+    cachedActiveSkill = null;
+  }
+  return cachedActiveSkill;
+}
 
 /**
  * Assemble a full system prompt by loading the base prompt and injecting
- * project instructions (AGENTS.md or CLAUDE.md fallback). Provider-agnostic —
- * injected for ALL AI providers, not just Anthropic.
+ * project instructions (AGENTS.md or CLAUDE.md fallback) plus dynamically
+ * discovered skills and active skill instructions.
  */
 async function assemblePrompt(
   promptName: string,
@@ -226,10 +254,27 @@ async function assemblePrompt(
     }
   }
 
+  // Dynamically discover available skills once per worker lifetime
+  if (cachedSkillsCatalog === undefined) {
+    try {
+      const skills = await discoverSkills(session.projectDir);
+      cachedSkillsCatalog = formatSkillCatalogForPrompt(skills);
+      if (skills.length > 0) {
+        postLog(`Discovered ${skills.length} skill(s): ${skills.map(s => s.id).join(', ')}`);
+      }
+    } catch {
+      cachedSkillsCatalog = null;
+    }
+  }
+
+  const activeSkill = await getActiveTaskSkill(session.specDir, session.projectDir);
+
   return injectContext(basePrompt, {
     specDir: session.specDir,
     projectDir: session.projectDir,
     projectInstructions: cachedProjectInstructions,
+    availableSkillsCatalog: cachedSkillsCatalog,
+    activeSkillContent: activeSkill ? formatActiveSkillForPrompt(activeSkill) : null,
   });
 }
 
@@ -239,7 +284,8 @@ async function assemblePrompt(
 
 /**
  * Run a single agent session and return the result.
- * Used as the runSession callback for BuildOrchestrator and QALoop.
+ * Used as the runSession callback for BuildOrchestrator, SpecOrchestrator, and QALoop.
+ * Supports dynamic per-phase provider/model switching (Claude, GitHub Copilot, Antigravity, etc.).
  */
 async function runSingleSession(
   agentType: AgentType,
@@ -256,19 +302,70 @@ async function runSingleSession(
   skipPhaseLogging = false,
   outputSchema?: import('zod').ZodSchema,
 ): Promise<SessionResult> {
-  // Use queue-resolved model ID from baseSession (already mapped to the correct
-  // provider-specific model, e.g., 'gpt-5.3-codex' for OpenAI Codex).
-  // getPhaseModel() only knows local shorthands (opus → claude-opus-4-6) and
-  // would create a mismatch when the provider queue selected a non-Anthropic account.
-  const phaseModelId = baseSession.modelId;
+  let effectiveProvider = baseSession.provider as SupportedProvider;
+  let effectiveApiKey = baseSession.apiKey;
+  let effectiveBaseURL = baseSession.baseURL;
+  let effectiveOAuthFilePath = baseSession.oauthTokenFilePath;
+  let phaseModelId = baseSession.modelId;
+
+  // Check task_metadata.json and active skill for dynamic per-phase provider/model overrides
+  const metadata = await loadTaskMetadata(specDir);
+  const activeSkill = await getActiveTaskSkill(specDir, projectDir);
+  const skillPhaseSpec = activeSkill?.phaseProviders?.[phase];
+  const taskPhaseProvider = metadata?.phaseProviders?.[phase];
+  const taskPhaseModel = metadata?.phaseModels?.[phase];
+
+  // Parse skill phaseProvider if in 'provider/model' or 'provider:model' format
+  let overrideProvider: SupportedProvider | undefined;
+  let overrideModel: string | undefined;
+
+  if (skillPhaseSpec) {
+    const parts = skillPhaseSpec.split(/[/:]/);
+    if (parts.length >= 2) {
+      overrideProvider = parts[0] as SupportedProvider;
+      overrideModel = parts.slice(1).join('/');
+    } else {
+      overrideProvider = skillPhaseSpec as SupportedProvider;
+    }
+  }
+
+  if (taskPhaseProvider) {
+    overrideProvider = taskPhaseProvider as SupportedProvider;
+  }
+  if (taskPhaseModel) {
+    overrideModel = taskPhaseModel;
+  }
+
+  if (overrideProvider && overrideProvider !== effectiveProvider) {
+    const resolvedAuth = await resolveAuth({ provider: overrideProvider });
+    if (resolvedAuth) {
+      effectiveProvider = overrideProvider;
+      effectiveApiKey = resolvedAuth.apiKey;
+      effectiveBaseURL = resolvedAuth.baseURL;
+      effectiveOAuthFilePath = resolvedAuth.oauthTokenFilePath;
+      const equiv = resolveModelEquivalent(
+        overrideModel ?? phaseModelId,
+        overrideProvider as import('../../../shared/types/provider-account').BuiltinProvider,
+      );
+      phaseModelId = equiv?.modelId ?? (overrideModel ? resolveModelId(overrideModel) : phaseModelId);
+      postLog(`Dynamic phase routing [${phase}]: switched provider to ${effectiveProvider} (model=${phaseModelId})`);
+    }
+  } else if (overrideModel) {
+    const equiv = resolveModelEquivalent(
+      overrideModel,
+      effectiveProvider as import('../../../shared/types/provider-account').BuiltinProvider,
+    );
+    phaseModelId = equiv?.modelId ?? resolveModelId(overrideModel);
+  }
+
   const phaseThinking = await getPhaseThinking(specDir, phase);
 
   const model = createProvider({
     config: {
-      provider: baseSession.provider as SupportedProvider,
-      apiKey: baseSession.apiKey,
-      baseURL: baseSession.baseURL,
-      oauthTokenFilePath: baseSession.oauthTokenFilePath,
+      provider: effectiveProvider,
+      apiKey: effectiveApiKey,
+      baseURL: effectiveBaseURL,
+      oauthTokenFilePath: effectiveOAuthFilePath,
     },
     modelId: phaseModelId,
   });
@@ -778,6 +875,66 @@ async function runQALoop(
     postLog(message);
   });
 
+  const handleReviewStart = (iteration: number, maxIterations = 50): void => {
+    postTaskEvent('QA_STARTED', { iteration, maxIterations });
+    postMessage({
+      type: 'execution-progress',
+      taskId: config.taskId,
+      data: {
+        phase: 'qa_review',
+        phaseProgress: 0,
+        overallProgress: 0,
+        message: `QA review iteration ${iteration}/${maxIterations}`,
+      },
+      projectId: config.projectId,
+    });
+  };
+
+  const handleFixStart = (iteration = 0): void => {
+    postTaskEvent('QA_FIXING_STARTED', { iteration });
+    postMessage({
+      type: 'execution-progress',
+      taskId: config.taskId,
+      data: {
+        phase: 'qa_fixing',
+        phaseProgress: 0,
+        overallProgress: 0,
+        message:
+          iteration === 0
+            ? 'Applying human review feedback fixes'
+            : `Applying QA fixes (iteration ${iteration})`,
+      },
+      projectId: config.projectId,
+    });
+  };
+
+  qaLoop.on('qa-iteration-start', handleReviewStart);
+  qaLoop.on('review-start', handleReviewStart);
+
+  qaLoop.on('qa-fix-start', handleFixStart);
+  qaLoop.on('fix-start', handleFixStart);
+
+  qaLoop.on('qa-fix-complete', (iteration: number) => {
+    postTaskEvent('QA_FIXING_COMPLETE', { iteration });
+  });
+
+  const handleReviewComplete = (
+    iteration: number,
+    status: string,
+    issues: Array<{ title: string }> = [],
+  ): void => {
+    if (status === 'rejected') {
+      postTaskEvent('QA_FAILED', {
+        iteration,
+        issueCount: issues.length,
+        issues: issues.map((issue) => issue.title),
+      });
+    }
+  };
+
+  qaLoop.on('qa-review-complete', handleReviewComplete);
+  qaLoop.on('iteration-complete', handleReviewComplete);
+
   // Start QA validation phase logging at the loop level
   if (logWriter) {
     logWriter.startPhase('qa');
@@ -793,11 +950,21 @@ async function runQALoop(
 
   // Emit task events so XState machine transitions correctly.
   if (outcome.approved) {
-    postTaskEvent('QA_PASSED');
+    postTaskEvent('QA_PASSED', {
+      iteration: outcome.totalIterations,
+      testsRun: {},
+    });
   } else if (outcome.reason === 'max_iterations') {
-    postTaskEvent('QA_MAX_ITERATIONS');
+    postTaskEvent('QA_MAX_ITERATIONS', {
+      iteration: outcome.totalIterations,
+      maxIterations: 50,
+    });
   } else {
-    postTaskEvent('QA_AGENT_ERROR', { error: outcome.error });
+    postTaskEvent('QA_AGENT_ERROR', {
+      iteration: outcome.totalIterations,
+      consecutiveErrors: 3,
+      error: outcome.error,
+    });
   }
 
   const result: SessionResult = {
@@ -849,10 +1016,22 @@ async function runSpecOrchestrator(
     postLog(`Project index generation failed (non-fatal): ${error instanceof Error ? error.message : String(error)}`);
   }
 
+  const taskMetadata = await loadTaskMetadata(session.specDir);
+  const activeSkill = await getActiveTaskSkill(session.specDir, session.projectDir);
+  const customPhases = (taskMetadata?.customPhases ?? activeSkill?.phases) as SpecPhase[] | undefined;
+  const requireReviewBeforeCoding = Boolean(
+    taskMetadata?.requireReviewBeforeCoding || taskMetadata?.planOnly
+  );
+  const requireAiReview = Boolean(
+    requireReviewBeforeCoding || activeSkill?.reviewChecklist?.length
+  );
+
   const orchestrator = new SpecOrchestrator({
     specDir: session.specDir,
     projectDir: session.projectDir,
     taskDescription,
+    customPhases,
+    requireAiReview,
     projectIndex: projectIndexContent,
     abortSignal: abortController.signal,
 
@@ -884,9 +1063,14 @@ async function runSpecOrchestrator(
         ...toolContext,
         allowedWritePaths: [session.specDir],
       };
+      // Route self_critique / validation through 'qa' phase config if per-phase QA provider/model is configured
+      const effectivePhase: Phase =
+        runConfig.specPhase === 'self_critique' || runConfig.specPhase === 'validation'
+          ? 'qa'
+          : runConfig.phase;
       return runSingleSession(
         runConfig.agentType,
-        runConfig.phase,
+        effectivePhase,
         runConfig.systemPrompt,
         runConfig.specDir,
         runConfig.projectDir,
@@ -903,16 +1087,24 @@ async function runSpecOrchestrator(
   });
 
   // Wire event listeners
+  let emittedAiReviewStatus = false;
   orchestrator.on('phase-start', (phase: SpecPhase, phaseNumber: number, totalPhases: number) => {
     postLog(`Spec phase ${phaseNumber}/${totalPhases}: ${phase}`);
     if (logWriter) {
       logWriter.startPhase('spec', `${phase} (${phaseNumber}/${totalPhases})`);
     }
+    // Transition Kanban status to 'ai_review' (qa_review state) when entering AI plan critique/validation
+    if (!emittedAiReviewStatus && (phase === 'self_critique' || phase === 'validation')) {
+      emittedAiReviewStatus = true;
+      postTaskEvent('QA_STARTED', { iteration: 1, maxIterations: 1 });
+    }
+    const uiPhase: ExecutionPhase =
+      phase === 'self_critique' || phase === 'validation' ? 'qa_review' : 'planning';
     postMessage({
       type: 'execution-progress',
       taskId: config.taskId,
       data: {
-        phase: 'planning', // spec creation maps to 'planning' in the UI execution phases
+        phase: uiPhase,
         phaseProgress: phaseNumber / Math.max(totalPhases, 1),
         overallProgress: phaseNumber / Math.max(totalPhases, 1),
         message: `Spec creation: ${phase} (${phaseNumber}/${totalPhases})`,
@@ -938,9 +1130,16 @@ async function runSpecOrchestrator(
 
   const outcome = await orchestrator.run();
 
-  // Emit task event on failure so XState gets a specific signal
-  // instead of relying on the generic PROCESS_EXITED fallback.
-  if (!outcome.success) {
+  // Emit task event on completion or failure so XState transitions accurately:
+  // - PLANNING_COMPLETE (with requireReviewBeforeCoding: true) -> 'plan_review' (Kanban column: Human Review)
+  // - PLANNING_FAILED -> 'error'
+  if (outcome.success) {
+    postTaskEvent('PLANNING_COMPLETE', {
+      hasSubtasks: true,
+      subtaskCount: 1,
+      requireReviewBeforeCoding,
+    });
+  } else {
     postTaskEvent('PLANNING_FAILED', { error: outcome.error });
   }
 
@@ -1237,7 +1436,7 @@ function buildKickoffMessage(agentType: AgentType, specDir: string, projectDir: 
     case 'qa_reviewer':
       return `Review the implementation in ${projectDir} against the specification in ${specDir}/spec.md. Write your findings to ${specDir}/qa_report.md with a clear "Status: PASSED" or "Status: FAILED" line.`;
     case 'qa_fixer':
-      return `Read ${specDir}/qa_report.md for the issues found by QA review. Fix all issues in ${projectDir}. After fixing, update ${specDir}/qa_report.md to indicate fixes have been applied.`;
+      return `Check ${specDir}/QA_FIX_REQUEST.md FIRST for any human review comments/feedback, and also read ${specDir}/qa_report.md for issues found by QA review. Apply all requested fixes in ${projectDir}. After fixing, update ${specDir}/qa_report.md and ${specDir}/implementation_plan.json (qa_signoff status to "fixes_applied") to indicate fixes have been applied.`;
     default:
       return `Complete the task described in your system prompt. Spec directory: ${specDir}. Project directory: ${projectDir}`;
   }
@@ -1255,7 +1454,7 @@ function buildFallbackPrompt(agentType: AgentType, specDir: string, projectDir: 
     case 'qa_reviewer':
       return `You are a QA reviewer. Review the implementation in ${projectDir} against the spec in ${specDir}/spec.md. Write your findings to ${specDir}/qa_report.md with "Status: PASSED" or "Status: FAILED".`;
     case 'qa_fixer':
-      return `You are a QA fixer. Read ${specDir}/qa_report.md for the issues found by QA review. Fix the issues in ${projectDir}. After fixing, update ${specDir}/implementation_plan.json qa_signoff status to "fixes_applied".`;
+      return `You are a QA fixer. Check ${specDir}/QA_FIX_REQUEST.md FIRST for human review comments/feedback, as well as ${specDir}/qa_report.md for issues found by QA review. Apply all requested fixes in ${projectDir}. After fixing, update ${specDir}/implementation_plan.json qa_signoff status to "fixes_applied".`;
     default:
       return `You are an AI agent. Complete the task described in ${specDir}/spec.md for the project at ${projectDir}.`;
   }

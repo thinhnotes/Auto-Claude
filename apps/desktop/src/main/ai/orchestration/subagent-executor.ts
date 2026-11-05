@@ -23,6 +23,7 @@ import type { ToolRegistry } from '../tools/registry';
 import type { AgentType } from '../config/agent-configs';
 import { getAgentConfig } from '../config/agent-configs';
 import { ComplexityAssessmentOutputSchema } from '../schema/output/complexity-assessment.output';
+import { formatActiveSkillForPrompt, loadSkillById } from '../prompts/skill-loader';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -122,8 +123,20 @@ export class SubagentExecutorImpl implements SubagentExecutor {
     this.config.onSubagentEvent?.(params.agentType, 'spawning');
 
     try {
-      // 1. Load system prompt for the subagent
-      const systemPrompt = await this.config.loadPrompt(promptName);
+      // 1. Load system prompt for the subagent (and optional skill override)
+      let systemPrompt = await this.config.loadPrompt(promptName);
+      if (params.skillName) {
+        const skill = await loadSkillById(
+          this.config.baseToolContext.projectDir,
+          params.skillName
+        );
+        if (skill) {
+          systemPrompt =
+            `## ACTIVE SKILL INSTRUCTIONS (FOLLOW THIS WORKFLOW & CHECKLIST)\n\n` +
+            `${formatActiveSkillForPrompt(skill)}\n\n---\n\n` +
+            systemPrompt;
+        }
+      }
 
       // 2. Build tool set — exclude SpawnSubagent to prevent recursion
       const subagentToolContext: ToolContext = {

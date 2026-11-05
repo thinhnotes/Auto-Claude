@@ -13,6 +13,8 @@ export const SupportedProvider = {
   Anthropic: 'anthropic',
   OpenAI: 'openai',
   Google: 'google',
+  GitHubCopilot: 'github-copilot',
+  Antigravity: 'antigravity',
   Bedrock: 'bedrock',
   Azure: 'azure',
   Mistral: 'mistral',

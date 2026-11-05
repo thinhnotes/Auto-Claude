@@ -180,7 +180,7 @@ export type TaskCategory =
 
 export interface TaskMetadata {
   // Origin tracking
-  sourceType?: 'ideation' | 'manual' | 'imported' | 'insights' | 'roadmap' | 'linear' | 'github' | 'gitlab';
+  sourceType?: 'ideation' | 'manual' | 'imported' | 'insights' | 'roadmap' | 'linear' | 'github' | 'gitlab' | 'azure_devops';
   ideationType?: string;  // e.g., 'code_improvements', 'security_hardening'
   ideaId?: string;  // Reference to original idea if converted
   featureId?: string;  // Reference to roadmap feature if from roadmap
@@ -193,6 +193,11 @@ export interface TaskMetadata {
   githubBatchTheme?: string;  // Theme/title of the GitHub issue batch
   gitlabIssueIid?: number;  // Reference to GitLab issue IID if from GitLab
   gitlabUrl?: string;  // GitLab issue URL
+  azureDevOpsWorkItemId?: number;  // Reference to Azure DevOps work item ID (e.g., AB#4821)
+  azureDevOpsWorkItemType?: string;  // Azure DevOps work item type ('User Story', 'Bug', 'Task', 'Feature')
+  azureDevOpsUrl?: string;  // Azure DevOps work item web URL
+  azureDevOpsOrganization?: string;  // Azure DevOps organization
+  azureDevOpsProject?: string;  // Azure DevOps project
 
   // Classification
   category?: TaskCategory;
@@ -225,8 +230,11 @@ export interface TaskMetadata {
   // Referenced files (files/folders from project for context)
   referencedFiles?: ReferencedFile[];
 
-  // Review settings
+  // Review & Dynamic Workflow / Skill settings
   requireReviewBeforeCoding?: boolean;  // Require human review of spec/plan before coding starts
+  planOnly?: boolean;  // Stop at human_review / done after plan & AI review without running coding subtasks
+  skillId?: string;  // Active skill ID (SKILL.md) to use for planning, AI review, and coding
+  customPhases?: string[];  // Custom spec/workflow phases override (e.g., ['discovery', 'spec_writing', 'self_critique', 'validation'])
 
   // Agent configuration (from agent profile or manual selection)
   model?: ModelType;  // Claude model to use (haiku, sonnet, opus) - used when not auto profile

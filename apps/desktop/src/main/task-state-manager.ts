@@ -392,6 +392,9 @@ export class TaskStateManager {
         stateValue = 'error';
         contextReviewReason = reviewReason ?? 'errors';
         break;
+      case 'queue':
+        stateValue = 'queue';
+        break;
       default:
         stateValue = 'backlog';
         break;

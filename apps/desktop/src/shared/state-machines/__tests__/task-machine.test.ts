@@ -107,6 +107,32 @@ describe('taskMachine', () => {
       const snapshot = runEvents(events);
       expect(snapshot.value).toBe('done');
     });
+
+    it('should transition from plan_review on USER_RESUMED, PLANNING_STARTED, and QA_STARTED', () => {
+      const resumed = runEvents([
+        { type: 'PLANNING_STARTED' },
+        { type: 'PLANNING_COMPLETE', hasSubtasks: true, subtaskCount: 3, requireReviewBeforeCoding: true },
+        { type: 'USER_RESUMED' }
+      ]);
+      expect(resumed.value).toBe('coding');
+      expect(resumed.context.reviewReason).toBeUndefined();
+
+      const replanned = runEvents([
+        { type: 'PLANNING_STARTED' },
+        { type: 'PLANNING_COMPLETE', hasSubtasks: true, subtaskCount: 3, requireReviewBeforeCoding: true },
+        { type: 'PLANNING_STARTED' }
+      ]);
+      expect(replanned.value).toBe('planning');
+      expect(replanned.context.reviewReason).toBeUndefined();
+
+      const qaStarted = runEvents([
+        { type: 'PLANNING_STARTED' },
+        { type: 'PLANNING_COMPLETE', hasSubtasks: true, subtaskCount: 3, requireReviewBeforeCoding: true },
+        { type: 'QA_STARTED', iteration: 1, maxIterations: 3 }
+      ]);
+      expect(qaStarted.value).toBe('qa_review');
+      expect(qaStarted.context.reviewReason).toBeUndefined();
+    });
   });
 
   describe('QA fixing flow', () => {
@@ -288,6 +314,22 @@ describe('taskMachine', () => {
       const snapshot = runEvents(events);
       expect(snapshot.value).toBe('coding');
       expect(snapshot.context.reviewReason).toBeUndefined();
+    });
+
+    it('should transition from human_review through qa_fixing and qa_review when processing human review feedback', () => {
+      const snapshot = runEvents([
+        { type: 'PLANNING_STARTED' },
+        { type: 'PLANNING_COMPLETE', hasSubtasks: true, subtaskCount: 1, requireReviewBeforeCoding: false },
+        { type: 'QA_STARTED', iteration: 1, maxIterations: 3 },
+        { type: 'QA_PASSED', iteration: 1, testsRun: {} },
+        { type: 'QA_FIXING_STARTED', iteration: 0 },
+        { type: 'QA_FIXING_COMPLETE', iteration: 0 },
+        { type: 'QA_STARTED', iteration: 1, maxIterations: 3 },
+        { type: 'QA_PASSED', iteration: 1, testsRun: {} }
+      ]);
+
+      expect(snapshot.value).toBe('human_review');
+      expect(snapshot.context.reviewReason).toBe('completed');
     });
   });
 

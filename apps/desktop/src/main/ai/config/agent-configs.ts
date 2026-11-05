@@ -20,8 +20,8 @@ import type { ThinkingLevel } from './types';
 // Base Tools (Built-in Claude Code tools)
 // =============================================================================
 
-/** Core file reading tools */
-const BASE_READ_TOOLS = ['Read', 'Glob', 'Grep'] as const;
+/** Core file and skill reading tools */
+const BASE_READ_TOOLS = ['Read', 'Glob', 'Grep', 'UseSkill'] as const;
 
 /** Core file writing tools */
 const BASE_WRITE_TOOLS = ['Write', 'Edit', 'Bash'] as const;
