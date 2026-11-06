@@ -160,6 +160,7 @@ export function ConfigurationPanel({
             <label className="text-xs text-muted-foreground">Version</label>
             <input
               type="text"
+              data-testid="changelog-version-input"
               value={version}
               onChange={(e) => onVersionChange(e.target.value)}
               placeholder="1.0.0"
@@ -260,6 +261,7 @@ export function ConfigurationPanel({
         {/* Generate Button */}
         <button
           type="button"
+          data-testid="changelog-generate-btn"
           className="w-full flex items-center justify-center gap-2 rounded-lg bg-primary px-4 py-3 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50"
           onClick={onGenerate}
           disabled={!canGenerate}

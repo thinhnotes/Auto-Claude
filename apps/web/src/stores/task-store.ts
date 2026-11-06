@@ -12,15 +12,16 @@ import { apiClient } from "@/lib/data";
 /** Default max parallel tasks when no project setting is configured */
 export const DEFAULT_MAX_PARALLEL_TASKS = 3;
 
-const VALID_TRANSITIONS: Record<TaskStatus, TaskStatus[]> = {
-  backlog: ["queue"],
-  queue: ["in_progress", "backlog"],
-  in_progress: ["ai_review", "human_review", "error", "backlog"],
-  ai_review: ["in_progress", "done", "human_review", "error"],
-  human_review: ["in_progress", "done", "backlog"],
-  done: ["backlog"],
-  pr_created: ["done"],
-  error: ["in_progress", "human_review", "backlog"],
+export const VALID_TRANSITIONS: Record<TaskStatus, TaskStatus[]> = {
+  backlog: ["queue", "in_progress", "ai_review", "human_review", "done", "remove"],
+  queue: ["in_progress", "backlog", "ai_review", "human_review", "done", "remove"],
+  in_progress: ["ai_review", "human_review", "error", "backlog", "queue", "done", "remove"],
+  ai_review: ["in_progress", "done", "human_review", "error", "queue", "backlog", "remove"],
+  human_review: ["in_progress", "done", "backlog", "queue", "ai_review", "remove"],
+  done: ["backlog", "queue", "in_progress", "human_review", "ai_review", "remove"],
+  pr_created: ["done", "backlog", "queue", "in_progress", "human_review", "ai_review", "remove"],
+  error: ["in_progress", "human_review", "backlog", "queue", "done", "ai_review", "remove"],
+  remove: ["backlog", "queue", "in_progress", "ai_review", "human_review", "done"],
 };
 
 // localStorage key prefix for task order persistence
@@ -40,7 +41,14 @@ function createEmptyTaskOrder(): TaskOrderState {
     done: [],
     pr_created: [],
     error: [],
+    remove: [],
   };
+}
+
+function getVisualColumn(status: TaskStatus): TaskStatus {
+  if (status === "pr_created") return "done";
+  if (status === "error") return "human_review";
+  return status;
 }
 
 /**
@@ -177,6 +185,9 @@ export const useTaskStore = create<TaskState>((set, get) => ({
     }
 
     const updates: Partial<Task> = { status };
+    if (status === "remove") {
+      updates.fileDiffs = [];
+    }
     if (reviewReason && status === "human_review") {
       updates.reviewReason = reviewReason;
     }
@@ -277,8 +288,29 @@ export const useTaskStore = create<TaskState>((set, get) => ({
 
   reorderTasksInColumn: (status, activeId, overId) =>
     set((state) => {
-      if (!state.taskOrder) return state;
-      const column = [...(state.taskOrder[status] ?? [])];
+      if (activeId === overId) return state;
+      const baseOrder = state.taskOrder ?? createEmptyTaskOrder();
+      let column = Array.isArray(baseOrder[status])
+        ? [...baseOrder[status]]
+        : [];
+
+      if (column.length === 0) {
+        column = state.tasks
+          .filter((t) => getVisualColumn(t.status) === status)
+          .map((t) => t.id);
+      } else {
+        for (const id of [activeId, overId]) {
+          if (!column.includes(id)) {
+            const taskInCol = state.tasks.find(
+              (t) => t.id === id && getVisualColumn(t.status) === status,
+            );
+            if (taskInCol) {
+              column.push(id);
+            }
+          }
+        }
+      }
+
       const activeIndex = column.indexOf(activeId);
       const overIndex = column.indexOf(overId);
       if (activeIndex === -1 || overIndex === -1) return state;
@@ -288,26 +320,33 @@ export const useTaskStore = create<TaskState>((set, get) => ({
       column.splice(overIndex, 0, activeId);
 
       return {
-        taskOrder: { ...state.taskOrder, [status]: column },
+        taskOrder: { ...baseOrder, [status]: column },
       };
     }),
 
   moveTaskToColumnTop: (taskId, targetStatus, sourceStatus) =>
     set((state) => {
-      if (!state.taskOrder) return state;
-      const newOrder = { ...state.taskOrder };
+      const baseOrder = state.taskOrder ?? createEmptyTaskOrder();
+      const newOrder: TaskOrderState = {
+        ...createEmptyTaskOrder(),
+        ...baseOrder,
+      };
 
       // Remove from source column
       if (sourceStatus) {
-        newOrder[sourceStatus] = (newOrder[sourceStatus] ?? []).filter(
-          (id) => id !== taskId,
-        );
+        const srcCol = Array.isArray(newOrder[sourceStatus])
+          ? newOrder[sourceStatus]
+          : [];
+        newOrder[sourceStatus] = srcCol.filter((id) => id !== taskId);
       }
 
       // Add to top of target column
+      const tgtCol = Array.isArray(newOrder[targetStatus])
+        ? newOrder[targetStatus]
+        : [];
       newOrder[targetStatus] = [
         taskId,
-        ...(newOrder[targetStatus] ?? []).filter((id) => id !== taskId),
+        ...tgtCol.filter((id) => id !== taskId),
       ];
 
       return { taskOrder: newOrder };
@@ -317,14 +356,25 @@ export const useTaskStore = create<TaskState>((set, get) => ({
     try {
       const raw = localStorage.getItem(getTaskOrderKey(projectId));
       if (raw) {
-        const order = JSON.parse(raw) as TaskOrderState;
-        set({ taskOrder: order });
-      } else {
-        set({ taskOrder: createEmptyTaskOrder() });
+        const parsed = JSON.parse(raw);
+        if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+          const empty = createEmptyTaskOrder();
+          const sanitized: TaskOrderState = { ...empty };
+          for (const key of Object.keys(empty) as (keyof TaskOrderState)[]) {
+            if (Array.isArray(parsed[key])) {
+              sanitized[key] = parsed[key].filter(
+                (id: unknown): id is string => typeof id === "string",
+              );
+            }
+          }
+          set({ taskOrder: sanitized });
+          return;
+        }
       }
     } catch {
-      set({ taskOrder: createEmptyTaskOrder() });
+      // Fallback on corrupt JSON or storage error
     }
+    set({ taskOrder: createEmptyTaskOrder() });
   },
 
   saveTaskOrder: (projectId) => {
@@ -369,23 +419,39 @@ export const useTaskStore = create<TaskState>((set, get) => ({
 
 /** Load tasks for a project from API */
 export async function loadTasks(projectId: string) {
-  useTaskStore.setState({ isLoading: true, error: null });
+  // Only show full loading spinner on initial load when tasks array is empty
+  if (useTaskStore.getState().tasks.length === 0) {
+    useTaskStore.setState({ isLoading: true, error: null });
+  }
+
   try {
     const result = await apiClient.getTasks(projectId);
+    const rawTasks = (result as unknown as { tasks?: Task[]; data?: Task[] }).tasks
+      ?? (result as unknown as { data?: Task[] }).data
+      ?? [];
+    const normalizedTasks = (Array.isArray(rawTasks) ? rawTasks : []).map((t) => ({
+      ...t,
+      subtasks: Array.isArray(t.subtasks) ? t.subtasks : [],
+      logs: Array.isArray(t.logs) ? t.logs : [],
+    }));
     useTaskStore.setState({
-      tasks: result.tasks as Task[],
+      tasks: normalizedTasks,
       isLoading: false,
     });
 
-    // Load task order for kanban
-    useTaskStore.getState().loadTaskOrder(projectId);
+    // Only load task order from localStorage on initial load if not already populated in memory
+    if (!useTaskStore.getState().taskOrder) {
+      useTaskStore.getState().loadTaskOrder(projectId);
+    }
   } catch (err) {
     // Network errors (backend not running) and timeouts → silent empty state.
     const isNetworkError =
       err instanceof TypeError ||
       (err instanceof Error && err.name === "AbortError");
+    const currentTasks = useTaskStore.getState().tasks;
     useTaskStore.setState({
-      tasks: [],
+      // Do not clear already-loaded tasks on transient background polling failure
+      tasks: currentTasks.length > 0 ? currentTasks : [],
       isLoading: false,
       error: isNetworkError
         ? null
@@ -416,6 +482,8 @@ export async function updateTaskStatusAPI(
     return;
   }
 
+  const previousStatus = currentTask?.status;
+
   // Optimistic update
   useTaskStore.getState().updateTaskStatus(taskId, status, reviewReason);
 
@@ -423,10 +491,25 @@ export async function updateTaskStatusAPI(
     await apiClient.updateTaskStatus(projectId, taskId, status);
   } catch (error) {
     // Revert on failure
-    if (currentTask) {
-      useTaskStore
-        .getState()
-        .updateTask(taskId, { status: currentTask.status });
+    if (currentTask && previousStatus) {
+      if (status === "remove") {
+        useTaskStore.getState().addTask(currentTask);
+      } else {
+        useTaskStore
+          .getState()
+          .updateTask(taskId, { status: previousStatus });
+      }
+
+      // Rollback taskOrder on failure
+      const sourceCol = getVisualColumn(previousStatus);
+      const targetCol = getVisualColumn(status);
+
+      if (sourceCol !== targetCol) {
+        useTaskStore
+          .getState()
+          .moveTaskToColumnTop(taskId, sourceCol, targetCol);
+        useTaskStore.getState().saveTaskOrder(projectId);
+      }
     }
     console.error("[TaskStore] Failed to update task status:", error);
   }
@@ -446,26 +529,175 @@ export async function deleteTask(projectId: string, taskId: string) {
   }
 }
 
-/** Start a task via API */
+/** Start a task via API (transitions Backlog -> Queue -> In Progress -> AI Review -> Human Review) */
 export async function startTask(
   projectId: string,
   taskId: string,
   options?: Record<string, unknown>,
 ) {
+  // Optimistic transition to queue
+  useTaskStore.getState().updateTask(taskId, {
+    status: "queue",
+    reviewReason: undefined,
+    executionProgress: {
+      phase: "planning",
+      phaseProgress: 15,
+      overallProgress: 15,
+      message: "Queued — allocating Local AI agent worker...",
+    },
+  });
   try {
-    await apiClient.startTask(projectId, taskId, options);
+    const res = await apiClient.startTask(projectId, taskId, options);
+    const updated =
+      (res as unknown as { task?: Task; data?: Task })?.task ??
+      (res as unknown as { data?: Task })?.data;
+    if (updated && updated.id) {
+      useTaskStore.getState().updateTask(taskId, {
+        ...updated,
+        subtasks: Array.isArray(updated.subtasks) ? updated.subtasks : [],
+        logs: Array.isArray(updated.logs) ? updated.logs : [],
+      });
+    }
   } catch (error) {
     console.error("[TaskStore] Failed to start task:", error);
     throw error;
   }
 }
 
+/** Approve a task in Human Review -> moves to Done */
+export async function approveTask(
+  projectId: string,
+  taskId: string,
+  feedback?: string,
+) {
+  useTaskStore.getState().updateTask(taskId, {
+    status: "done",
+    reviewReason: undefined,
+    executionProgress: {
+      phase: "complete",
+      phaseProgress: 100,
+      overallProgress: 100,
+      message: "Approved in Human Review — task completed.",
+    },
+  });
+  try {
+    const res = await apiClient.approveTask(projectId, taskId, feedback);
+    const updated =
+      (res as unknown as { task?: Task; data?: Task })?.task ??
+      (res as unknown as { data?: Task })?.data;
+    if (updated && updated.id) {
+      useTaskStore.getState().updateTask(taskId, {
+        ...updated,
+        subtasks: Array.isArray(updated.subtasks) ? updated.subtasks : [],
+        logs: Array.isArray(updated.logs) ? updated.logs : [],
+      });
+    }
+  } catch (error) {
+    console.error("[TaskStore] Failed to approve task:", error);
+    throw error;
+  }
+}
+
+/** Reject a task in Human Review -> restarts pipeline with feedback */
+export async function rejectTask(
+  projectId: string,
+  taskId: string,
+  feedback: string,
+) {
+  useTaskStore.getState().updateTask(taskId, {
+    status: "queue",
+    reviewReason: undefined,
+    executionProgress: {
+      phase: "planning",
+      phaseProgress: 15,
+      overallProgress: 15,
+      message: "Re-queued with review feedback...",
+    },
+  });
+  try {
+    const res = await apiClient.rejectTask(projectId, taskId, feedback);
+    const updated =
+      (res as unknown as { task?: Task; data?: Task })?.task ??
+      (res as unknown as { data?: Task })?.data;
+    if (updated && updated.id) {
+      useTaskStore.getState().updateTask(taskId, {
+        ...updated,
+        subtasks: Array.isArray(updated.subtasks) ? updated.subtasks : [],
+        logs: Array.isArray(updated.logs) ? updated.logs : [],
+      });
+    }
+  } catch (error) {
+    console.error("[TaskStore] Failed to reject task:", error);
+    throw error;
+  }
+}
+
 /** Stop a task via API */
 export async function stopTask(projectId: string, taskId: string) {
+  useTaskStore.getState().updateTask(taskId, {
+    status: "backlog",
+    executionProgress: {
+      phase: "idle",
+      phaseProgress: 0,
+      overallProgress: 0,
+    },
+  });
   try {
     await apiClient.stopTask(projectId, taskId);
   } catch (error) {
     console.error("[TaskStore] Failed to stop task:", error);
+    throw error;
+  }
+}
+
+/** Update entire feature/task details and optionally trigger a whole-feature AI check & fix */
+export async function updateTaskDetails(
+  projectId: string,
+  taskId: string,
+  updates: {
+    title?: string;
+    description?: string;
+    status?: TaskStatus;
+    instructions?: string;
+    triggerAiFix?: boolean;
+  },
+): Promise<Task | undefined> {
+  const optimisticUpdates: Partial<Task> = {};
+  if (typeof updates.title === "string" && updates.title.trim()) {
+    optimisticUpdates.title = updates.title.trim();
+  }
+  if (typeof updates.description === "string") {
+    optimisticUpdates.description = updates.description;
+  }
+  if (updates.triggerAiFix) {
+    optimisticUpdates.status = "queue";
+    optimisticUpdates.reviewReason = undefined;
+    optimisticUpdates.executionProgress = {
+      phase: "planning",
+      phaseProgress: 15,
+      overallProgress: 15,
+      message: "Queued — AI checking & fixing entire feature...",
+    };
+  }
+  useTaskStore.getState().updateTask(taskId, optimisticUpdates);
+
+  try {
+    const res = await apiClient.updateTask(projectId, taskId, updates);
+    const updated =
+      (res as unknown as { task?: Task; data?: Task })?.task ??
+      (res as unknown as { data?: Task })?.data;
+    if (updated && updated.id) {
+      const normalized: Task = {
+        ...updated,
+        subtasks: Array.isArray(updated.subtasks) ? updated.subtasks : [],
+        logs: Array.isArray(updated.logs) ? updated.logs : [],
+      };
+      useTaskStore.getState().updateTask(taskId, normalized);
+      return normalized;
+    }
+    return undefined;
+  } catch (error) {
+    console.error("[TaskStore] Failed to update task details:", error);
     throw error;
   }
 }

@@ -70,7 +70,7 @@ export function IdeationFilters({
           <button
             key={option.value}
             className={cn(
-              "shrink-0 rounded-full px-2.5 py-0.5 text-[11px] font-medium transition-colors",
+              "shrink-0 rounded-full px-2.5 py-0.5 text-xs font-medium transition-colors",
               activeStatus === option.value
                 ? "bg-primary/15 text-primary"
                 : "text-muted-foreground hover:bg-accent",

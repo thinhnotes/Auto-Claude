@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { apiClient } from "@/lib/data";
+import { STORE_CHUNK_VERSION } from "@/stores/store-bust-v3";
+void STORE_CHUNK_VERSION;
 
 // ---------------------------------------------------------------------------
 // Types
@@ -53,10 +55,9 @@ async function fetchFileTree(
   dirPath?: string,
   signal?: AbortSignal,
 ): Promise<FileNode[]> {
-  const params = dirPath ? `?path=${encodeURIComponent(dirPath)}` : "";
-  const url = `/api/projects/${projectId}/files${params}`;
+  const pathParam = dirPath ? `&path=${encodeURIComponent(dirPath)}` : "";
+  const url = `/api/projects?action=files&projectId=${encodeURIComponent(projectId)}${pathParam}`;
 
-  // Use a raw fetch since apiClient doesn't have a files endpoint yet
   const response = await fetch(`${apiClient["baseUrl"] ?? ""}${url}`, {
     signal,
     headers: { "Content-Type": "application/json" },
@@ -67,7 +68,7 @@ async function fetchFileTree(
   }
 
   const data: FileListResponse = await response.json();
-  return data.files ?? [];
+  return Array.isArray(data.files) ? data.files : [];
 }
 
 // ---------------------------------------------------------------------------

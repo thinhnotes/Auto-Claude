@@ -118,7 +118,7 @@ export function ChatHistorySidebar({
             {Object.entries(groupedSessions).map(
               ([dateLabel, dateSessions]) => (
                 <div key={dateLabel} className="mb-2">
-                  <div className="px-3 py-1 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                  <div className="px-3 py-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
                     {dateLabel}
                   </div>
                   {dateSessions.map((session) =>
@@ -184,7 +184,7 @@ export function ChatHistorySidebar({
                             >
                               {session.title ?? "Untitled"}
                             </p>
-                            <p className="text-[11px] text-muted-foreground mt-0.5">
+                            <p className="text-xs text-muted-foreground mt-0.5">
                               {session.messageCount} message
                               {session.messageCount !== 1 ? "s" : ""}
                             </p>

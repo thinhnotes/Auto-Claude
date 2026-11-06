@@ -208,7 +208,7 @@ export function GitHubSetupModal({
                   >
                     GitHub Settings
                   </a>{" "}
-                  with <code className="text-[10px]">repo</code> scope.
+                  with <code className="text-xs">repo</code> scope.
                 </p>
               </div>
               <div className="flex gap-2">
@@ -273,7 +273,7 @@ export function GitHubSetupModal({
                 />
                 <p className="text-xs text-muted-foreground">
                   Enter the full repository name, e.g.{" "}
-                  <code className="text-[10px]">octocat/hello-world</code>
+                  <code className="text-xs">octocat/hello-world</code>
                 </p>
               </div>
               <div className="flex gap-2">
@@ -308,7 +308,7 @@ function StepIndicator({
   return (
     <div className="flex items-center gap-1.5">
       <div
-        className={`flex h-6 w-6 items-center justify-center rounded-full text-[10px] font-medium ${
+        className={`flex h-6 w-6 items-center justify-center rounded-full text-xs font-medium ${
           completed
             ? "bg-green-500/10 text-green-600"
             : active

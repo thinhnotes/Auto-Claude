@@ -17,12 +17,19 @@ Usage:
     await provider.post_review(123, review)
 """
 
-from .factory import get_provider, register_provider
+from .azure_devops_provider import AzureDevOpsProvider
+from .factory import (
+    get_provider,
+    is_provider_available,
+    list_available_providers,
+    register_provider,
+)
 from .github_provider import GitHubProvider
 from .protocol import (
     GitProvider,
     IssueData,
     IssueFilters,
+    LabelData,
     PRData,
     PRFilters,
     ProviderType,
@@ -35,6 +42,7 @@ __all__ = [
     "GitProvider",
     "PRData",
     "IssueData",
+    "LabelData",
     "ReviewData",
     "ReviewFinding",
     "IssueFilters",
@@ -42,7 +50,10 @@ __all__ = [
     "ProviderType",
     # Implementations
     "GitHubProvider",
+    "AzureDevOpsProvider",
     # Factory
     "get_provider",
     "register_provider",
+    "is_provider_available",
+    "list_available_providers",
 ]

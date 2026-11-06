@@ -10,12 +10,22 @@ interface SortableTaskCardProps {
   task: Task;
   onClick: () => void;
   onStatusChange?: (taskId: string, newStatus: TaskStatus) => void;
+  onStart?: (taskId: string) => void;
+  onStop?: (taskId: string) => void;
+  onApprove?: (taskId: string, feedback?: string) => void;
+  onReject?: (taskId: string, feedback: string) => void;
+  onOpenTerminal?: (task: Task, mode?: "modal" | "view") => void;
 }
 
 export function SortableTaskCard({
   task,
   onClick,
   onStatusChange,
+  onStart,
+  onStop,
+  onApprove,
+  onReject,
+  onOpenTerminal,
 }: SortableTaskCardProps) {
   const {
     attributes,
@@ -38,7 +48,7 @@ export function SortableTaskCard({
     <div
       ref={setNodeRef}
       style={style}
-      className={cn(isDragging && "opacity-50")}
+      className={cn("touch-none select-none", isDragging && "opacity-50")}
       {...attributes}
       {...listeners}
     >
@@ -46,6 +56,11 @@ export function SortableTaskCard({
         task={task}
         onClick={onClick}
         onStatusChange={onStatusChange}
+        onStart={onStart}
+        onStop={onStop}
+        onApprove={onApprove}
+        onReject={onReject}
+        onOpenTerminal={onOpenTerminal}
       />
     </div>
   );

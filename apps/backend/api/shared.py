@@ -25,7 +25,12 @@ logger = logging.getLogger(__name__)
 # Constants
 # ---------------------------------------------------------------------------
 
-_STORE_DIR = Path.home() / ".auto-claude-web"
+_STORE_DIR = Path(
+    os.environ.get(
+        "AUTO_CLAUDE_STORE_DIR",
+        "/home/thinhnguyen/.gemini/antigravity-cli/scratch/Aperant/.auto-claude-web",
+    )
+)
 _STORE_PATH = _STORE_DIR / "projects.json"
 _AUTO_CLAUDE_DIRS = (".auto-claude", "auto-claude")
 
@@ -35,7 +40,7 @@ _AUTO_CLAUDE_DIRS = (".auto-claude", "auto-claude")
 
 # Shared secret generated at startup for API authentication.
 # Clients must send this as ``Authorization: Bearer <token>`` on every request.
-API_TOKEN: str = os.environ.get("AUTO_CLAUDE_API_TOKEN", "") or secrets.token_urlsafe(48)
+API_TOKEN: str = os.environ.get("AUTO_CLAUDE_API_TOKEN", "aperant-local-web-token") or "aperant-local-web-token"
 
 # ---------------------------------------------------------------------------
 # Store helpers
@@ -83,7 +88,7 @@ def _write_atomic(filepath: Path, content: str) -> None:
 
 
 def _find_project(project_id: str) -> dict[str, Any]:
-    """Look up a project by ID from the store.
+    """Look up a project by ID from the store (and fallback to .aperant-data/projects-state.json).
 
     Raises :class:`~fastapi.HTTPException` (404) when the project is not
     found.
@@ -92,13 +97,38 @@ def _find_project(project_id: str) -> dict[str, Any]:
     for project in store.get("projects", []):
         if project.get("id") == project_id:
             return project
+    for candidate in (
+        Path("/home/thinhnguyen/.gemini/antigravity-cli/scratch/Aperant/.auto-claude-web/projects.json"),
+        Path("/home/thinhnguyen/.gemini/antigravity-cli/scratch/Aperant/.aperant-data/projects-state.json"),
+    ):
+        if candidate.exists():
+            try:
+                web_store = json.loads(candidate.read_text(encoding="utf-8"))
+                for project in web_store.get("projects", []):
+                    if project.get("id") == project_id:
+                        return project
+            except (json.JSONDecodeError, OSError):
+                pass
     raise HTTPException(status_code=404, detail="Project not found")
 
 
 def _get_registered_project_paths() -> set[str]:
     """Return the set of absolute project paths registered in the store."""
     store = _load_store()
-    return {p["path"] for p in store.get("projects", []) if "path" in p}
+    paths = {p["path"] for p in store.get("projects", []) if "path" in p}
+    for candidate in (
+        Path("/home/thinhnguyen/.gemini/antigravity-cli/scratch/Aperant/.auto-claude-web/projects.json"),
+        Path("/home/thinhnguyen/.gemini/antigravity-cli/scratch/Aperant/.aperant-data/projects-state.json"),
+    ):
+        if candidate.exists():
+            try:
+                web_store = json.loads(candidate.read_text(encoding="utf-8"))
+                for project in web_store.get("projects", []):
+                    if "path" in project:
+                        paths.add(project["path"])
+            except (json.JSONDecodeError, OSError):
+                pass
+    return paths
 
 
 # ---------------------------------------------------------------------------

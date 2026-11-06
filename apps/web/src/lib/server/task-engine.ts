@@ -684,30 +684,12 @@ export function createTaskForProject(
     ...(body.metadata || {}),
   };
 
-  const initialSubtasks = buildTaskPlanSubtasks(title, description, specDir);
-  const combinedInfo = combineWorkspaceSkillsAndBuildSdlcPlanForTask(
-    project,
-    specDir,
-    title,
-    description,
-    initialSubtasks,
-    { planApproved: false },
-  );
-  const requirePlanReview =
-    typeof body.metadata?.requirePlanReview === "boolean"
-      ? body.metadata.requirePlanReview
-      : !process.env.VITEST;
-
   const plan = {
     feature: title,
     description,
     created_at: now,
     updated_at: now,
     status: "pending",
-    sdlcStage: "init",
-    requirePlanReview,
-    planApproved: false,
-    combinedSkills: combinedInfo.skillNames,
     executionProgress: {
       phase: "idle",
       phaseProgress: 0,
@@ -717,7 +699,7 @@ export function createTaskForProject(
       {
         id: "phase-1",
         name: "Implementation & Verification",
-        subtasks: initialSubtasks,
+        subtasks: buildTaskPlanSubtasks(title, description, specDir),
       },
     ],
   };
@@ -726,7 +708,6 @@ export function createTaskForProject(
   writeJson(path.join(specDir, REQUIREMENTS), {
     task_description: description || title,
     workflow_type: meta.category || "feature",
-    combined_skills: combinedInfo.skillNames,
   });
   writeJson(path.join(specDir, TASK_METADATA), meta);
   writeAtomic(
@@ -735,7 +716,7 @@ export function createTaskForProject(
   );
   writeAtomic(
     path.join(specDir, LOG_FILE),
-    `[${now}] Task created: ${title} (${specId}) — Initialized COMBINED_SKILL.md (${combinedInfo.skillNames.join(", ")}) & PLAN.md\n`,
+    `[${now}] Task created: ${title} (${specId})\n`,
   );
 
   try {
@@ -1113,8 +1094,6 @@ export interface TaskExecutionReviewOptions {
   customSubtasks?: GeneratedTaskSubtask[];
   maxVerifyIterations?: number;
   runVerifyInTest?: boolean;
-  requirePlanReview?: boolean;
-  planApproved?: boolean;
   customVerifyRunner?: (
     attempt: number,
     createdFiles: string[],
@@ -3319,36 +3298,12 @@ export function collectProjectWorkspaceContext(
 
 function discoverProjectAgentSkills(
   projectRoot: string,
-  includeSubmodules: boolean = false,
 ): DiscoveredProjectSkill[] {
   const bySlug = new Map<string, DiscoveredProjectSkill>();
   const skillRoots: Array<{ dir: string; prefix: string }> = [
     { dir: path.join(projectRoot, ".agents", "skills"), prefix: ".agents/skills" },
     { dir: path.join(projectRoot, ".github", "skills"), prefix: ".github/skills" },
   ];
-
-  if (includeSubmodules) {
-    skillRoots.push(
-      { dir: path.join(projectRoot, ".claude", "skills"), prefix: ".claude/skills" },
-      { dir: path.join(projectRoot, "skills"), prefix: "skills" },
-      {
-        dir: path.join(projectRoot, "backend", ".github", "skills"),
-        prefix: "backend/.github/skills",
-      },
-      {
-        dir: path.join(projectRoot, "backend", ".agents", "skills"),
-        prefix: "backend/.agents/skills",
-      },
-      {
-        dir: path.join(projectRoot, "frontend", ".github", "skills"),
-        prefix: "frontend/.github/skills",
-      },
-      {
-        dir: path.join(projectRoot, "e2e", ".github", "skills"),
-        prefix: "e2e/.github/skills",
-      },
-    );
-  }
 
   for (const root of skillRoots) {
     if (!fs.existsSync(root.dir)) continue;
@@ -3359,13 +3314,7 @@ function discoverProjectAgentSkills(
       continue;
     }
     for (const entry of entries) {
-      if (
-        !entry.isDirectory() ||
-        entry.name === "evals" ||
-        entry.name.startsWith("sdlc-combined-")
-      ) {
-        continue;
-      }
+      if (!entry.isDirectory() || entry.name === "evals") continue;
       const skillMdPath = path.join(root.dir, entry.name, "SKILL.md");
       if (!fs.existsSync(skillMdPath) || !fs.statSync(skillMdPath).isFile()) continue;
       try {
@@ -3420,333 +3369,6 @@ function discoverProjectAgentSkills(
   }
 
   return Array.from(bySlug.values());
-}
-
-export interface CombinedSdlcSkillPlanResult {
-  skillNames: string[];
-  skillPaths: string[];
-  combinedSkillRelPath: string;
-  planRelPath: string;
-  combinedSkillContent: string;
-  planContent: string;
-}
-
-export function combineWorkspaceSkillsAndBuildSdlcPlanForTask(
-  project: any,
-  specFolder: string,
-  title: string,
-  description: string,
-  plannedSubtasks: GeneratedTaskSubtask[],
-  options?: TaskExecutionReviewOptions & {
-    planApproved?: boolean;
-    aiSummary?: string;
-  },
-): CombinedSdlcSkillPlanResult {
-  const taskId = path.basename(specFolder);
-  const projectRoot = project?.path ? path.resolve(project.path) : "";
-  const allSkills =
-    projectRoot && fs.existsSync(projectRoot)
-      ? discoverProjectAgentSkills(projectRoot, true)
-      : [];
-
-  const text = `${title} ${description} ${options?.reviewComment || ""}`.toLowerCase();
-
-  // Score and select relevant workspace skills to combine for this task
-  const scored = allSkills.map((sk) => {
-    let score = 0;
-    const slugLower = sk.slug.toLowerCase();
-    const descLower = sk.description.toLowerCase();
-
-    // Core SDLC orchestration skills are always high priority
-    if (
-      slugLower === "dev_planning" ||
-      slugLower === "story-delivery" ||
-      slugLower === "story_delivery" ||
-      slugLower === "dev_implementation" ||
-      slugLower === "dev_code_review"
-    ) {
-      score += 100;
-    }
-    if (slugLower === "smoke_test" || slugLower.includes("automation-qa")) {
-      score += 75;
-    }
-
-    // Domain keyword matching
-    if (
-      /\b(init|submodule|script|local|docker|aspire|infra|environment|run)\b/.test(
-        text,
-      ) &&
-      (slugLower.includes("infra") ||
-        slugLower.includes("backend") ||
-        slugLower.includes("frontend") ||
-        slugLower.includes("smoke"))
-    ) {
-      score += 60;
-    }
-    if (
-      /\b(backend|dotnet|aspire|api|bff|database|sql|csharp)\b/.test(text) &&
-      (slugLower.includes("backend") || slugLower.includes("unit_testing"))
-    ) {
-      score += 65;
-    }
-    if (
-      /\b(frontend|angular|wc|web|ui|component|portal|css|wcag)\b/.test(text) &&
-      (slugLower.includes("frontend") || slugLower.includes("ui-design"))
-    ) {
-      score += 65;
-    }
-    if (
-      /\b(test|e2e|playwright|browser|verify|qa|eval)\b/.test(text) &&
-      (slugLower.includes("test") ||
-        slugLower.includes("qa") ||
-        slugLower.includes("smoke"))
-    ) {
-      score += 65;
-    }
-    if (
-      /\b(doc|readme|diagram|architecture|plan|requirement|story)\b/.test(text) &&
-      (slugLower.includes("ba-") ||
-        slugLower.includes("diagram") ||
-        slugLower.includes("planning"))
-    ) {
-      score += 60;
-    }
-
-    // Token overlap between task text and skill name/description
-    for (const token of slugLower.split(/[-_.]+/)) {
-      if (token.length >= 3 && text.includes(token)) {
-        score += 25;
-      }
-    }
-    if (descLower && text.split(/\s+/).some((w) => w.length >= 4 && descLower.includes(w))) {
-      score += 15;
-    }
-
-    return { skill: sk, score };
-  });
-
-  scored.sort((a, b) => b.score - a.score || a.skill.slug.localeCompare(b.skill.slug));
-
-  const selectedSkills: DiscoveredProjectSkill[] =
-    scored.length > 0
-      ? scored.slice(0, 8).map((s) => s.skill)
-      : [
-          {
-            slug: "sdlc-workspace-orchestrator",
-            name: "sdlc-workspace-orchestrator",
-            description:
-              "Synthesized SDLC Planning, Implementation, and Verification skill from workspace structure.",
-            relPaths: [".auto-claude/specs/" + taskId + "/COMBINED_SKILL.md"],
-            headings: [
-              "Mandatory Human Approval Gate",
-              "Implementation & Coding Standards",
-              "Verification & Remediation Loop",
-            ],
-            rawContent: "",
-          },
-        ];
-
-  // Collect project-level instructions (Agent.md, .agents/instructions/*.md, .github/instructions/*.md)
-  const instructionFiles: string[] = [];
-  if (projectRoot && fs.existsSync(projectRoot)) {
-    for (const candidate of [
-      "Agent.md",
-      "README.md",
-      ".github/copilot-instructions.md",
-      ".agents/instructions/shared-conventions.instructions.md",
-      ".agents/instructions/backend-dotnet.instructions.md",
-      ".agents/instructions/angular-web-component.instructions.md",
-      ".agents/instructions/automation-conventions.instructions.md",
-      ".github/instructions/shared-conventions.instructions.md",
-    ]) {
-      if (fs.existsSync(path.join(projectRoot, candidate))) {
-        instructionFiles.push(candidate);
-      }
-    }
-  }
-
-  // Discover workspace structure summary
-  const submodules =
-    projectRoot && fs.existsSync(path.join(projectRoot, ".gitmodules"))
-      ? discoverMultiServiceWorkspaceConfig(projectRoot).submodules
-      : [];
-
-  const skillNames = selectedSkills.map((s) => s.name);
-  const skillPaths = selectedSkills.flatMap((s) => s.relPaths);
-
-  const skillTableRows = selectedSkills
-    .map(
-      (s) =>
-        `| \`${s.name}\` | \`${s.relPaths[0] || s.slug}\` | ${s.description.replace(/\|/g, "\\|").slice(0, 140)} |`,
-    )
-    .join("\n");
-
-  const skillExcerpts = selectedSkills
-    .map((s) => {
-      const bodyWithoutFm = s.rawContent
-        ? s.rawContent.replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n?/, "").trim()
-        : "";
-      const excerpt = bodyWithoutFm
-        ? bodyWithoutFm.split(/\r?\n/).slice(0, 18).join("\n")
-        : `- Follow ${s.name} conventions (${s.description}).`;
-      return `### Skill: \`${s.name}\` (\`${s.relPaths[0] || s.slug}\`)\n- **Purpose**: ${s.description}\n- **Key Sections**: ${s.headings.join(", ") || "Standard SDLC Workflow"}\n\n${excerpt}`;
-    })
-    .join("\n\n---\n\n");
-
-  const combinedSkillContent = `---
-name: sdlc-combined-${slugify(taskId).slice(0, 48)}
-description: Combined SDLC Agent Skill for "${title.replace(/"/g, "'")}" synthesized from ${selectedSkills.length} workspace skill(s) (${skillNames.join(", ")}).
-combined_skills: [${skillNames.map((n) => `"${n}"`).join(", ")}]
-sdlc_workflow: init -> plan -> plan_review -> coding -> verify_loop(max=${MAX_VERIFY_FIX_ITERATIONS}) -> human_review
----
-
-# Combined SDLC Agent Skill — ${title}
-
-## 1. Combined Workspace Skills (${selectedSkills.length} Active)
-
-| Skill Name | Source Path | Role & Responsibility |
-| --- | --- | --- |
-${skillTableRows}
-
-${
-  instructionFiles.length > 0
-    ? `## 2. Project Instructions & Conventions Loaded\n${instructionFiles.map((f) => `- \`${f}\``).join("\n")}\n`
-    : ""
-}
-${
-  submodules.length > 0
-    ? `## 3. Discovered Workspace Submodules\n${submodules.map((sm) => `- \`${sm.path}\` (branch: \`${sm.branch}\`, url: \`${sm.url}\`)`).join("\n")}\n`
-    : ""
-}
-## 4. Mandatory SDLC Execution Protocol
-
-1. **Stage 1 — Task Init & Planning (\`queue\` -> \`human_review [plan_review]\`)**:
-   - Combine relevant workspace skills into \`COMBINED_SKILL.md\`.
-   - Analyze codebase structure and requirements to produce \`PLAN.md\` and structured subtasks.
-   - **MANDATORY HUMAN APPROVAL GATE**: Pause at \`human_review\` (\`reviewReason: "plan_review"\`) and wait for explicit user approval before starting implementation/coding.
-2. **Stage 2 — Implementation / Coding (\`in_progress\`)**:
-   - Starts ONLY after the user approves the plan (\`planApproved: true\`).
-   - Execute each planned subtask strictly adhering to the combined skill rules below and actual workspace paths.
-3. **Stage 3 — Verification & Auto-Fix Loop (\`ai_review\` <-> \`in_progress\`, max ${MAX_VERIFY_FIX_ITERATIONS} iterations)**:
-   - Verify every generated/modified file (syntax validation, workspace path check, \`--check\` execution, unit/E2E/browser verification).
-   - If any check fails, return to \`in_progress\` (Development/Fix), resolve the exact failure, and re-verify in \`ai_review\`, capped at **${MAX_VERIFY_FIX_ITERATIONS} iterations** (\`MAX_VERIFY_FIX_ITERATIONS = ${MAX_VERIFY_FIX_ITERATIONS}\`) to prevent infinite loops.
-4. **Stage 4 — Delivery Checkpoint & Final Approval (\`human_review [completed]\` -> \`done\`)**:
-   - Record verification evidence in \`DELIVERY_CHECKPOINT.md\` and present final deliverables for approval.
-
----
-
-## 5. Synthesized Rules from Workspace Skills
-
-${skillExcerpts}
-`;
-
-  const isApproved = Boolean(options?.planApproved);
-  const approvalBadge = isApproved
-    ? `Approved (${nowIso()})`
-    : "Pending Human Review";
-
-  const subtaskRows = plannedSubtasks
-    .map(
-      (st, idx) =>
-        `| \`${st.id || `st-${idx + 1}`}\` | ${st.title.replace(/\|/g, "\\|")} | ${(st.description || "").replace(/\|/g, "\\|")} | ${idx === 0 ? "Planning & Skill Init" : idx === plannedSubtasks.length - 1 ? "AI Verification Gate" : "Implementation / Coding"} |`,
-    )
-    .join("\n");
-
-  const planContent = `# SDLC Implementation Plan — ${title}
-
-- **Task ID**: \`${taskId}\`
-- **Approval Status:** ${approvalBadge}
-- **SDLC Workflow**: \`Init & Combine Skills\` → \`Plan Review Gate\` → \`Coding (in_progress)\` → \`Verify & Auto-Fix Loop (max ${MAX_VERIFY_FIX_ITERATIONS})\` → \`Final Human Review\`
-- **Combined Skill Playbook**: [\`COMBINED_SKILL.md\`](./COMBINED_SKILL.md) (${skillNames.map((n) => `\`${n}\``).join(", ")})
-
----
-
-## 1. Requirement & Scope Summary
-
-- **Title**: ${title}
-- **Description**:
-${description || title}
-${
-  options?.reviewComment
-    ? `\n- **Reviewer Feedback Incorporated**:\n  > ${options.reviewComment}\n`
-    : ""
-}
-${
-  options?.aiSummary
-    ? `\n- **AI Architecture Summary**: ${options.aiSummary}\n`
-    : ""
-}
-
-## 2. Combined Workspace Skills Applied
-
-This plan was generated by combining the following skills discovered in the project directory:
-
-| Skill | Path | Applied Stage |
-| --- | --- | --- |
-${selectedSkills
-  .map(
-    (s) =>
-      `| \`${s.name}\` | \`${s.relPaths[0] || s.slug}\` | ${/plan|ba-|story/i.test(s.slug) ? "Stage 1: Planning & Readiness" : /test|qa|smoke|sonar/i.test(s.slug) ? "Stage 3: Verification & E2E Gate" : "Stage 2: Implementation & Coding"} |`,
-  )
-  .join("\n")}
-
-## 3. SDLC Execution Flow
-
-\`\`\`mermaid
-flowchart LR
-    Init["1. Init & Combine Skills (COMBINED_SKILL.md)"] --> Plan["2. Generate Plan (PLAN.md)"]
-    Plan --> Gate{"3. Human Plan Review Gate"}
-    Gate -->|"Comment / Revise"| Plan
-    Gate -->|"Approve Plan"| Code["4. Coding (in_progress)"]
-    Code --> Verify{"5. Verify (ai_review)"}
-    Verify -->|"Failed (Attempt < ${MAX_VERIFY_FIX_ITERATIONS})"| Code
-    Verify -->|"Passed"| Final["6. Final Review -> Done"]
-\`\`\`
-
-## 4. Planned Subtasks (\`st-1\` .. \`st-${plannedSubtasks.length}\`)
-
-| ID | Subtask Title | Description | SDLC Phase |
-| --- | --- | --- | --- |
-${subtaskRows}
-
-## 5. Mandatory Verification & Completion Gates
-
-1. **Skill & Workspace Alignment**: All file paths and commands must match existing repository directories${submodules.length > 0 ? ` (${submodules.map((s) => `\`${s.path}\``).join(", ")})` : ""}.
-2. **Executable & Syntax Verification**:
-   - Shell scripts (\`.sh\`): \`bash -n <script>\`, workspace path validation, and \`bash <script> --check\`.
-   - Browser / E2E verification (when applicable): headless Playwright verification against local target URL.
-   - Code / Config deliverables (\`.json\`, \`.py\`, \`.ts\`, \`.js\`, \`SKILL.md\`): syntax and schema validation.
-3. **Bounded Auto-Fix Remediation Loop**:
-   - If verification fails in \`ai_review\`, Auto Claude automatically transitions back to \`in_progress\` (Development / Fix Issues), repairs the failing file(s), and re-runs verification up to **${MAX_VERIFY_FIX_ITERATIONS} times** (\`MAX_VERIFY_FIX_ITERATIONS = ${MAX_VERIFY_FIX_ITERATIONS}\`).
-`;
-
-  const combinedSkillPathInSpec = path.join(specFolder, "COMBINED_SKILL.md");
-  const planMdPathInSpec = path.join(specFolder, "PLAN.md");
-  writeAtomic(combinedSkillPathInSpec, combinedSkillContent);
-  writeAtomic(planMdPathInSpec, planContent);
-
-  const combinedSkillRelPath = `.auto-claude/specs/${taskId}/COMBINED_SKILL.md`;
-  const planRelPath = `.auto-claude/specs/${taskId}/PLAN.md`;
-
-  if (projectRoot && fs.existsSync(projectRoot)) {
-    try {
-      const dotSpecDir = path.join(projectRoot, ".auto-claude", "specs", taskId);
-      fs.mkdirSync(dotSpecDir, { recursive: true });
-      writeAtomic(path.join(dotSpecDir, "COMBINED_SKILL.md"), combinedSkillContent);
-      writeAtomic(path.join(dotSpecDir, "PLAN.md"), planContent);
-    } catch {
-      // ignore if read-only
-    }
-  }
-
-  return {
-    skillNames,
-    skillPaths,
-    combinedSkillRelPath,
-    planRelPath,
-    combinedSkillContent,
-    planContent,
-  };
 }
 
 export function buildProjectAgentSkillEvalFiles(

@@ -180,7 +180,7 @@ export function InsightsView({ projectId }: InsightsViewProps) {
   };
 
   return (
-    <div className="flex h-full overflow-hidden">
+    <div className="flex h-full overflow-hidden" data-testid="insights-view">
       {/* Chat History Sidebar */}
       {showSidebar && (
         <ChatHistorySidebar
@@ -200,6 +200,7 @@ export function InsightsView({ projectId }: InsightsViewProps) {
         <div className="flex items-center justify-between border-b border-border px-4 py-3">
           <div className="flex items-center gap-2">
             <button
+              data-testid="insights-toggle-sidebar-btn"
               className="flex h-7 w-7 items-center justify-center rounded-md hover:bg-accent transition-colors"
               onClick={() => setShowSidebar(!showSidebar)}
             >
@@ -210,7 +211,7 @@ export function InsightsView({ projectId }: InsightsViewProps) {
               )}
             </button>
             <Sparkles className="h-4 w-4 text-primary" />
-            <h1 className="text-sm font-semibold">
+            <h1 className="text-lg font-semibold">
               {t("insights.title")}
             </h1>
           </div>
@@ -221,6 +222,7 @@ export function InsightsView({ projectId }: InsightsViewProps) {
               disabled={isLoading}
             />
             <button
+              data-testid="insights-new-session-btn"
               className="flex h-8 items-center gap-1.5 rounded-md border border-border px-3 text-sm hover:bg-accent transition-colors"
               onClick={handleNewSession}
             >
@@ -237,13 +239,11 @@ export function InsightsView({ projectId }: InsightsViewProps) {
         >
           {messages.length === 0 && !streamingContent ? (
             <div className="flex flex-col items-center justify-center h-full max-w-2xl mx-auto">
-              <div className="mb-6 flex h-16 w-16 items-center justify-center rounded-2xl bg-primary/10">
-                <Sparkles className="h-8 w-8 text-primary" />
-              </div>
-              <h2 className="text-xl font-semibold mb-2">
-                {t("insights.welcomeTitle")}
+              <h2 className="text-xl font-semibold mb-2 flex items-center justify-center gap-2.5 text-balance">
+                <Sparkles className="h-5 w-5 text-primary shrink-0" />
+                <span>{t("insights.welcomeTitle")}</span>
               </h2>
-              <p className="text-sm text-muted-foreground text-center mb-8">
+              <p className="text-sm text-muted-foreground text-center text-pretty max-w-md mb-8">
                 {t("insights.welcomeDescription")}
               </p>
               <div className="grid grid-cols-1 gap-2 w-full max-w-lg">

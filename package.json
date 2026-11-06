@@ -5,8 +5,9 @@
   "license": "AGPL-3.0",
   "author": "Auto Claude Team",
   "workspaces": [
-    "apps/*",
-    "libs/*"
+    "packages/types",
+    "packages/ui",
+    "apps/web"
   ],
   "scripts": {
     "install:backend": "node scripts/install-backend.js",

@@ -50,7 +50,30 @@
     "optional": "Optional",
     "required": "Required",
     "dismiss": "Dismiss",
-    "important": "Important"
+    "important": "Important",
+    "selectProfile": "Select Profile",
+    "cloudAuth": "Cloud",
+    "oauthAuth": "OAuth",
+    "apiKeyAuth": "API Key",
+    "authMethodAria": "Authentication: {{method}}",
+    "connected": "Connected",
+    "connecting": "Connecting...",
+    "disconnected": "Disconnected",
+    "claudeCode": "Claude Code",
+    "files": "Files",
+    "noProjectSelected": "No project selected",
+    "noFiles": "No files",
+    "dropOrBrowse": "Drop images here or click to browse",
+    "interrupted": "Interrupted",
+    "progress": "Progress",
+    "weeklyLimit": "Weekly limit",
+    "sessionLimit": "Session limit",
+    "rateLimited": "Rate Limited",
+    "resetsAt": "Resets: {{time}}",
+    "usage": "Usage: {{percent}}%",
+    "usageBreakdown": "Usage Breakdown",
+    "session": "Session",
+    "weekly": "Weekly"
   },
   "selection": {
     "select": "Select",
@@ -90,5 +113,6 @@
     "pro": "Pro",
     "team": "Team",
     "enterprise": "Enterprise"
-  }
+  },
+  "retry": "Retry"
 }

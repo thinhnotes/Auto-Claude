@@ -104,20 +104,20 @@ export function MRList({
             </p>
             <div className="mt-1 flex items-center gap-1.5 flex-wrap">
               {mr.draft && (
-                <span className="rounded-full bg-yellow-500/10 text-yellow-600 px-2 py-0.5 text-[10px] font-medium">
+                <span className="rounded-full bg-yellow-500/10 text-yellow-600 px-2 py-0.5 text-xs font-medium">
                   {t("gitlab.mrs.draft")}
                 </span>
               )}
               {mr.labels.map((label) => (
                 <span
                   key={label}
-                  className="rounded-full bg-secondary px-2 py-0.5 text-[10px] text-muted-foreground"
+                  className="rounded-full bg-secondary px-2 py-0.5 text-xs text-muted-foreground"
                 >
                   {label}
                 </span>
               ))}
             </div>
-            <div className="mt-1 flex items-center gap-3 text-[10px] text-muted-foreground">
+            <div className="mt-1 flex items-center gap-3 text-xs text-muted-foreground">
               <span>{mr.author}</span>
               <span>{mr.createdAt}</span>
               <span className="text-green-600">+{mr.additions}</span>

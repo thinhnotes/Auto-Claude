@@ -17,7 +17,8 @@
     "human_review": "Human Review",
     "done": "Done",
     "pr_created": "PR Created",
-    "error": "Error"
+    "error": "Error",
+    "remove": "Remove"
   },
   "card": {
     "category": {
@@ -61,7 +62,12 @@
       "plan_review": "Plan Review",
       "stopped": "Stopped"
     },
-    "stuck": "Stuck"
+    "stuck": "Stuck",
+    "quickCommentPlaceholder": "Enter comment for AI to check & fix code...",
+    "sendAiFix": "Send to AI Fix",
+    "openTerminal": "Terminal",
+    "openInTerminalsView": "Open in Terminals View",
+    "sourceTreeFolder": "Source Tree Folder"
   },
   "actions": {
     "start": "Start",
@@ -71,7 +77,8 @@
     "createPR": "Create PR",
     "moveToBacklog": "Move to Backlog",
     "moveToQueue": "Move to Queue",
-    "markDone": "Mark as Done"
+    "markDone": "Mark as Done",
+    "removeTask": "Move to Remove"
   },
   "detail": {
     "description": "Description",
@@ -86,22 +93,104 @@
     "impact": "Impact",
     "model": "Model",
     "viewPullRequest": "View Pull Request",
-    "title": "Title"
+    "title": "Title",
+    "expandModal": "Expand",
+    "collapseModal": "Compact",
+    "expandModalTooltip": "Expand modal for code & diff review (Wide view)",
+    "collapseModalTooltip": "Switch to compact view",
+    "fileCommentPlaceholder": "Enter review comment or fix request for {{file}}... AI will inspect and update the code automatically.",
+    "featureCommentPlaceholder": "Enter review comment or fix request across all {{count}} files in this feature... AI will inspect and update the entire feature automatically.",
+    "submitFileAiFix": "Submit AI Check & Fix",
+    "submitFeatureAiFix": "Submit Whole-Feature AI Fix",
+    "fixEntireFeature": "Fix Entire Feature",
+    "commentAndAiFix": "Comment & AI Fix",
+    "aiFixScopeLabel": "AI Fix Scope:",
+    "entireFeatureFiles": "Entire Feature (All {{count}} Files)",
+    "commentOn": "Comment on",
+    "scopeCurrentFile": "Current File ({{file}})",
+    "scopeEntireFeature": "Entire Feature (All {{count}} Files)",
+    "clearLine": "Clear line",
+    "entireFeatureScopeBadge": "Scope: Entire Feature (All Files)",
+    "entireFeatureBadge": "Entire Feature (All Files)",
+    "editFeature": "Edit Feature",
+    "editEntireFeatureTitle": "Edit Entire Feature & Multi-File AI Fix",
+    "editFeatureSubtitle": "Changes apply across the feature spec and all associated files",
+    "featureTitleLabel": "Feature Title",
+    "featureTitlePlaceholder": "Enter feature title...",
+    "featureDescriptionLabel": "Feature Description & Specification",
+    "featureDescriptionPlaceholder": "Describe the feature requirements, architecture, and expected behavior...",
+    "featureAiInstructionsLabel": "AI Fix / Rebuild Instructions across Entire Feature (Optional)",
+    "featureAiInstructionsPlaceholder": "Optional instructions for the AI agent to check and update all files in this feature...",
+    "saveFeature": "Save Feature",
+    "saveAndAiFixFeature": "Save & AI Fix Entire Feature",
+    "requestAiFix": "Comment & Request AI Fix",
+    "feedbackPlaceholder": "Enter review comments or requested changes for the AI agent to check and fix (e.g., add error handling, unit tests, edge cases)...",
+    "tabTerminal": "Terminal",
+    "openTerminal": "Terminal",
+    "openTerminalTooltip": "Open terminal in this task's source tree folder",
+    "openInTerminalsView": "Open in Terminals View",
+    "sourceTreePath": "Task Source Tree",
+    "syncSourceTree": "Sync Files",
+    "syncingSourceTree": "Syncing...",
+    "copyPath": "Copy Path",
+    "copiedPath": "Copied",
+    "tabOverview": "Overview",
+    "tabSubtasks": "Subtasks",
+    "tabFiles": "Files",
+    "tabLogs": "Logs",
+    "tabReview": "Review",
+    "merge": "Merge",
+    "discard": "Discard",
+    "deleteTitle": "Delete Task",
+    "deleteDescription": "This will permanently delete this task and its worktree. This action cannot be undone.",
+    "discardTitle": "Discard Changes",
+    "discardDescription": "This will discard all changes made by this task. This action cannot be undone.",
+    "noFiles": "No files associated with this task",
+    "filesCount": "{{count}} files",
+    "incomplete": "Incomplete",
+    "cannotEditWhileRunning": "Cannot edit while running",
+    "noLogs": "No execution logs yet",
+    "category": "Category",
+    "referencedFiles": "Referenced Files",
+    "affectedFiles": "Affected Files",
+    "currentSubtask": "Current: {{subtask}}",
+    "reviewFeedback": "Human Review — Comment & AI Check / Fix",
+    "reviewReason": "Status:",
+    "stuckWarning": "This task appears to be stuck. It may need to be recovered or restarted.",
+    "errorWarning": "This task encountered an error during execution."
   },
   "wizard": {
     "newTask": "New Task",
     "steps": {
       "details": "1. Details",
       "config": "2. Config",
-      "review": "3. Review"
+      "review": "3. Review",
+      "description": "1. Description",
+      "files": "2. Files",
+      "classification": "3. Classification",
+      "context": "4. Context"
     },
     "taskTitle": "Task Title",
     "titlePlaceholder": "What needs to be done?",
     "descriptionLabel": "Description",
     "descriptionPlaceholder": "Describe the task in detail. What's the expected outcome? Any specific requirements?",
+    "editMode": "Edit",
+    "previewMode": "Preview",
+    "noDescription": "No description provided",
+    "fileSelection": "Select Relevant Files",
+    "fileSelectionDesc": "Choose files from your project to give the AI agent context (optional).",
+    "selectedFiles": "Selected Files",
     "categoryLabel": "Category",
     "priorityLabel": "Priority",
     "complexityLabel": "Complexity",
+    "impactLabel": "Impact",
+    "imageAttachments": "Image Attachments",
+    "referencedFiles": "Referenced Files",
+    "requireReview": "Require human review before coding",
+    "requireReviewDesc": "Pause after generating the implementation plan so you can review it before code changes are made.",
+    "clearDraft": "Clear saved draft",
+    "creating": "Creating...",
+    "createError": "Failed to create task",
     "cancel": "Cancel",
     "back": "Back",
     "continue": "Continue",
@@ -127,6 +216,12 @@
       "medium": "Medium",
       "low": "Low"
     },
+    "impact": {
+      "low": "Low",
+      "medium": "Medium",
+      "high": "High",
+      "critical": "Critical"
+    },
     "complexityOption": {
       "trivial": "Trivial",
       "trivialDesc": "Quick fix, single file",
@@ -139,5 +234,34 @@
       "complex": "Complex",
       "complexDesc": "Architectural changes"
     }
+  },
+  "bulkPR": {
+    "title": "Create Bulk Pull Requests",
+    "noEligibleTasks": "No completed tasks eligible for pull requests.",
+    "selectAll": "Select All",
+    "selectedCount": "{{count}} selected",
+    "viewPR": "View PR",
+    "failed": "Failed",
+    "createdCount": "{{count}} PR(s) created",
+    "errorCount": "{{count}} failed",
+    "done": "Done",
+    "creating": "Creating PRs...",
+    "createPRs": "Create {{count}} PR(s)"
+  },
+  "queueSettings": {
+    "title": "Queue Settings",
+    "maxParallel": "Max Parallel Tasks",
+    "maxParallelDesc": "Maximum number of tasks to run concurrently",
+    "autoPromote": "Auto-promote from Queue",
+    "autoPromoteDesc": "Automatically start queued tasks when capacity is available",
+    "pauseOnError": "Pause Queue on Error",
+    "pauseOnErrorDesc": "Stop starting new queued tasks when a task fails",
+    "save": "Save Settings"
+  },
+  "edit": {
+    "saveError": "Failed to save task changes",
+    "title": "Edit Task",
+    "saving": "Saving...",
+    "save": "Save Changes"
   }
 }

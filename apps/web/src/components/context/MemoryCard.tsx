@@ -32,10 +32,10 @@ export function MemoryCard({ memory }: MemoryCardProps) {
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1">
-            <span className={cn("rounded-full px-2 py-0.5 text-[10px] font-medium", colorClass)}>
+            <span className={cn("rounded-full px-2 py-0.5 text-xs font-medium", colorClass)}>
               {memory.type}
             </span>
-            <span className="text-[10px] text-muted-foreground">
+            <span className="text-xs text-muted-foreground">
               {new Date(memory.createdAt).toLocaleDateString()}
             </span>
           </div>

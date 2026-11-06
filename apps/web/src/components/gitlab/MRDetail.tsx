@@ -85,7 +85,7 @@ export function MRDetail({
               {mr.createdAt}
             </span>
             {mr.draft && (
-              <span className="rounded-full bg-yellow-500/10 text-yellow-600 px-2 py-0.5 text-[10px] font-medium">
+              <span className="rounded-full bg-yellow-500/10 text-yellow-600 px-2 py-0.5 text-xs font-medium">
                 {t("gitlab.mrs.draft")}
               </span>
             )}
@@ -95,19 +95,19 @@ export function MRDetail({
           <div className="grid grid-cols-4 gap-3">
             <div className="rounded-md border border-border p-3 text-center">
               <p className="text-lg font-semibold text-green-600">+{mr.additions}</p>
-              <p className="text-[10px] text-muted-foreground">{t("gitlab.mrs.stats.additions")}</p>
+              <p className="text-xs text-muted-foreground">{t("gitlab.mrs.stats.additions")}</p>
             </div>
             <div className="rounded-md border border-border p-3 text-center">
               <p className="text-lg font-semibold text-red-600">-{mr.deletions}</p>
-              <p className="text-[10px] text-muted-foreground">{t("gitlab.mrs.stats.deletions")}</p>
+              <p className="text-xs text-muted-foreground">{t("gitlab.mrs.stats.deletions")}</p>
             </div>
             <div className="rounded-md border border-border p-3 text-center">
               <p className="text-lg font-semibold">{mr.changedFiles}</p>
-              <p className="text-[10px] text-muted-foreground">{t("gitlab.mrs.stats.files")}</p>
+              <p className="text-xs text-muted-foreground">{t("gitlab.mrs.stats.files")}</p>
             </div>
             <div className="rounded-md border border-border p-3 text-center">
               <p className="text-lg font-semibold capitalize">{mr.state}</p>
-              <p className="text-[10px] text-muted-foreground">{t("gitlab.mrs.status")}</p>
+              <p className="text-xs text-muted-foreground">{t("gitlab.mrs.status")}</p>
             </div>
           </div>
 

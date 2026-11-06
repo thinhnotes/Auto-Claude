@@ -4,6 +4,7 @@ import { useState } from "react";
 import { X, Plus } from "lucide-react";
 import { cn } from "@auto-claude/ui";
 import { useProjectStore } from "@/stores/project-store";
+import { useUIStore } from "@/stores/ui-store";
 import { useTranslation } from "react-i18next";
 import {
   DndContext,
@@ -85,12 +86,15 @@ function TabOverlay({ project }: { project: Project }) {
 }
 
 export function ProjectTabBar() {
-  const projects = useProjectStore((s) => s.projects);
-  const openProjectIds = useProjectStore((s) => s.openProjectIds);
+  const rawProjects = useProjectStore((s) => s.projects);
+  const rawOpenProjectIds = useProjectStore((s) => s.openProjectIds);
+  const projects = Array.isArray(rawProjects) ? rawProjects : [];
+  const openProjectIds = Array.isArray(rawOpenProjectIds) ? rawOpenProjectIds : [];
   const activeProjectId = useProjectStore((s) => s.activeProjectId);
   const setActiveProject = useProjectStore((s) => s.setActiveProject);
   const closeProjectTab = useProjectStore((s) => s.closeProjectTab);
   const reorderTabs = useProjectStore((s) => s.reorderTabs);
+  const setOpenProjectDialogOpen = useUIStore((s) => s.setOpenProjectDialogOpen);
   const { t } = useTranslation("layout");
 
   const [activeDragProject, setActiveDragProject] = useState<Project | null>(null);
@@ -155,6 +159,8 @@ export function ProjectTabBar() {
         </DragOverlay>
       </DndContext>
       <button
+        onClick={() => setOpenProjectDialogOpen(true)}
+        data-testid="tabbar-add-project-button"
         className="flex h-full items-center px-3 text-muted-foreground hover:text-foreground hover:bg-accent/50 transition-colors"
         aria-label={t("projectTabBar.addProject")}
       >

@@ -30,6 +30,7 @@ export interface WebAppSettings {
 
 const DEFAULT_SETTINGS: WebAppSettings = {
   theme: "system",
+  uiScale: 100,
   sidebarCollapsed: false,
   onboardingCompleted: false,
   logOrder: "chronological",
@@ -94,7 +95,11 @@ export async function loadSettings() {
   useSettingsStore.setState({ isLoading: true, error: null });
   try {
     const result = await apiClient.getSettings();
-    const remoteSettings = result.settings as Partial<WebAppSettings>;
+    const remoteSettings = (
+      (result as unknown as { settings?: Partial<WebAppSettings>; data?: Partial<WebAppSettings> }).settings ??
+      (result as unknown as { data?: Partial<WebAppSettings> }).data ??
+      {}
+    ) as Partial<WebAppSettings>;
     useSettingsStore.setState((state) => ({
       settings: { ...DEFAULT_SETTINGS, ...state.settings, ...remoteSettings },
       isLoading: false,

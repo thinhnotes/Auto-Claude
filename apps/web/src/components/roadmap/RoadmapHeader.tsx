@@ -41,6 +41,7 @@ export function RoadmapHeader({
         <h1 className="text-lg font-semibold">{t("roadmap.title")}</h1>
         <div className="flex items-center rounded-lg border border-border bg-card/50">
           <button
+            data-testid="roadmap-tab-kanban"
             className={cn(
               "flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium transition-colors rounded-l-lg",
               activeTab === "kanban"
@@ -53,6 +54,7 @@ export function RoadmapHeader({
             {t("roadmap.tabs.board")}
           </button>
           <button
+            data-testid="roadmap-tab-timeline"
             className={cn(
               "flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium transition-colors",
               activeTab === "timeline"
@@ -65,6 +67,7 @@ export function RoadmapHeader({
             {t("roadmap.tabs.timeline")}
           </button>
           <button
+            data-testid="roadmap-tab-list"
             className={cn(
               "flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium transition-colors rounded-r-lg",
               activeTab === "list"
@@ -81,8 +84,8 @@ export function RoadmapHeader({
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
             <Target className="h-3.5 w-3.5" />
             <span>
-              {featureCount} {t("roadmap.features")} · {phaseCount}{" "}
-              {t("roadmap.phases")}
+              {featureCount} {t("roadmap.featureLabel", "features")} · {phaseCount}{" "}
+              {t("roadmap.phaseLabel", "phases")}
             </span>
           </div>
         )}
@@ -93,7 +96,7 @@ export function RoadmapHeader({
           onClick={onGenerate}
         >
           <Sparkles className="h-3.5 w-3.5" />
-          {t("roadmap.generate")}
+          {t("roadmap.regenerate", "Regenerate")}
         </button>
         <button
           className="flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"

@@ -145,12 +145,13 @@ async def get_env(project_id: str) -> dict[str, Any]:
     env_file = _env_path(project)
 
     if not env_file.exists():
-        return {"success": True, "data": {}}
+        default_cfg = {"autoBuildModel": "gemma-4", "graphitiEnabled": False}
+        return {"success": True, "data": default_cfg, "config": default_cfg}
 
     try:
         env_vars = parse_env_file(env_file)
         config = _env_to_config(env_vars, mask=True)
-        return {"success": True, "data": config}
+        return {"success": True, "data": config, "config": config}
     except OSError as exc:
         raise HTTPException(status_code=500, detail=f"Failed to read .env: {exc}")
 

@@ -63,7 +63,7 @@ export function PRReviewPanel({
               style={{ width: `${progress.progress}%` }}
             />
           </div>
-          <p className="mt-1 text-[10px] text-muted-foreground">{progress.message}</p>
+          <p className="mt-1 text-xs text-muted-foreground">{progress.message}</p>
         </div>
       )}
 
@@ -75,7 +75,7 @@ export function PRReviewPanel({
               {t("github.prs.reviewActions", "Review Actions")}
             </span>
             <span className={cn(
-              "rounded-full px-2 py-0.5 text-[10px] font-medium",
+              "rounded-full px-2 py-0.5 text-xs font-medium",
               reviewResult.approved ? "bg-green-500/10 text-green-600" : "bg-yellow-500/10 text-yellow-600",
             )}>
               {reviewResult.approved

@@ -20,7 +20,7 @@ function CloudPersonas() {
     return (
       <div className="flex h-screen flex-col items-center justify-center gap-4 p-8">
         <h1 className="text-2xl font-bold">{t("pages:personas.title")}</h1>
-        <p className="text-gray-600">
+        <p className="text-muted-foreground">
           {t("pages:personas.description")}
         </p>
         <a
@@ -50,13 +50,13 @@ function CloudPersonas() {
       </div>
       <div className="mt-8">
         {personas.length === 0 ? (
-          <p className="text-gray-500">{t("pages:personas.empty")}</p>
+          <p className="text-muted-foreground">{t("pages:personas.empty")}</p>
         ) : (
           <ul className="space-y-2">
             {personas.map((persona: any) => (
-              <li key={persona._id} className="rounded-lg border p-4">
-                <h3 className="font-semibold">{persona.name}</h3>
-                <p className="text-gray-600">{persona.description}</p>
+              <li key={persona._id} className="rounded-lg border border-border p-4">
+                <h2 className="font-semibold">{persona.name}</h2>
+                <p className="text-muted-foreground">{persona.description}</p>
               </li>
             ))}
           </ul>

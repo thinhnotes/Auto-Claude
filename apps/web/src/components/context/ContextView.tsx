@@ -48,8 +48,13 @@ export function ContextView({ projectId }: ContextViewProps) {
       setIndexError(null);
       try {
         const response = await apiClient.getProjectContext(projectId);
-        if (response.context) {
-          setProjectIndex(response.context as typeof projectIndex);
+        const idx =
+          (response as any)?.index ||
+          (response as any)?.context ||
+          (response as any)?.data?.index ||
+          (response as any)?.data?.context;
+        if (idx) {
+          setProjectIndex(idx as typeof projectIndex);
         }
       } catch (err) {
         setIndexError(err instanceof Error ? err.message : "Failed to load context");
@@ -83,8 +88,13 @@ export function ContextView({ projectId }: ContextViewProps) {
     setIndexError(null);
     try {
       const response = await apiClient.refreshProjectIndex(projectId);
-      if (response.index) {
-        setProjectIndex(response.index as typeof projectIndex);
+      const idx =
+        (response as any)?.index ||
+        (response as any)?.context ||
+        (response as any)?.data?.index ||
+        (response as any)?.data?.context;
+      if (idx) {
+        setProjectIndex(idx as typeof projectIndex);
       }
     } catch (err) {
       setIndexError(err instanceof Error ? err.message : "Failed to refresh index");
@@ -142,6 +152,7 @@ export function ContextView({ projectId }: ContextViewProps) {
               return (
                 <button
                   key={tab.id}
+                  data-testid={`context-tab-${tab.id}`}
                   className={cn(
                     "flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium transition-colors",
                     i === 0 && "rounded-l-lg",

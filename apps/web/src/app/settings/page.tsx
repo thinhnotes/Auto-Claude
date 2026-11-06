@@ -18,13 +18,13 @@ function SelfHostedSettings() {
       <h1 className="text-2xl font-bold">{t("settings:title")}</h1>
       <section className="mt-8">
         <h2 className="text-xl font-semibold">{t("settings:selfHosted.mode")}</h2>
-        <p className="mt-2 text-gray-600">
+        <p className="mt-2 text-muted-foreground">
           {t("settings:selfHosted.description")}
         </p>
       </section>
-      <section className="mt-8 rounded-lg border border-blue-200 bg-blue-50 p-6">
-        <h2 className="text-lg font-semibold">{t("settings:selfHosted.unlockFeatures")}</h2>
-        <p className="mt-2 text-gray-600">
+      <section className="mt-8 rounded-lg border border-border bg-card p-6">
+        <h2 className="text-lg font-semibold text-card-foreground">{t("settings:selfHosted.unlockFeatures")}</h2>
+        <p className="mt-2 text-muted-foreground">
           {t("settings:selfHosted.featuresDescription")}
         </p>
         <a
@@ -107,7 +107,7 @@ function CloudSettings() {
 
           {/* Usage */}
           {tierInfo && (
-            <div className="mt-4 space-y-1 text-sm text-gray-600">
+            <div className="mt-4 space-y-1 text-sm text-muted-foreground">
               <p>
                 {t("settings:subscription.usage.specs", {
                   current: tierInfo.usage.specs,
@@ -162,7 +162,7 @@ function CloudSettings() {
               <button
                 onClick={handleManageSubscription}
                 disabled={loading !== null}
-                className="rounded-lg border px-4 py-2 hover:bg-gray-50 disabled:opacity-50"
+                className="rounded-lg border border-border px-4 py-2 hover:bg-muted disabled:opacity-50"
               >
                 {loading === "portal" ? t("common:buttons.redirecting") : t("common:buttons.manageSubscription")}
               </button>
@@ -175,7 +175,7 @@ function CloudSettings() {
       <section className="mt-8">
         <button
           onClick={logout}
-          className="rounded-lg border border-red-600 px-4 py-2 text-red-600 hover:bg-red-50"
+          className="rounded-lg border border-red-600 px-4 py-2 text-red-700 dark:text-red-400 hover:bg-red-500/10"
         >
           {t("auth:signOut")}
         </button>

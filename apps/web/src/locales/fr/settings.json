@@ -62,6 +62,18 @@
     "debug": {
       "title": "Debug & Logs",
       "description": "Outils de dépannage"
+    },
+    "agentProfile": {
+      "title": "Profil de l'agent",
+      "description": "Modèle par défaut et niveau de réflexion"
+    },
+    "terminalFont": {
+      "title": "Police du terminal",
+      "description": "Personnaliser la famille et la taille de police du terminal"
+    },
+    "integrations": {
+      "title": "Intégrations",
+      "description": "Connectez les gestionnaires de tickets Azure DevOps, GitHub, GitLab et Linear."
     }
   },
   "fields": {
@@ -74,17 +86,38 @@
     "repositoryLabel": "Dépôt (propriétaire/dépôt)",
     "mainBranch": "Branche principale",
     "memorySystem": "Système de mémoire",
-    "memorySystemDescription": "Configurez le système de mémoire IA pour vos projets."
+    "memorySystemDescription": "Configurez le système de mémoire IA pour vos projets.",
+    "colorTheme": "Thème de couleur",
+    "uiScale": "Échelle de l'interface",
+    "defaultModel": "Modèle IA par défaut",
+    "defaultModelDescription": "Sélectionnez le modèle utilisé par défaut pour les agents"
+  },
+  "scale": {
+    "presets": "Préréglages d'échelle",
+    "presetsDescription": "Options d'échelle rapides pour les préférences courantes",
+    "fineTune": "Ajuster l'échelle",
+    "fineTuneDescription": "Ajuster de 75 % à 200 % par incréments de 5 %",
+    "default": "Par défaut",
+    "comfortable": "Confortable",
+    "large": "Grand"
   },
   "actions": {
+    "apply": "Appliquer",
     "configure": "Configurer",
     "save": "Enregistrer les paramètres",
     "rerunWizard": "Relancer l'assistant",
-    "rerunWizardDescription": "Relancer l'assistant de configuration"
+    "rerunWizardDescription": "Relancer l'assistant de configuration",
+    "setActive": "Définir comme actif",
+    "cancel": "Annuler",
+    "add": "Ajouter",
+    "remove": "Supprimer",
+    "create": "Créer le profil",
+    "reset": "Réinitialiser"
   },
   "status": {
     "active": "Actif",
-    "usingLadybugDb": "Utilisation de la base de données intégrée LadybugDB"
+    "usingLadybugDb": "Utilisation de la base de données intégrée LadybugDB",
+    "connected": "Connecté"
   },
   "placeholders": {
     "ownerRepo": "propriétaire/dépôt",
@@ -163,7 +196,8 @@
         "label": "Révision QA",
         "description": "Assurance qualité et validation"
       }
-    }
+    },
+    "phaseConfig": "Configuration par phase (Modèle et réflexion)"
   },
   "apiProfiles": {
     "title": "Profils API",
@@ -316,5 +350,63 @@
       "title": "Aucun projet sélectionné",
       "description": "Sélectionnez un projet dans la barre latérale pour configurer ses paramètres."
     }
+  },
+  "integrations": {
+    "azureDevops": {
+      "description": "Connectez les Work Items Azure DevOps via l'API REST v7.1 avec synchronisation bidirectionnelle.",
+      "orgUrl": "URL de l'organisation",
+      "project": "Nom du projet",
+      "token": "Jeton d'accès personnel (PAT)"
+    },
+    "github": {
+      "description": "Synchronisez les tickets GitHub et automatisez les revues de Pull Requests.",
+      "token": "Jeton d'accès personnel"
+    },
+    "gitlab": {
+      "description": "Connectez les tickets GitLab et les pipelines de Merge Requests.",
+      "url": "URL de l'instance GitLab",
+      "project": "Chemin du projet",
+      "token": "Jeton d'accès personnel"
+    },
+    "linear": {
+      "description": "Synchronisation bidirectionnelle des tickets avec Linear.",
+      "apiKey": "Clé API Linear",
+      "team": "Clé d'équipe",
+      "teamPlaceholder": "ENG"
+    }
+  },
+  "accounts": {
+    "noProfiles": "Aucun profil API configuré.",
+    "namePlaceholder": "Nom du profil (ex. Anthropic Production)",
+    "keyPlaceholder": "Clé API (sk-ant-...)",
+    "urlPlaceholder": "URL de base (optionnel)",
+    "addProfile": "Ajouter un profil"
+  },
+  "advanced": {
+    "debugMode": "Mode débogage",
+    "debugModeDescription": "Activer les journaux détaillés et les outils de diagnostic",
+    "mcpServers": "Serveurs MCP",
+    "mcpServersDescription": "Configurer les points de terminaison Model Context Protocol (MCP)",
+    "mcpUrlPlaceholder": "https://mcp-server.example.com/sse",
+    "errorReporting": "Rapports d'erreurs anonymes",
+    "errorReportingDescription": "Aidez à améliorer Auto Claude en envoyant des rapports de plantage anonymes"
+  },
+  "profileEdit": {
+    "titleEdit": "Modifier le profil API",
+    "titleCreate": "Créer un profil API",
+    "description": "Configurez un point de terminaison compatible Anthropic et ses identifiants.",
+    "name": "Nom du profil",
+    "namePlaceholder": "Mon API personnalisée",
+    "apiKey": "Clé API",
+    "baseUrl": "URL de base",
+    "baseUrlHint": "Laisser vide pour utiliser le point de terminaison Anthropic par défaut"
+  },
+  "terminalFont": {
+    "presets": "Préréglages rapides",
+    "fontFamily": "Famille de police",
+    "fontSize": "Taille de police",
+    "lineHeight": "Hauteur de ligne",
+    "cursorStyle": "Style du curseur",
+    "preview": "Aperçu en direct du terminal"
   }
 }

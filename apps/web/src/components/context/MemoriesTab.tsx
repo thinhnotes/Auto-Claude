@@ -52,10 +52,14 @@ export function MemoriesTab({
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <input
+            data-testid="context-memories-search-input"
             className="w-full rounded-lg border border-border bg-background pl-10 pr-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
             placeholder={t("context.search.memories")}
             value={localQuery}
-            onChange={(e) => setLocalQuery(e.target.value)}
+            onChange={(e) => {
+              setLocalQuery(e.target.value);
+              onSearch(e.target.value);
+            }}
           />
           {searchLoading && (
             <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-muted-foreground" />

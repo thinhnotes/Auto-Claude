@@ -397,5 +397,64 @@ class TestGitCommandIntegration:
             assert call_kwargs["timeout"] == 5
 
 
+class TestDetectGitProviderAzureDevOps:
+    """Test git provider detection for Azure DevOps remote URLs."""
+
+    def test_azure_devops_https_dev_azure_com(self, temp_repo_dir):
+        mock_result = MagicMock(
+            returncode=0,
+            stdout="https://dev.azure.com/my-org/my-project/_git/my-repo\n",
+        )
+        with patch("core.git_provider.run_git", return_value=mock_result):
+            provider = detect_git_provider(temp_repo_dir)
+        assert provider == "azure_devops"
+
+    def test_azure_devops_https_visualstudio(self, temp_repo_dir):
+        mock_result = MagicMock(
+            returncode=0,
+            stdout="https://my-org.visualstudio.com/my-project/_git/my-repo\n",
+        )
+        with patch("core.git_provider.run_git", return_value=mock_result):
+            provider = detect_git_provider(temp_repo_dir)
+        assert provider == "azure_devops"
+
+    def test_azure_devops_ssh_v3(self, temp_repo_dir):
+        mock_result = MagicMock(
+            returncode=0,
+            stdout="git@ssh.dev.azure.com:v3/my-org/my-project/my-repo\n",
+        )
+        with patch("core.git_provider.run_git", return_value=mock_result):
+            provider = detect_git_provider(temp_repo_dir)
+        assert provider == "azure_devops"
+
+    def test_azure_devops_ssh_vs_ssh(self, temp_repo_dir):
+        mock_result = MagicMock(
+            returncode=0,
+            stdout="my-org@vs-ssh.visualstudio.com:v3/my-org/my-project/my-repo\n",
+        )
+        with patch("core.git_provider.run_git", return_value=mock_result):
+            provider = detect_git_provider(temp_repo_dir)
+        assert provider == "azure_devops"
+
+    def test_azure_devops_ssh_url_v3(self, temp_repo_dir):
+        mock_result = MagicMock(
+            returncode=0,
+            stdout="ssh://dev.azure.com:v3/my-org/my-project/my-repo\n",
+        )
+        with patch("core.git_provider.run_git", return_value=mock_result):
+            provider = detect_git_provider(temp_repo_dir)
+        assert provider == "azure_devops"
+
+    def test_classify_hostname_azure_devops(self):
+        assert _classify_hostname("dev.azure.com") == "azure_devops"
+        assert _classify_hostname("ssh.dev.azure.com") == "azure_devops"
+        assert _classify_hostname("my-org.visualstudio.com") == "azure_devops"
+        assert _classify_hostname("vs-ssh.visualstudio.com") == "azure_devops"
+        assert _classify_hostname("DEV.AZURE.COM") == "azure_devops"
+        assert _classify_hostname("my-org.visualstudio.com:8443") == "azure_devops"
+        assert _classify_hostname("notazure.com") == "unknown"
+        assert _classify_hostname("fake-visualstudio.com.evil.com") == "unknown"
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

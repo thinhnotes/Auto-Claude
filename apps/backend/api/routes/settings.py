@@ -27,10 +27,12 @@ _SETTINGS_PATH = _STORE_DIR / "settings.json"
 
 # Default application settings (mirrors DEFAULT_APP_SETTINGS from the Electron app)
 _DEFAULT_SETTINGS: dict[str, Any] = {
-    "defaultModel": "claude-sonnet-4-20250514",
+    "defaultModel": "gemma-4",
     "selectedAgentProfile": "auto",
+    "onboardingCompleted": True,
     "theme": "default",
     "colorMode": "dark",
+    "uiScale": 100,
     "language": "en",
     "spellCheckEnabled": True,
     "spellCheckLanguage": "en-US",
@@ -84,7 +86,7 @@ class SettingsUpdate(BaseModel):
 async def get_settings() -> dict[str, Any]:
     """Read application settings, merged with defaults."""
     settings = _load_settings()
-    return {"success": True, "data": settings}
+    return {"success": True, "data": settings, "settings": settings}
 
 
 @router.put("")
@@ -93,4 +95,4 @@ async def update_settings(body: SettingsUpdate) -> dict[str, Any]:
     settings = _load_settings()
     settings.update(body.model_dump(exclude_unset=True))
     _save_settings(settings)
-    return {"success": True, "data": settings}
+    return {"success": True, "data": settings, "settings": settings}

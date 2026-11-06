@@ -123,6 +123,44 @@ interface IdeationState {
 
 const MAX_LOG_ENTRIES = 500;
 
+function deduplicateIdeaList(ideas: Idea[]): Idea[] {
+  if (!Array.isArray(ideas)) return [];
+  const byKey = new Map<string, Idea>();
+  const seenIds = new Set<string>();
+
+  for (const idea of ideas) {
+    if (!idea || typeof idea !== "object") continue;
+    const normTitle = String(idea.title || "")
+      .trim()
+      .toLowerCase()
+      .replace(/\s+/g, " ");
+    if (!normTitle) continue;
+    const key = `${idea.type}::${normTitle}`;
+    const existing = byKey.get(key);
+    if (!existing) {
+      if (!seenIds.has(idea.id)) {
+        seenIds.add(idea.id);
+        byKey.set(key, idea);
+      } else {
+        byKey.set(key, { ...idea, id: `${idea.id}-${byKey.size + 1}` });
+      }
+    } else {
+      // Merge in-place, preserving user status (converted/reviewed/dismissed/archived) or taskId
+      byKey.set(key, {
+        ...existing,
+        ...idea,
+        id: existing.id,
+        status:
+          existing.status && existing.status !== "new"
+            ? existing.status
+            : idea.status,
+        taskId: existing.taskId || idea.taskId,
+      });
+    }
+  }
+  return Array.from(byKey.values());
+}
+
 export const useIdeationStore = create<IdeationState>((set) => ({
   currentProjectId: null,
   session: null,
@@ -149,7 +187,15 @@ export const useIdeationStore = create<IdeationState>((set) => ({
       return { currentProjectId: projectId };
     }),
 
-  setSession: (session) => set({ session }),
+  setSession: (session) =>
+    set({
+      session: session
+        ? {
+            ...session,
+            ideas: deduplicateIdeaList(session.ideas || []),
+          }
+        : null,
+    }),
   setIsGenerating: (isGenerating) => set({ isGenerating }),
   setGenerationStatus: (status) => set({ generationStatus: status }),
 
@@ -332,7 +378,7 @@ export const useIdeationStore = create<IdeationState>((set) => ({
           session: {
             id: `session-${Date.now()}`,
             projectId: state.currentProjectId || "",
-            ideas,
+            ideas: deduplicateIdeaList(ideas),
             createdAt: new Date(),
             updatedAt: new Date(),
           },
@@ -341,7 +387,7 @@ export const useIdeationStore = create<IdeationState>((set) => ({
       return {
         session: {
           ...state.session,
-          ideas: [...state.session.ideas, ...ideas],
+          ideas: deduplicateIdeaList([...state.session.ideas, ...ideas]),
           updatedAt: new Date(),
         },
       };

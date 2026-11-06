@@ -63,6 +63,7 @@ interface UIState {
 
   // Modal states
   isNewTaskDialogOpen: boolean;
+  isOpenProjectDialogOpen: boolean;
   isSettingsDialogOpen: boolean;
   isOnboardingOpen: boolean;
   isCommandPaletteOpen: boolean;
@@ -82,6 +83,7 @@ interface UIState {
 
   // Modal actions
   setNewTaskDialogOpen: (open: boolean) => void;
+  setOpenProjectDialogOpen: (open: boolean) => void;
   setSettingsDialogOpen: (open: boolean) => void;
   setOnboardingOpen: (open: boolean) => void;
   setCommandPaletteOpen: (open: boolean) => void;
@@ -103,6 +105,7 @@ export const useUIStore = create<UIState>((set, get) => ({
 
   // Modal states
   isNewTaskDialogOpen: false,
+  isOpenProjectDialogOpen: false,
   isSettingsDialogOpen: false,
   isOnboardingOpen: false,
   isCommandPaletteOpen: false,
@@ -126,6 +129,7 @@ export const useUIStore = create<UIState>((set, get) => ({
 
   // Modal actions
   setNewTaskDialogOpen: (open) => set({ isNewTaskDialogOpen: open }),
+  setOpenProjectDialogOpen: (open) => set({ isOpenProjectDialogOpen: open }),
   setSettingsDialogOpen: (open) => set({ isSettingsDialogOpen: open }),
   setOnboardingOpen: (open) => set({ isOnboardingOpen: open }),
   setCommandPaletteOpen: (open) => set({ isCommandPaletteOpen: open }),

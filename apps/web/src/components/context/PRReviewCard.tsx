@@ -37,7 +37,7 @@ export function PRReviewCard({ review }: PRReviewCardProps) {
             <p className="text-sm font-medium truncate">{review.title}</p>
             <div className={cn("flex items-center gap-1 shrink-0", config.color)}>
               <StatusIcon className="h-3.5 w-3.5" />
-              <span className="text-[10px] font-medium">{config.label}</span>
+              <span className="text-xs font-medium">{config.label}</span>
             </div>
           </div>
           <p className="text-xs text-muted-foreground mb-2">

@@ -32,7 +32,7 @@ export function PhaseCard({
         <h2 className="text-sm font-semibold text-muted-foreground flex items-center gap-2">
           <div
             className={cn(
-              "flex h-6 w-6 items-center justify-center rounded-full text-[10px] font-bold",
+              "flex h-6 w-6 items-center justify-center rounded-full text-xs font-bold",
               completedCount === features.length && features.length > 0
                 ? "bg-green-500/10 text-green-600"
                 : "bg-primary/10 text-primary",
@@ -47,7 +47,7 @@ export function PhaseCard({
           {phase.title}
         </h2>
         <span className="text-xs text-muted-foreground">
-          {completedCount}/{features.length} {t("roadmap.completed")}
+          {completedCount}/{features.length} {t("roadmap.completedLabel", "completed")}
         </span>
       </div>
 

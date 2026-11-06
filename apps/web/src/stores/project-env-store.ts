@@ -85,9 +85,12 @@ export async function loadProjectEnvConfig(
       return null;
     }
 
-    if (result.config) {
-      currentStore.setEnvConfig(projectId, result.config);
-      return result.config;
+    const cfg = (result as unknown as { config?: ProjectEnvConfig; data?: ProjectEnvConfig }).config
+      ?? (result as unknown as { data?: ProjectEnvConfig }).data
+      ?? null;
+    if (cfg) {
+      currentStore.setEnvConfig(projectId, cfg);
+      return cfg;
     } else {
       currentStore.setEnvConfigOnly(projectId, null);
       currentStore.setError("Failed to load environment config");

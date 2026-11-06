@@ -41,6 +41,7 @@ export function PreviewPanel({
           <div className="flex items-center gap-1 rounded-md border border-border p-1">
             <button
               type="button"
+              data-testid="changelog-mode-markdown-btn"
               className={`h-7 px-3 text-xs rounded-sm transition-colors ${
                 viewMode === "markdown"
                   ? "bg-primary text-primary-foreground"
@@ -52,6 +53,7 @@ export function PreviewPanel({
             </button>
             <button
               type="button"
+              data-testid="changelog-mode-preview-btn"
               className={`h-7 px-3 text-xs rounded-sm transition-colors ${
                 viewMode === "preview"
                   ? "bg-primary text-primary-foreground"
@@ -66,6 +68,7 @@ export function PreviewPanel({
         <div className="flex items-center gap-2">
           <button
             type="button"
+            data-testid="changelog-copy-btn"
             className="flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-sm hover:bg-accent transition-colors disabled:opacity-50"
             onClick={handleCopy}
             disabled={!canSave}
@@ -95,13 +98,14 @@ export function PreviewPanel({
         {generatedChangelog ? (
           viewMode === "markdown" ? (
             <textarea
+              data-testid="changelog-preview-textarea"
               className="flex-1 w-full h-full resize-none rounded-md border border-border bg-background p-4 font-mono text-sm focus:outline-none focus:ring-1 focus:ring-primary"
               value={generatedChangelog}
               onChange={(e) => onChangelogEdit(e.target.value)}
               placeholder="Generated changelog will appear here..."
             />
           ) : (
-            <div className="h-full overflow-auto">
+            <div className="h-full overflow-auto" data-testid="changelog-rendered-preview">
               <div className="prose prose-sm dark:prose-invert max-w-none whitespace-pre-wrap font-mono text-sm">
                 {generatedChangelog}
               </div>

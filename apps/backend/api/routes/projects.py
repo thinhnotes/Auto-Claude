@@ -17,6 +17,7 @@ from pydantic import BaseModel, Field
 
 from ..shared import (
     _AUTO_CLAUDE_DIRS,
+    _STORE_DIR,
     _load_store,
     _now_iso,
     _save_store,
@@ -106,7 +107,7 @@ async def list_projects() -> dict[str, Any]:
     if changed:
         _save_store(store)
 
-    return {"success": True, "data": projects}
+    return {"success": True, "data": projects, "projects": projects}
 
 
 @router.post("")
@@ -126,14 +127,19 @@ async def add_project(body: AddProjectRequest) -> dict[str, Any]:
     # Return existing project if path already registered
     for project in projects:
         if project["path"] == project_path:
-            return {"success": True, "data": project}
+            return {"success": True, "data": project, "project": project}
 
     name = body.name or os.path.basename(project_path)
+    new_id = str(uuid.uuid4())
     auto_build_path = _get_auto_build_path(project_path)
+    if not auto_build_path:
+        fallback_root = _STORE_DIR / "specs" / new_id
+        (fallback_root / "specs").mkdir(parents=True, exist_ok=True)
+        auto_build_path = str(fallback_root)
     now = _now_iso()
 
     new_project: dict[str, Any] = {
-        "id": str(uuid.uuid4()),
+        "id": new_id,
         "name": name,
         "path": project_path,
         "autoBuildPath": auto_build_path,
@@ -146,7 +152,7 @@ async def add_project(body: AddProjectRequest) -> dict[str, Any]:
     store["projects"] = projects
     _save_store(store)
 
-    return {"success": True, "data": new_project}
+    return {"success": True, "data": new_project, "project": new_project}
 
 
 @router.get("/{project_id}")

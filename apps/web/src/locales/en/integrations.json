@@ -20,14 +20,28 @@
       "ladybugDB": "LadybugDB",
       "language": "Language",
       "framework": "Framework",
-      "path": "Path"
+      "path": "Path",
+      "files": "Files",
+      "languages": "Languages",
+      "frameworks": "Frameworks",
+      "lastAnalyzed": "Last analyzed"
     },
     "empty": {
       "noMemories": "No Memories Yet",
-      "noMemoriesDescription": "As the AI works on tasks, it builds up memories about your codebase - patterns, gotchas, and discoveries that improve future work."
+      "noMemoriesDescription": "As the AI works on tasks, it builds up memories about your codebase - patterns, gotchas, and discoveries that improve future work.",
+      "noResults": "No results found",
+      "noResultsDescription": "Try a different search query.",
+      "noIndex": "No Project Index Found",
+      "noIndexDescription": "Click Refresh to analyze your project structure and create an index."
     },
     "search": {
       "memories": "Search memories..."
+    },
+    "projectIndex": {
+      "description": "AI-discovered knowledge about your codebase"
+    },
+    "errors": {
+      "indexFailed": "Failed to load project index"
     }
   },
   "github": {
@@ -63,7 +77,15 @@
         "open": "Open",
         "merged": "Merged",
         "closed": "Closed"
-      }
+      },
+      "aiReviewResult": "AI Review Result",
+      "reviewing": "Reviewing...",
+      "noPRs": "No pull requests found",
+      "draft": "Draft",
+      "reviewActions": "Review Actions",
+      "approve": "Approve",
+      "requestChanges": "Request Changes",
+      "addComment": "Add a comment..."
     }
   },
   "gitlab": {
@@ -73,7 +95,9 @@
       "notConnectedDescription": "Connect your GitLab project to sync issues and create tasks.",
       "configure": "Configure GitLab",
       "search": "Search issues...",
-      "createTask": "Create Task from Issue"
+      "createTask": "Create Task from Issue",
+      "noIssues": "No issues found",
+      "investigate": "Investigate"
     },
     "mrs": {
       "title": "Merge Requests",
@@ -95,7 +119,15 @@
         "opened": "Opened",
         "merged": "Merged",
         "closed": "Closed"
-      }
+      },
+      "reviewing": "Reviewing...",
+      "noMRs": "No merge requests found",
+      "reviewActions": "Review Actions",
+      "approved": "Approved",
+      "changesRequested": "Changes Requested",
+      "approve": "Approve",
+      "requestChanges": "Request Changes",
+      "addComment": "Add a comment..."
     }
   }
 }

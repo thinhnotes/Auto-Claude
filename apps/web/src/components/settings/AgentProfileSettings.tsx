@@ -94,8 +94,8 @@ export function AgentProfileSettings() {
           <p className="text-sm font-medium">{t("agentProfile.phaseConfig")}</p>
           {PHASES.map((phase) => (
             <div key={phase} className="flex items-center justify-between gap-4">
-              <span className="text-sm capitalize text-muted-foreground w-20">
-                {t(`agentProfile.phases.${phase}`)}
+              <span className="text-sm capitalize text-muted-foreground w-28">
+                {t(`agentProfile.phases.${phase}.label`)}
               </span>
               <div className="flex gap-2 flex-1">
                 <select className="flex-1 rounded-md border border-border bg-background px-2 py-1.5 text-xs">

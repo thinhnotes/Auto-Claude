@@ -219,7 +219,7 @@ function ToolUsageHistory({ tools }: { tools: InsightsToolUsage[] }) {
         <span>
           {tools.length} tool{tools.length !== 1 ? "s" : ""} used
         </span>
-        <span className="text-[10px]">{expanded ? "\u25B2" : "\u25BC"}</span>
+        <span className="text-xs">{expanded ? "\u25B2" : "\u25BC"}</span>
       </button>
 
       {expanded && (

@@ -16,18 +16,18 @@ export default function LoginPage() {
     return (
       <div className="flex h-screen flex-col items-center justify-center gap-4">
         <h1 className="text-2xl font-bold">{t("pages:login.selfHosted.title")}</h1>
-        <p className="text-gray-600">{t("pages:login.selfHosted.noLoginRequired")}</p>
+        <p className="text-muted-foreground">{t("pages:login.selfHosted.noLoginRequired")}</p>
         <a
           href="/"
           className="rounded-lg bg-blue-600 px-6 py-3 text-white hover:bg-blue-700"
         >
           {t("common:buttons.goToDashboard")}
         </a>
-        <div className="mt-8 rounded-lg border border-blue-200 bg-blue-50 p-4 text-center">
-          <p className="text-sm text-gray-600">
+        <div className="mt-8 rounded-lg border border-border bg-card p-4 text-center">
+          <p className="text-sm text-muted-foreground">
             {t("pages:login.selfHosted.cloudPromo")}
           </p>
-          <a href="https://autoclaude.com" className="text-sm text-blue-600 hover:underline">
+          <a href="https://autoclaude.com" className="text-sm text-blue-700 dark:text-blue-400 hover:underline">
             {t("pages:login.selfHosted.tryCloud")}
           </a>
         </div>

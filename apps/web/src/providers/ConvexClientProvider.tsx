@@ -2,6 +2,8 @@
 
 import { ReactNode } from "react";
 import { CONVEX_URL } from "@/lib/cloud-mode";
+
+export const APERANT_CONVEX_PROVIDER_VERSION = "2026-10-29-v4";
 import {
   getBetterAuthReact,
   getAuthClient,

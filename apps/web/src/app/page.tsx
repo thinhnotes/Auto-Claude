@@ -1,5 +1,6 @@
 "use client";
 
+import { APERANT_WEB_CHUNK_VERSION } from "../../chunk-bust-v3";
 import { CloudAuthenticated, CloudUnauthenticated, CloudAuthLoading } from "@/providers/AuthGate";
 import { useCloudMode } from "@/hooks/useCloudMode";
 import { getConvexReact, getConvexApi } from "@/lib/convex-imports";
@@ -28,7 +29,7 @@ function CloudDashboard() {
 }
 
 function SelfHostedDashboard() {
-  return <AppShell />;
+  return <AppShell data-chunk-version={APERANT_WEB_CHUNK_VERSION} />;
 }
 
 function LandingPage() {
@@ -54,14 +55,14 @@ export default function HomePage() {
 
   if (!isCloud) {
     return (
-      <main>
+      <main suppressHydrationWarning>
         <SelfHostedDashboard />
       </main>
     );
   }
 
   return (
-    <main>
+    <main suppressHydrationWarning>
       <CloudAuthLoading>
         <div className="flex h-screen items-center justify-center">{t("loading")}</div>
       </CloudAuthLoading>

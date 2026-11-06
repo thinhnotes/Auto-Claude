@@ -42,6 +42,7 @@ export function FeatureCard({
 
   return (
     <div
+      data-testid={`roadmap-feature-card-${feature.id}`}
       className="rounded-lg border border-border bg-card p-4 cursor-pointer hover:shadow-md transition-all"
       onClick={() => onSelect(feature)}
     >
@@ -49,7 +50,7 @@ export function FeatureCard({
         <h3 className="text-sm font-medium">{feature.title}</h3>
         <span
           className={cn(
-            "shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium",
+            "shrink-0 rounded-full px-2 py-0.5 text-xs font-medium",
             STATUS_COLORS[feature.status] ?? STATUS_COLORS.planned,
           )}
         >
@@ -64,7 +65,7 @@ export function FeatureCard({
           {feature.priority !== undefined && (
             <span
               className={cn(
-                "rounded-full px-2 py-0.5 text-[10px] font-medium",
+                "rounded-full px-2 py-0.5 text-xs font-medium",
                 PRIORITY_COLORS[
                   feature.priority <= 1
                     ? "high"
@@ -84,7 +85,7 @@ export function FeatureCard({
           {feature.taskOutcome && (
             <span
               className={cn(
-                "rounded-full px-2 py-0.5 text-[10px] font-medium",
+                "rounded-full px-2 py-0.5 text-xs font-medium",
                 feature.taskOutcome === "completed"
                   ? "bg-green-500/10 text-green-600"
                   : feature.taskOutcome === "failed"

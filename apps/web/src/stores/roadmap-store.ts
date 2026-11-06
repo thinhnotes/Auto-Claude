@@ -80,6 +80,10 @@ interface RoadmapState {
     featureId: string,
     status: RoadmapFeatureStatus,
   ) => void;
+  updateFeature: (
+    featureId: string,
+    updates: Partial<RoadmapFeature>,
+  ) => void;
   markFeatureDoneBySpecId: (
     specId: string,
     taskOutcome?: TaskOutcome,
@@ -151,6 +155,20 @@ export const useRoadmapStore = create<RoadmapState>((set) => ({
                     : {}),
                 }
               : f,
+          ),
+          updatedAt: new Date(),
+        },
+      };
+    }),
+
+  updateFeature: (featureId, updates) =>
+    set((state) => {
+      if (!state.roadmap) return state;
+      return {
+        roadmap: {
+          ...state.roadmap,
+          features: state.roadmap.features.map((f) =>
+            f.id === featureId ? { ...f, ...updates } : f,
           ),
           updatedAt: new Date(),
         },

@@ -122,7 +122,7 @@ export function GitHubPRsView({ projectId }: GitHubPRsViewProps) {
       <div className={cn("flex flex-col border-r border-border", selectedPR ? "w-96" : "flex-1")}>
         {/* Header */}
         <div className="flex items-center justify-between border-b border-border px-4 py-3">
-          <h1 className="text-sm font-semibold flex items-center gap-2">
+          <h1 className="text-lg font-semibold flex items-center gap-2">
             <GitPullRequest className="h-4 w-4" />
             {t("github.prs.title")}
           </h1>
@@ -147,7 +147,7 @@ export function GitHubPRsView({ projectId }: GitHubPRsViewProps) {
               <button
                 key={f}
                 className={cn(
-                  "rounded-full px-2.5 py-1 text-[10px] font-medium transition-colors",
+                  "rounded-full px-2.5 py-1 text-xs font-medium transition-colors",
                   filter === f ? "bg-primary text-primary-foreground" : "bg-secondary text-muted-foreground hover:text-foreground"
                 )}
                 onClick={() => setFilter(f)}
@@ -184,17 +184,17 @@ export function GitHubPRsView({ projectId }: GitHubPRsViewProps) {
                     {pr.labels.map((label) => (
                       <span
                         key={label.name}
-                        className="rounded-full border px-2 py-0.5 text-[10px]"
+                        className="rounded-full border px-2 py-0.5 text-xs"
                         style={{ borderColor: `#${label.color}40`, color: `#${label.color}` }}
                       >
                         {label.name}
                       </span>
                     ))}
-                    <span className={cn("rounded-full px-2 py-0.5 text-[10px] font-medium", reviewColor)}>
+                    <span className={cn("rounded-full px-2 py-0.5 text-xs font-medium", reviewColor)}>
                       {t(reviewKey)}
                     </span>
                   </div>
-                  <div className="mt-1 flex items-center gap-3 text-[10px] text-muted-foreground">
+                  <div className="mt-1 flex items-center gap-3 text-xs text-muted-foreground">
                     <span>{pr.author}</span>
                     <span>{pr.createdAt}</span>
                     <span className="text-green-600">+{pr.additions}</span>
@@ -236,19 +236,19 @@ export function GitHubPRsView({ projectId }: GitHubPRsViewProps) {
               <div className="grid grid-cols-4 gap-3">
                 <div className="rounded-md border border-border p-3 text-center">
                   <p className="text-lg font-semibold text-green-600">+{selectedPR.additions}</p>
-                  <p className="text-[10px] text-muted-foreground">{t("github.prs.stats.additions")}</p>
+                  <p className="text-xs text-muted-foreground">{t("github.prs.stats.additions")}</p>
                 </div>
                 <div className="rounded-md border border-border p-3 text-center">
                   <p className="text-lg font-semibold text-red-600">-{selectedPR.deletions}</p>
-                  <p className="text-[10px] text-muted-foreground">{t("github.prs.stats.deletions")}</p>
+                  <p className="text-xs text-muted-foreground">{t("github.prs.stats.deletions")}</p>
                 </div>
                 <div className="rounded-md border border-border p-3 text-center">
                   <p className="text-lg font-semibold">{selectedPR.files}</p>
-                  <p className="text-[10px] text-muted-foreground">{t("github.prs.stats.files")}</p>
+                  <p className="text-xs text-muted-foreground">{t("github.prs.stats.files")}</p>
                 </div>
                 <div className="rounded-md border border-border p-3 text-center">
                   <p className="text-lg font-semibold capitalize">{selectedPR.state}</p>
-                  <p className="text-[10px] text-muted-foreground">{t("github.prs.status")}</p>
+                  <p className="text-xs text-muted-foreground">{t("github.prs.status")}</p>
                 </div>
               </div>
 

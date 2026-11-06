@@ -98,19 +98,19 @@ export function PRDetail({
           <div className="grid grid-cols-4 gap-3">
             <div className="rounded-md border border-border p-3 text-center">
               <p className="text-lg font-semibold text-green-600">+{pr.additions}</p>
-              <p className="text-[10px] text-muted-foreground">{t("github.prs.stats.additions")}</p>
+              <p className="text-xs text-muted-foreground">{t("github.prs.stats.additions")}</p>
             </div>
             <div className="rounded-md border border-border p-3 text-center">
               <p className="text-lg font-semibold text-red-600">-{pr.deletions}</p>
-              <p className="text-[10px] text-muted-foreground">{t("github.prs.stats.deletions")}</p>
+              <p className="text-xs text-muted-foreground">{t("github.prs.stats.deletions")}</p>
             </div>
             <div className="rounded-md border border-border p-3 text-center">
               <p className="text-lg font-semibold">{pr.files}</p>
-              <p className="text-[10px] text-muted-foreground">{t("github.prs.stats.files")}</p>
+              <p className="text-xs text-muted-foreground">{t("github.prs.stats.files")}</p>
             </div>
             <div className="rounded-md border border-border p-3 text-center">
               <p className="text-lg font-semibold capitalize">{pr.state}</p>
-              <p className="text-[10px] text-muted-foreground">{t("github.prs.status")}</p>
+              <p className="text-xs text-muted-foreground">{t("github.prs.status")}</p>
             </div>
           </div>
 
@@ -157,7 +157,7 @@ export function PRDetail({
                     >
                       <div className="flex items-center gap-2 mb-1">
                         <span className={cn(
-                          "rounded-full px-1.5 py-0.5 text-[10px] font-medium",
+                          "rounded-full px-1.5 py-0.5 text-xs font-medium",
                           finding.severity === "critical" ? "bg-red-500/10 text-red-600" :
                           finding.severity === "warning" ? "bg-yellow-500/10 text-yellow-600" :
                           finding.severity === "praise" ? "bg-green-500/10 text-green-600" :

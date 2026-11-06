@@ -84,6 +84,11 @@ export const taskMachine = createMachine(
       plan_review: {
         on: {
           PLAN_APPROVED: { target: 'coding', actions: 'clearReviewReason' },
+          USER_RESUMED: { target: 'coding', actions: 'clearReviewReason' },
+          PLANNING_STARTED: { target: 'planning', actions: 'clearReviewReason' },
+          QA_STARTED: { target: 'qa_review', actions: 'clearReviewReason' },
+          QA_FIXING_STARTED: { target: 'qa_fixing', actions: 'clearReviewReason' },
+          MARK_DONE: 'done',
           USER_STOPPED: { target: 'backlog', actions: 'clearReviewReason' },
           PROCESS_EXITED: { target: 'error', guard: 'unexpectedExit', actions: 'setReviewReasonErrors' }
         }
@@ -91,6 +96,7 @@ export const taskMachine = createMachine(
       coding: {
         on: {
           QA_STARTED: 'qa_review',
+          QA_FIXING_STARTED: 'qa_fixing',
           // ALL_SUBTASKS_DONE means coder finished but QA hasn't started yet
           // Transition to qa_review - QA will emit QA_PASSED or QA_FAILED
           ALL_SUBTASKS_DONE: 'qa_review',
@@ -104,6 +110,7 @@ export const taskMachine = createMachine(
       qa_review: {
         on: {
           QA_FAILED: 'qa_fixing',
+          QA_FIXING_STARTED: 'qa_fixing',
           QA_PASSED: { target: 'human_review', actions: 'setReviewReasonCompleted' },
           QA_MAX_ITERATIONS: { target: 'error', actions: 'setReviewReasonErrors' },
           QA_AGENT_ERROR: { target: 'error', actions: 'setReviewReasonErrors' },
@@ -114,6 +121,7 @@ export const taskMachine = createMachine(
       qa_fixing: {
         on: {
           QA_FIXING_COMPLETE: 'qa_review',
+          QA_STARTED: 'qa_review',
           QA_FAILED: { target: 'human_review', actions: 'setReviewReasonQaRejected' },
           QA_PASSED: { target: 'human_review', actions: 'setReviewReasonCompleted' },
           QA_MAX_ITERATIONS: { target: 'error', actions: 'setReviewReasonErrors' },
@@ -128,7 +136,9 @@ export const taskMachine = createMachine(
           MARK_DONE: 'done',
           USER_RESUMED: { target: 'coding', actions: 'clearReviewReason' },
           // Allow restarting planning from human_review (e.g., incomplete task with no subtasks)
-          PLANNING_STARTED: { target: 'planning', actions: 'clearReviewReason' }
+          PLANNING_STARTED: { target: 'planning', actions: 'clearReviewReason' },
+          QA_STARTED: { target: 'qa_review', actions: 'clearReviewReason' },
+          QA_FIXING_STARTED: { target: 'qa_fixing', actions: 'clearReviewReason' }
         }
       },
       error: {

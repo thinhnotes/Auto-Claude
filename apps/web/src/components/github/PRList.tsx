@@ -153,26 +153,26 @@ export function PRList({
               </p>
               <div className="mt-1 flex items-center gap-2 flex-wrap">
                 {pr.draft && (
-                  <span className="rounded-full bg-yellow-500/10 text-yellow-600 px-2 py-0.5 text-[10px] font-medium">
+                  <span className="rounded-full bg-yellow-500/10 text-yellow-600 px-2 py-0.5 text-xs font-medium">
                     {t("github.prs.draft", "Draft")}
                   </span>
                 )}
                 {pr.labels.map((label) => (
                   <span
                     key={label.name}
-                    className="rounded-full border px-2 py-0.5 text-[10px]"
+                    className="rounded-full border px-2 py-0.5 text-xs"
                     style={{ borderColor: `#${label.color}40`, color: `#${label.color}` }}
                   >
                     {label.name}
                   </span>
                 ))}
                 {reviewKey && (
-                  <span className={cn("rounded-full px-2 py-0.5 text-[10px] font-medium", reviewColor)}>
+                  <span className={cn("rounded-full px-2 py-0.5 text-xs font-medium", reviewColor)}>
                     {t(reviewKey)}
                   </span>
                 )}
               </div>
-              <div className="mt-1 flex items-center gap-3 text-[10px] text-muted-foreground">
+              <div className="mt-1 flex items-center gap-3 text-xs text-muted-foreground">
                 <span>{pr.author}</span>
                 <span>{pr.createdAt}</span>
                 <span className="text-green-600">+{pr.additions}</span>

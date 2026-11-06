@@ -16,12 +16,35 @@ if (typeof globalThis.localStorage === "undefined") {
   };
 }
 
+const BACKEND_INTERNAL_URL = process.env.BACKEND_INTERNAL_URL || "http://127.0.0.1:8001";
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   output: "standalone",
+  allowedDevOrigins: [
+    "deeptutor.notesvnn.click",
+    "openhuman.notesvnn.click",
+    "multica.notesvnn.click",
+    "aperant.notesvnn.click",
+    "*.notesvnn.click",
+    "localhost",
+    "127.0.0.1",
+  ],
   transpilePackages: ["@auto-claude/ui", "@auto-claude/types"],
   turbopack: {
     root: path.resolve(__dirname, "../.."),
+  },
+  async rewrites() {
+    return [
+      {
+        source: "/api/:path*",
+        destination: `${BACKEND_INTERNAL_URL}/api/:path*`,
+      },
+      {
+        source: "/v1/:path*",
+        destination: `${BACKEND_INTERNAL_URL}/v1/:path*`,
+      },
+    ];
   },
 };
 

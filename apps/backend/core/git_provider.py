@@ -48,7 +48,7 @@ def detect_git_provider(project_dir: str | Path, remote_name: str | None = None)
         remote_url = result.stdout.strip()
 
         # Parse ssh:// URL format: ssh://[user@]host[:port]/path
-        ssh_url_match = re.match(r"^ssh://(?:[^@]+@)?([^:/]+)(?::\d+)?/", remote_url)
+        ssh_url_match = re.match(r"^ssh://(?:[^@]+@)?([^:/]+)(?::[^/]+)?/", remote_url)
         if ssh_url_match:
             hostname = ssh_url_match.group(1)
             return _classify_hostname(hostname)
@@ -78,22 +78,38 @@ def detect_git_provider(project_dir: str | Path, remote_name: str | None = None)
 
 
 def _classify_hostname(hostname: str) -> str:
-    """Classify a hostname as github, gitlab, or unknown.
+    """Classify a hostname as github, gitlab, azure_devops, or unknown.
 
     Args:
-        hostname: The git remote hostname (e.g., 'github.com', 'gitlab.example.com')
+        hostname: The git remote hostname (e.g., 'github.com', 'dev.azure.com', 'gitlab.example.com')
 
     Returns:
-        'github', 'gitlab', or 'unknown'
+        'github', 'gitlab', 'azure_devops', or 'unknown'
     """
     hostname_lower = hostname.lower()
 
+    # Strip port if present
+    clean_hostname = hostname_lower.split(":")[0]
+    # Strip user info if present
+    if "@" in clean_hostname:
+        clean_hostname = clean_hostname.split("@")[-1]
+
+    # Check for Azure DevOps (cloud and visualstudio.com)
+    # Match dev.azure.com, *.dev.azure.com, visualstudio.com, *.visualstudio.com
+    if (
+        clean_hostname == "dev.azure.com"
+        or clean_hostname.endswith(".dev.azure.com")
+        or clean_hostname == "visualstudio.com"
+        or clean_hostname.endswith(".visualstudio.com")
+    ):
+        return "azure_devops"
+
     # Check for GitHub (cloud and self-hosted/enterprise)
     # Match github.com, *.github.com, or domains where a segment is or starts with 'github'
-    hostname_parts = hostname_lower.split(".")
+    hostname_parts = clean_hostname.split(".")
     if (
-        hostname_lower == "github.com"
-        or hostname_lower.endswith(".github.com")
+        clean_hostname == "github.com"
+        or clean_hostname.endswith(".github.com")
         or any(
             part == "github" or part.startswith("github-") for part in hostname_parts
         )
@@ -103,8 +119,8 @@ def _classify_hostname(hostname: str) -> str:
     # Check for GitLab (cloud and self-hosted)
     # Match gitlab.com, *.gitlab.com, or domains where a segment is or starts with 'gitlab'
     if (
-        hostname_lower == "gitlab.com"
-        or hostname_lower.endswith(".gitlab.com")
+        clean_hostname == "gitlab.com"
+        or clean_hostname.endswith(".gitlab.com")
         or any(
             part == "gitlab" or part.startswith("gitlab-") for part in hostname_parts
         )

@@ -28,6 +28,7 @@ const DISPLAY_COLUMNS: TaskStatus[] = [
   "ai_review",
   "human_review",
   "done",
+  "remove",
 ];
 
 function createDefaultPreferences(): KanbanColumnPreferences {

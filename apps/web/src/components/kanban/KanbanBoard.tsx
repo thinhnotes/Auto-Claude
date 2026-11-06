@@ -23,9 +23,20 @@ import {
 } from "lucide-react";
 import { cn, Button, Tooltip, TooltipContent, TooltipTrigger } from "@auto-claude/ui";
 import type { Task, TaskStatus } from "@auto-claude/types";
-import { useTaskStore, loadTasks, updateTaskStatusAPI, startTask, stopTask } from "@/stores/task-store";
+import {
+  useTaskStore,
+  loadTasks,
+  updateTaskStatusAPI,
+  deleteTask,
+  startTask,
+  stopTask,
+  approveTask,
+  rejectTask,
+} from "@/stores/task-store";
 import { useProjectStore } from "@/stores/project-store";
 import { useUIStore } from "@/stores/ui-store";
+import { useTerminalStore } from "@/stores/terminal-store";
+import { apiClient } from "@/lib/data/api-client";
 import {
   useKanbanSettingsStore,
   DEFAULT_COLUMN_WIDTH,
@@ -35,6 +46,7 @@ import {
 import { KanbanColumn } from "./KanbanColumn";
 import { TaskCard } from "./TaskCard";
 import { TaskDetailModal } from "./TaskDetailModal";
+import { AzureDevOpsModal } from "./AzureDevOpsModal";
 
 const TASK_STATUS_COLUMNS: TaskStatus[] = [
   "backlog",
@@ -43,6 +55,7 @@ const TASK_STATUS_COLUMNS: TaskStatus[] = [
   "ai_review",
   "human_review",
   "done",
+  "remove",
 ];
 
 /**
@@ -57,19 +70,21 @@ function getVisualColumn(status: TaskStatus): TaskStatus {
 
 /** Valid drop transitions */
 const VALID_TRANSITIONS: Record<TaskStatus, TaskStatus[]> = {
-  backlog: ["queue"],
-  queue: ["in_progress", "backlog"],
-  in_progress: ["ai_review", "human_review", "error", "backlog"],
-  ai_review: ["in_progress", "done", "human_review", "error"],
-  human_review: ["in_progress", "done", "backlog"],
-  done: ["backlog"],
-  pr_created: ["done"],
-  error: ["in_progress", "human_review", "backlog"],
+  backlog: ["queue", "in_progress", "ai_review", "human_review", "done", "remove"],
+  queue: ["in_progress", "backlog", "ai_review", "human_review", "done", "remove"],
+  in_progress: ["ai_review", "human_review", "error", "backlog", "queue", "done", "remove"],
+  ai_review: ["in_progress", "done", "human_review", "error", "queue", "backlog", "remove"],
+  human_review: ["in_progress", "done", "backlog", "queue", "ai_review", "remove"],
+  done: ["backlog", "queue", "in_progress", "human_review", "ai_review", "remove"],
+  pr_created: ["done", "backlog", "queue", "in_progress", "human_review", "ai_review", "remove"],
+  error: ["in_progress", "human_review", "backlog", "queue", "done", "ai_review", "remove"],
+  remove: ["backlog", "queue", "in_progress", "ai_review", "human_review", "done"],
 };
 
 export function KanbanBoard() {
   const { t } = useTranslation("kanban");
-  const tasks = useTaskStore((s) => s.tasks);
+  const rawTasks = useTaskStore((s) => s.tasks);
+  const tasks = Array.isArray(rawTasks) ? rawTasks : [];
   const isLoading = useTaskStore((s) => s.isLoading);
   const taskOrder = useTaskStore((s) => s.taskOrder);
   const reorderTasksInColumn = useTaskStore((s) => s.reorderTasksInColumn);
@@ -80,9 +95,11 @@ export function KanbanBoard() {
   const setNewTaskDialogOpen = useUIStore((s) => s.setNewTaskDialogOpen);
 
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
+  const [initialModalTab, setInitialModalTab] = useState<string>("overview");
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [showArchived, setShowArchived] = useState(false);
   const [activeId, setActiveId] = useState<string | null>(null);
+  const [isAzureDevOpsOpen, setIsAzureDevOpsOpen] = useState(false);
 
   // Resize state
   const [resizingColumn, setResizingColumn] = useState<string | null>(null);
@@ -107,7 +124,7 @@ export function KanbanBoard() {
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   );
 
-  // Group tasks by visual column
+  // Group tasks by visual column and sort according to taskOrder
   const tasksByStatus = useMemo(() => {
     const grouped: Record<string, Task[]> = {};
     for (const status of TASK_STATUS_COLUMNS) {
@@ -120,8 +137,45 @@ export function KanbanBoard() {
         grouped[displayStatus].push(task);
       }
     }
+
+    // Sort tasks within each column according to taskOrder
+    for (const status of TASK_STATUS_COLUMNS) {
+      const columnTasks = grouped[status] || [];
+      const columnOrder = taskOrder?.[status];
+
+      if (Array.isArray(columnOrder) && columnOrder.length > 0) {
+        const currentTaskIds = new Set(columnTasks.map((t) => t.id));
+        const validOrder = columnOrder.filter((id) => typeof id === "string" && currentTaskIds.has(id));
+        const validOrderSet = new Set(validOrder);
+
+        // Tasks recorded in taskOrder: sort by their index in validOrder
+        const indexMap = new Map(validOrder.map((id, idx) => [id, idx]));
+        const orderedTasks = columnTasks
+          .filter((t) => validOrderSet.has(t.id))
+          .sort(
+            (a, b) =>
+              (indexMap.get(a.id) ?? 0) - (indexMap.get(b.id) ?? 0),
+          );
+
+        // Tasks not yet recorded in taskOrder: append at bottom, newest first
+        const unorderedTasks = columnTasks.filter((t) => !validOrderSet.has(t.id));
+        unorderedTasks.sort(
+          (a, b) =>
+            new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+        );
+
+        grouped[status] = [...orderedTasks, ...unorderedTasks];
+      } else {
+        // Fallback: sort by createdAt descending (newest first)
+        grouped[status].sort(
+          (a, b) =>
+            new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+        );
+      }
+    }
+
     return grouped;
-  }, [tasks, showArchived]);
+  }, [tasks, showArchived, taskOrder]);
 
   // Count archived tasks
   const archivedCount = useMemo(
@@ -152,6 +206,10 @@ export function KanbanBoard() {
 
   const handleDragOver = useCallback((_event: DragOverEvent) => {
     // Could highlight target column - handled by isOver in KanbanColumn
+  }, []);
+
+  const handleDragCancel = useCallback(() => {
+    setActiveId(null);
   }, []);
 
   const handleDragEnd = useCallback(
@@ -196,8 +254,12 @@ export function KanbanBoard() {
           saveTaskOrder(currentProjectId);
         }
       } else {
-        // Move to different column - validate transition
-        if (VALID_TRANSITIONS[task.status]?.includes(targetColumn)) {
+        // Move to different column - validate transition using raw status or visual source column
+        const validDestinations =
+          VALID_TRANSITIONS[task.status] ??
+          VALID_TRANSITIONS[sourceColumn] ??
+          [];
+        if (validDestinations.includes(targetColumn)) {
           moveTaskToColumnTop(activeTaskId, targetColumn, sourceColumn);
           saveTaskOrder(currentProjectId);
           updateTaskStatusAPI(currentProjectId, activeTaskId, targetColumn);
@@ -231,6 +293,101 @@ export function KanbanBoard() {
     },
     [currentProjectId],
   );
+
+  const handleApproveTask = useCallback(
+    (taskId: string, feedback?: string) => {
+      if (!currentProjectId) return;
+      void approveTask(currentProjectId, taskId, feedback);
+    },
+    [currentProjectId],
+  );
+
+  const handleRejectTask = useCallback(
+    (taskId: string, feedback: string) => {
+      if (!currentProjectId) return;
+      void rejectTask(currentProjectId, taskId, feedback);
+    },
+    [currentProjectId],
+  );
+
+  const handleTaskClick = useCallback((task: Task) => {
+    setInitialModalTab("overview");
+    setSelectedTask(task);
+  }, []);
+
+  const handleOpenTaskTerminal = useCallback(
+    (task: Task, mode: "modal" | "view" = "modal") => {
+      const projId = currentProjectId || task.projectId;
+      useTerminalStore.getState().openOrCreateTaskTerminal({
+        id: task.id,
+        title: task.title,
+        projectId: projId,
+        worktreePath: task.worktreePath,
+      });
+      if (projId) {
+        apiClient
+          .openTaskTerminal(projId, task.id, {
+            sessionId: `term-task-${task.id}`,
+            title: `Task: ${task.title}`,
+          })
+          .then((res) => {
+            if (res?.worktreePath) {
+              useTerminalStore
+                .getState()
+                .updateTerminal(`term-task-${task.id}`, {
+                  cwd: res.worktreePath,
+                  worktreePath: res.worktreePath,
+                  associatedTaskId: task.id,
+                  status: "running",
+                });
+            }
+          })
+          .catch(() => {});
+      }
+
+      if (mode === "view") {
+        setSelectedTask(null);
+        if (typeof window !== "undefined") {
+          window.dispatchEvent(
+            new CustomEvent("auto-claude:open-task-terminal-view", {
+              detail: { task },
+            }),
+          );
+        }
+        useUIStore.getState().setActiveView("terminals");
+      } else {
+        setInitialModalTab("terminal");
+        setSelectedTask(task);
+      }
+    },
+    [currentProjectId],
+  );
+
+  // Auto-poll tasks when any task is actively moving through the pipeline (queue, in_progress, ai_review)
+  const hasRunningTask = useMemo(
+    () =>
+      tasks.some(
+        (t) =>
+          t.status === "queue" ||
+          t.status === "in_progress" ||
+          t.status === "ai_review",
+      ),
+    [tasks],
+  );
+
+  useEffect(() => {
+    if (!currentProjectId || !hasRunningTask || activeId !== null) return;
+    const interval = setInterval(() => {
+      void loadTasks(currentProjectId);
+    }, 650);
+    return () => clearInterval(interval);
+  }, [currentProjectId, hasRunningTask, activeId]);
+
+  // Keep selectedTask synchronized with latest store updates
+  const liveSelectedTask = useMemo(() => {
+    if (!selectedTask) return null;
+    return tasks.find((t) => t.id === selectedTask.id) ?? selectedTask;
+  }, [selectedTask, tasks]);
 
   // Column resize handlers
   const handleResizeStart = useCallback(
@@ -313,6 +470,15 @@ export function KanbanBoard() {
             {t("board.refresh")}
           </button>
           <button
+            data-testid="kanban-azure-devops-btn"
+            className="flex items-center gap-1.5 rounded-md border border-blue-500/30 bg-blue-500/10 px-3 py-1.5 text-sm font-medium text-blue-700 dark:text-blue-300 hover:bg-blue-500/20 transition-colors"
+            onClick={() => setIsAzureDevOpsOpen(true)}
+          >
+            <span>🔷</span>
+            <span>Azure DevOps</span>
+          </button>
+          <button
+            data-testid="kanban-new-task-btn"
             className="flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-sm text-primary-foreground hover:bg-primary/90 transition-colors"
             onClick={() => setNewTaskDialogOpen(true)}
           >
@@ -329,6 +495,7 @@ export function KanbanBoard() {
         onDragStart={handleDragStart}
         onDragOver={handleDragOver}
         onDragEnd={handleDragEnd}
+        onDragCancel={handleDragCancel}
       >
         <div className="flex flex-1 overflow-x-auto p-4 gap-4">
           {TASK_STATUS_COLUMNS.map((status) => {
@@ -340,8 +507,13 @@ export function KanbanBoard() {
                 key={status}
                 status={status}
                 tasks={columnTasks}
-                onTaskClick={setSelectedTask}
+                onTaskClick={handleTaskClick}
                 onStatusChange={handleStatusChange}
+                onStart={handleStartTask}
+                onStop={handleStopTask}
+                onApprove={handleApproveTask}
+                onReject={handleRejectTask}
+                onOpenTerminal={handleOpenTaskTerminal}
                 isOver={false}
                 columnWidth={pref?.width ?? DEFAULT_COLUMN_WIDTH}
                 isCollapsed={pref?.isCollapsed ?? false}
@@ -358,7 +530,7 @@ export function KanbanBoard() {
         {/* Drag overlay */}
         <DragOverlay>
           {activeTask ? (
-            <div className="w-[280px] opacity-90 rotate-2">
+            <div className="w-[280px] opacity-90 rotate-2 pointer-events-none select-none">
               <TaskCard
                 task={activeTask}
                 onClick={() => {}}
@@ -369,10 +541,37 @@ export function KanbanBoard() {
       </DndContext>
 
       {/* Task Detail Modal */}
-      {selectedTask && (
+      {liveSelectedTask && (
         <TaskDetailModal
-          task={selectedTask}
-          onClose={() => setSelectedTask(null)}
+          task={liveSelectedTask}
+          initialTab={initialModalTab}
+          onClose={() => {
+            setSelectedTask(null);
+            setInitialModalTab("overview");
+          }}
+          onStart={handleStartTask}
+          onStop={handleStopTask}
+          onApprove={handleApproveTask}
+          onReject={handleRejectTask}
+          onDelete={(taskId) => {
+            if (currentProjectId) {
+              void deleteTask(currentProjectId, taskId);
+            }
+          }}
+          onOpenInTerminalsView={(t) => handleOpenTaskTerminal(t, "view")}
+        />
+      )}
+
+      {/* Azure DevOps Work Items Modal */}
+      {isAzureDevOpsOpen && currentProjectId && (
+        <AzureDevOpsModal
+          projectId={currentProjectId}
+          onClose={() => setIsAzureDevOpsOpen(false)}
+          onImported={() => {
+            if (currentProjectId) {
+              void loadTasks(currentProjectId);
+            }
+          }}
         />
       )}
     </div>

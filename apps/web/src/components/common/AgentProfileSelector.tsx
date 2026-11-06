@@ -74,7 +74,7 @@ export function AgentProfileSelector({
             <div className="flex flex-col">
               <span>{profile.name}</span>
               {profile.model && (
-                <span className="text-[10px] text-muted-foreground">{profile.model}</span>
+                <span className="text-xs text-muted-foreground">{profile.model}</span>
               )}
             </div>
           </SelectItem>

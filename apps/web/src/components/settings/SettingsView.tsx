@@ -74,16 +74,17 @@ export function SettingsView() {
   };
 
   return (
-    <div className="flex h-full overflow-hidden">
+    <div className="flex h-full overflow-hidden" data-testid="settings-view">
       {/* Sidebar */}
       <div className="w-56 border-r border-border bg-card/50 p-4">
-        <h1 className="text-sm font-semibold mb-4 px-3">{t("title")}</h1>
+        <h1 className="text-lg font-semibold mb-4 px-3">{t("title")}</h1>
         <nav className="space-y-1">
           {SECTIONS.map((section) => {
             const Icon = section.icon;
             return (
               <button
                 key={section.id}
+                data-testid={`settings-nav-${section.id}`}
                 className={cn(
                   "flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-sm transition-colors",
                   activeSection === section.id

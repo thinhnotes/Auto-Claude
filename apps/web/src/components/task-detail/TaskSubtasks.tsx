@@ -56,7 +56,7 @@ export function TaskSubtasks({ task }: TaskSubtasksProps) {
                   {subtask.files.map((file) => (
                     <span
                       key={file}
-                      className="inline-flex items-center gap-1 rounded bg-secondary px-1.5 py-0.5 text-[10px] text-muted-foreground"
+                      className="inline-flex items-center gap-1 rounded bg-secondary px-1.5 py-0.5 text-xs text-muted-foreground"
                     >
                       <FileText className="h-2.5 w-2.5" />
                       {file.split("/").pop()}

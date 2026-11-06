@@ -102,7 +102,7 @@ export function GitLabMRsView({ projectId }: GitLabMRsViewProps) {
       {/* MR List */}
       <div className={cn("flex flex-col border-r border-border", selectedMR ? "w-96" : "flex-1")}>
         <div className="flex items-center justify-between border-b border-border px-4 py-3">
-          <h1 className="text-sm font-semibold flex items-center gap-2">
+          <h1 className="text-lg font-semibold flex items-center gap-2">
             <GitMerge className="h-4 w-4" />
             {t("gitlab.mrs.title")}
           </h1>
@@ -126,7 +126,7 @@ export function GitLabMRsView({ projectId }: GitLabMRsViewProps) {
               <button
                 key={f}
                 className={cn(
-                  "rounded-full px-2.5 py-1 text-[10px] font-medium transition-colors",
+                  "rounded-full px-2.5 py-1 text-xs font-medium transition-colors",
                   filter === f ? "bg-primary text-primary-foreground" : "bg-secondary text-muted-foreground hover:text-foreground"
                 )}
                 onClick={() => setFilter(f)}
@@ -154,24 +154,24 @@ export function GitLabMRsView({ projectId }: GitLabMRsViewProps) {
                 </p>
                 <div className="mt-1 flex items-center gap-1.5 flex-wrap">
                   {mr.draft && (
-                    <span className="rounded-full bg-yellow-500/10 text-yellow-600 px-2 py-0.5 text-[10px] font-medium">
+                    <span className="rounded-full bg-amber-500/15 text-amber-800 dark:text-amber-300 px-2 py-0.5 text-xs font-medium">
                       {t("gitlab.mrs.draft")}
                     </span>
                   )}
                   {mr.labels.map((label) => (
                     <span
                       key={label}
-                      className="rounded-full bg-secondary px-2 py-0.5 text-[10px] text-muted-foreground"
+                      className="rounded-full bg-secondary px-2 py-0.5 text-xs text-muted-foreground"
                     >
                       {label}
                     </span>
                   ))}
                 </div>
-                <div className="mt-1 flex items-center gap-3 text-[10px] text-muted-foreground">
+                <div className="mt-1 flex items-center gap-3 text-xs text-muted-foreground">
                   <span>{mr.author}</span>
                   <span>{mr.createdAt}</span>
-                  <span className="text-green-600">+{mr.additions}</span>
-                  <span className="text-red-600">-{mr.deletions}</span>
+                  <span className="text-green-700 dark:text-green-300">+{mr.additions}</span>
+                  <span className="text-red-700 dark:text-red-300">-{mr.deletions}</span>
                   <span>{t("gitlab.mrs.stats.filesCount", { count: mr.changedFiles })}</span>
                 </div>
               </div>
@@ -184,7 +184,7 @@ export function GitLabMRsView({ projectId }: GitLabMRsViewProps) {
       {selectedMR && (
         <div className="flex-1 flex flex-col overflow-hidden">
           <div className="flex items-center justify-between border-b border-border px-6 py-3">
-            <h2 className="text-sm font-semibold">
+            <h2 className="text-base font-semibold">
               !{selectedMR.iid} {selectedMR.title}
             </h2>
             <div className="flex items-center gap-2">
@@ -206,20 +206,20 @@ export function GitLabMRsView({ projectId }: GitLabMRsViewProps) {
             <div className="max-w-2xl space-y-4">
               <div className="grid grid-cols-4 gap-3">
                 <div className="rounded-md border border-border p-3 text-center">
-                  <p className="text-lg font-semibold text-green-600">+{selectedMR.additions}</p>
-                  <p className="text-[10px] text-muted-foreground">{t("gitlab.mrs.stats.additions")}</p>
+                  <p className="text-lg font-semibold text-green-700 dark:text-green-300">+{selectedMR.additions}</p>
+                  <p className="text-xs text-muted-foreground">{t("gitlab.mrs.stats.additions")}</p>
                 </div>
                 <div className="rounded-md border border-border p-3 text-center">
-                  <p className="text-lg font-semibold text-red-600">-{selectedMR.deletions}</p>
-                  <p className="text-[10px] text-muted-foreground">{t("gitlab.mrs.stats.deletions")}</p>
+                  <p className="text-lg font-semibold text-red-700 dark:text-red-300">-{selectedMR.deletions}</p>
+                  <p className="text-xs text-muted-foreground">{t("gitlab.mrs.stats.deletions")}</p>
                 </div>
                 <div className="rounded-md border border-border p-3 text-center">
                   <p className="text-lg font-semibold">{selectedMR.changedFiles}</p>
-                  <p className="text-[10px] text-muted-foreground">{t("gitlab.mrs.stats.files")}</p>
+                  <p className="text-xs text-muted-foreground">{t("gitlab.mrs.stats.files")}</p>
                 </div>
                 <div className="rounded-md border border-border p-3 text-center">
                   <p className="text-lg font-semibold capitalize">{selectedMR.state}</p>
-                  <p className="text-[10px] text-muted-foreground">{t("gitlab.mrs.status")}</p>
+                  <p className="text-xs text-muted-foreground">{t("gitlab.mrs.status")}</p>
                 </div>
               </div>
 

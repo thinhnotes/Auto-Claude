@@ -39,7 +39,8 @@ export function ChatInput({
       <div className="max-w-3xl mx-auto flex gap-2">
         <textarea
           ref={textareaRef}
-          className="flex-1 resize-none rounded-lg border border-border bg-background px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary min-h-[80px]"
+          data-testid="insights-chat-input"
+          className="flex-1 resize-none rounded-lg border border-border bg-background px-4 py-2.5 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary min-h-[80px]"
           placeholder={t("insights.placeholder")}
           rows={3}
           value={value}
@@ -48,6 +49,7 @@ export function ChatInput({
           disabled={disabled || isLoading}
         />
         <button
+          data-testid="insights-send-btn"
           className={cn(
             "flex h-10 w-10 items-center justify-center rounded-lg transition-colors self-end",
             value.trim() && !isLoading

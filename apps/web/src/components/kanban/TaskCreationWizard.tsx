@@ -383,8 +383,15 @@ export function TaskCreationWizard({
         metadata: metadata as TaskMetadata,
       });
 
-      if (response.task) {
-        addTask(response.task);
+      const createdTask =
+        response.task ??
+        (response as unknown as { data?: Task }).data;
+      if (createdTask) {
+        addTask({
+          ...createdTask,
+          subtasks: Array.isArray(createdTask.subtasks) ? createdTask.subtasks : [],
+          logs: Array.isArray(createdTask.logs) ? createdTask.logs : [],
+        });
       }
 
       clearDraft(projectId);
@@ -504,6 +511,7 @@ export function TaskCreationWizard({
                   {t("wizard.taskTitle")}
                 </label>
                 <input
+                  data-testid="wizard-title-input"
                   className="mt-1.5 w-full rounded-lg border border-border bg-background px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
                   placeholder={t("wizard.titlePlaceholder")}
                   value={title}
@@ -537,6 +545,7 @@ export function TaskCreationWizard({
                   </div>
                 ) : (
                   <textarea
+                    data-testid="wizard-description-input"
                     className="mt-1.5 w-full resize-none rounded-lg border border-border bg-background px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
                     placeholder={t("wizard.descriptionPlaceholder")}
                     rows={8}
@@ -796,28 +805,53 @@ export function TaskCreationWizard({
               </>
             )}
           </button>
-          <button
-            className="flex items-center gap-1.5 rounded-md bg-primary px-4 py-2 text-sm text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50"
-            disabled={!canProceed || isSubmitting}
-            onClick={goNext}
-          >
-            {isSubmitting ? (
-              <>
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                {t("wizard.creating")}
-              </>
-            ) : stepIndex === STEPS.length - 1 ? (
-              <>
-                <Sparkles className="h-3.5 w-3.5" />
-                {t("wizard.createTask")}
-              </>
-            ) : (
-              <>
-                {t("wizard.continue")}
-                <ArrowRight className="h-3.5 w-3.5" />
-              </>
+          <div className="flex items-center gap-2">
+            {stepIndex < STEPS.length - 1 && canProceed && (
+              <button
+                type="button"
+                data-testid="wizard-quick-create-btn"
+                className="flex items-center gap-1.5 rounded-md border border-primary/40 bg-primary/10 px-4 py-2 text-sm font-medium text-primary hover:bg-primary hover:text-primary-foreground transition-colors disabled:opacity-50"
+                disabled={!canProceed || isSubmitting}
+                onClick={handleSubmit}
+              >
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    {t("wizard.creating")}
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="h-3.5 w-3.5" />
+                    {t("wizard.createTask")}
+                  </>
+                )}
+              </button>
             )}
-          </button>
+            <button
+              type="button"
+              data-testid="wizard-next-or-create-btn"
+              className="flex items-center gap-1.5 rounded-md bg-primary px-4 py-2 text-sm text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50"
+              disabled={!canProceed || isSubmitting}
+              onClick={goNext}
+            >
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  {t("wizard.creating")}
+                </>
+              ) : stepIndex === STEPS.length - 1 ? (
+                <>
+                  <Sparkles className="h-3.5 w-3.5" />
+                  {t("wizard.createTask")}
+                </>
+              ) : (
+                <>
+                  {t("wizard.continue")}
+                  <ArrowRight className="h-3.5 w-3.5" />
+                </>
+              )}
+            </button>
+          </div>
         </div>
       </div>
     </div>

@@ -90,7 +90,7 @@ export function GenerationProgress({
               >
                 {TYPE_LABELS[type]}
               </span>
-              <span className="text-[11px] text-muted-foreground capitalize">
+              <span className="text-xs text-muted-foreground capitalize">
                 {state}
               </span>
             </div>
@@ -101,7 +101,7 @@ export function GenerationProgress({
         {logs.length > 0 && (
           <div className="max-h-32 overflow-y-auto rounded-md border border-border bg-secondary/50 p-3">
             {logs.slice(-10).map((log, idx) => (
-              <p key={idx} className="text-[11px] text-muted-foreground font-mono">
+              <p key={idx} className="text-xs text-muted-foreground font-mono">
                 {log}
               </p>
             ))}

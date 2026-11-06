@@ -116,7 +116,7 @@ export function IssueList({
                 {issue.labels.map((label) => (
                   <span
                     key={label.name}
-                    className="rounded-full border px-2 py-0.5 text-[10px]"
+                    className="rounded-full border px-2 py-0.5 text-xs"
                     style={{
                       borderColor: `#${label.color}40`,
                       color: `#${label.color}`,
@@ -127,7 +127,7 @@ export function IssueList({
                 ))}
               </div>
             )}
-            <div className="mt-1 flex items-center gap-3 text-[10px] text-muted-foreground">
+            <div className="mt-1 flex items-center gap-3 text-xs text-muted-foreground">
               <span>{issue.author.login}</span>
               <span>
                 {new Date(issue.createdAt).toLocaleDateString()}
@@ -145,7 +145,7 @@ export function IssueList({
               e.stopPropagation();
               onInvestigate(issue);
             }}
-            className="shrink-0 rounded-md px-2 py-1 text-[10px] text-muted-foreground opacity-0 transition-all hover:bg-accent group-hover:opacity-100"
+            className="shrink-0 rounded-md px-2 py-1 text-xs text-muted-foreground opacity-0 transition-all hover:bg-accent group-hover:opacity-100"
             title="Investigate"
           >
             Investigate

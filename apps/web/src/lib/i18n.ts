@@ -71,12 +71,15 @@ export const resources = {
   },
 } as const;
 
-i18n
-  .use(LanguageDetector)
-  .use(initReactI18next)
-  .init({
+if (!i18n.isInitialized) {
+  if (typeof window !== "undefined") {
+    i18n.use(LanguageDetector);
+  }
+  i18n.use(initReactI18next).init({
     resources,
+    lng: "en",
     fallbackLng: "en",
+    initImmediate: false,
     defaultNS,
     ns: [
       "common",
@@ -97,10 +100,14 @@ i18n
     interpolation: {
       escapeValue: false, // React already escapes values
     },
+    react: {
+      useSuspense: false,
+    },
     detection: {
       order: ["localStorage", "navigator"],
       caches: ["localStorage"],
     },
   });
+}
 
 export default i18n;

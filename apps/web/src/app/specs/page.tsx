@@ -24,14 +24,14 @@ export default function SpecsPage() {
       </div>
       <div className="mt-8">
         {specs.length === 0 ? (
-          <p className="text-gray-500">{t("pages:specs.empty")}</p>
+          <p className="text-muted-foreground">{t("pages:specs.empty")}</p>
         ) : (
           <ul className="space-y-2">
             {specs.map((spec: any) => (
               <li key={spec._id}>
                 <a
                   href={`/specs/${spec._id}`}
-                  className="block rounded-lg border p-4 hover:bg-gray-50"
+                  className="block rounded-lg border border-border p-4 hover:bg-muted"
                 >
                   {spec.name}
                 </a>

@@ -90,6 +90,9 @@ export function Sidebar() {
     return (
       <button
         key={item.id}
+        data-testid={`sidebar-nav-${item.id}`}
+        aria-label={t(item.labelKey)}
+        title={t(item.labelKey)}
         onClick={() => setActiveView(item.id)}
         disabled={!activeProjectId}
         className={cn(
@@ -105,7 +108,7 @@ export function Sidebar() {
           <>
             <span className="flex-1 text-left">{t(item.labelKey)}</span>
             {item.shortcut && (
-              <kbd className="pointer-events-none hidden h-5 select-none items-center gap-1 rounded-md border border-border bg-secondary px-1.5 font-mono text-[10px] font-medium text-muted-foreground sm:flex">
+              <kbd className="pointer-events-none hidden h-5 select-none items-center gap-1 rounded-md border border-border bg-secondary px-1.5 font-mono text-xs font-medium text-muted-foreground sm:flex">
                 {item.shortcut}
               </kbd>
             )}
@@ -170,9 +173,9 @@ export function Sidebar() {
           )}
         >
           {!isCollapsed && (
-            <h3 className="mb-2 px-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            <h2 className="mb-2 px-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
               {t("sidebar.sectionProject")}
-            </h3>
+            </h2>
           )}
           <nav className="space-y-1">{visibleNavItems.map(renderNavItem)}</nav>
         </div>
@@ -195,6 +198,9 @@ export function Sidebar() {
           )}
         >
           <button
+            data-testid="sidebar-nav-settings"
+            aria-label={t("sidebar.actions.settings")}
+            title={t("sidebar.actions.settings")}
             className={cn(
               "flex items-center rounded-md hover:bg-accent transition-colors",
               isCollapsed ? "h-8 w-8 justify-center" : "flex-1 gap-2 px-3 py-1.5 text-sm justify-start"

@@ -19,7 +19,7 @@ function CloudPRQueue() {
     return (
       <div className="flex h-screen flex-col items-center justify-center gap-4 p-8">
         <h1 className="text-2xl font-bold">{t("pages:prQueue.title")}</h1>
-        <p className="text-gray-600">
+        <p className="text-muted-foreground">
           {t("pages:prQueue.description")}
         </p>
         <a
@@ -45,14 +45,14 @@ function CloudPRQueue() {
       <h1 className="text-2xl font-bold">{t("pages:prQueue.title")}</h1>
       <div className="mt-8">
         {prs.length === 0 ? (
-          <p className="text-gray-500">{t("pages:prQueue.empty")}</p>
+          <p className="text-muted-foreground">{t("pages:prQueue.empty")}</p>
         ) : (
           <ul className="space-y-2">
             {prs.map((pr: any) => (
-              <li key={pr._id} className="rounded-lg border p-4">
+              <li key={pr._id} className="rounded-lg border border-border p-4">
                 <div className="flex items-center justify-between">
                   <span className="font-semibold">{t("pages:prQueue.prNumber", { number: pr.prNumber })} {pr.title}</span>
-                  <span className="rounded bg-gray-100 px-2 py-1 text-sm">{pr.status}</span>
+                  <span className="rounded bg-secondary px-2 py-1 text-sm text-secondary-foreground">{pr.status}</span>
                 </div>
               </li>
             ))}

@@ -18,7 +18,22 @@ interface ApiProfile {
  */
 export function AccountSettings() {
   const { t } = useTranslation("settings");
-  const [profiles, setProfiles] = useState<ApiProfile[]>([]);
+  const [profiles, setProfiles] = useState<ApiProfile[]>([
+    {
+      id: "local-mi50-gemma4",
+      name: "Local AMD Instinct MI50 GPU — Gemma 4 / Qwen 3.8 MoE",
+      apiKey: "hungthinh-secret-key",
+      baseUrl: "http://127.0.0.1:8089/v1 (via Anthropic Bridge :8001)",
+      isActive: true,
+    },
+    {
+      id: "local-cliproxy-notesvnn",
+      name: "Local CLIProxy Unified (gemma-4, qwen2.5-coder:14b, gpt-6-luna)",
+      apiKey: "hungthinh-secret-key",
+      baseUrl: "https://gcliproxy.notesvnn.click/v1 (127.0.0.1:8317)",
+      isActive: false,
+    },
+  ]);
   const [showKey, setShowKey] = useState<string | null>(null);
   const [isAdding, setIsAdding] = useState(false);
   const [newName, setNewName] = useState("");

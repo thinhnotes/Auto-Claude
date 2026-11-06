@@ -47,9 +47,21 @@
       "title": "Agent Settings",
       "description": "Default model and framework"
     },
+    "agentProfile": {
+      "title": "Agent Profile",
+      "description": "Default model and thinking level"
+    },
+    "terminalFont": {
+      "title": "Terminal Font",
+      "description": "Customize terminal font family and size"
+    },
     "github": {
       "title": "GitHub Integration",
       "description": "Connect and configure your GitHub repository."
+    },
+    "integrations": {
+      "title": "Integrations",
+      "description": "Connect Azure DevOps, GitHub, GitLab, and Linear issue trackers."
     },
     "notifications": {
       "title": "Notifications",
@@ -68,23 +80,68 @@
     "language": "Language",
     "languageDescription": "Select your preferred language",
     "theme": "Theme",
+    "colorTheme": "Color Theme",
+    "uiScale": "UI Scale",
     "claudeApi": "Claude API",
     "claudeApiDescription": "Configure your Claude API authentication for AI features.",
     "repository": "Repository",
     "repositoryLabel": "Repository (owner/repo)",
     "mainBranch": "Main Branch",
     "memorySystem": "Memory System",
-    "memorySystemDescription": "Configure the AI memory system for your projects."
+    "memorySystemDescription": "Configure the AI memory system for your projects.",
+    "defaultModel": "Default AI Model",
+    "defaultModelDescription": "Select the default model used across agent workflows"
+  },
+  "scale": {
+    "presets": "Scale Presets",
+    "presetsDescription": "Quick scale options for common preferences",
+    "fineTune": "Fine-tune Scale",
+    "fineTuneDescription": "Adjust from 75% to 200% in 5% increments",
+    "default": "Default",
+    "comfortable": "Comfortable",
+    "large": "Large"
   },
   "actions": {
+    "apply": "Apply",
     "configure": "Configure",
     "save": "Save Settings",
     "rerunWizard": "Re-run Wizard",
-    "rerunWizardDescription": "Start the setup wizard again"
+    "rerunWizardDescription": "Start the setup wizard again",
+    "setActive": "Set as Active",
+    "cancel": "Cancel",
+    "add": "Add",
+    "remove": "Remove",
+    "create": "Create Profile",
+    "reset": "Reset to Defaults"
   },
   "status": {
     "active": "Active",
+    "connected": "Connected",
     "usingLadybugDb": "Using LadybugDB embedded database"
+  },
+  "integrations": {
+    "azureDevops": {
+      "description": "Connect Azure DevOps Work Items (Bugs, User Stories, Tasks) via REST API v7.1 with 2-way Kanban status & comment sync.",
+      "orgUrl": "Organization URL",
+      "project": "Project Name",
+      "token": "Personal Access Token (PAT)"
+    },
+    "github": {
+      "description": "Sync GitHub Issues and automate Pull Request reviews.",
+      "token": "Personal Access Token"
+    },
+    "gitlab": {
+      "description": "Connect GitLab issues and Merge Request pipelines.",
+      "url": "GitLab Instance URL",
+      "project": "Project Path",
+      "token": "Personal Access Token"
+    },
+    "linear": {
+      "description": "Two-way issue sync with Linear teams.",
+      "apiKey": "Linear API Key",
+      "team": "Team Key",
+      "teamPlaceholder": "ENG"
+    }
   },
   "placeholders": {
     "ownerRepo": "owner/repo",
@@ -163,7 +220,8 @@
         "label": "QA Review",
         "description": "Quality assurance and validation"
       }
-    }
+    },
+    "phaseConfig": "Per-Phase Model & Thinking Configuration"
   },
   "apiProfiles": {
     "title": "API Profiles",
@@ -316,5 +374,39 @@
       "title": "No Project Selected",
       "description": "Select a project from the sidebar to configure its settings."
     }
+  },
+  "accounts": {
+    "noProfiles": "No API profiles configured yet.",
+    "namePlaceholder": "Profile name (e.g., Anthropic Production)",
+    "keyPlaceholder": "API Key (sk-ant-...)",
+    "urlPlaceholder": "Base URL (optional, e.g., https://api.anthropic.com)",
+    "addProfile": "Add Profile"
+  },
+  "advanced": {
+    "debugMode": "Debug Mode",
+    "debugModeDescription": "Enable verbose logging and diagnostic tools",
+    "mcpServers": "MCP Servers",
+    "mcpServersDescription": "Configure Model Context Protocol (MCP) server endpoints",
+    "mcpUrlPlaceholder": "https://mcp-server.example.com/sse",
+    "errorReporting": "Anonymous Error Reporting",
+    "errorReportingDescription": "Help improve Auto Claude by sending anonymous crash reports"
+  },
+  "profileEdit": {
+    "titleEdit": "Edit API Profile",
+    "titleCreate": "Create API Profile",
+    "description": "Configure an Anthropic-compatible API endpoint and credentials.",
+    "name": "Profile Name",
+    "namePlaceholder": "My Custom API",
+    "apiKey": "API Key",
+    "baseUrl": "Base URL",
+    "baseUrlHint": "Leave blank for default Anthropic endpoint"
+  },
+  "terminalFont": {
+    "presets": "Quick Presets",
+    "fontFamily": "Font Family",
+    "fontSize": "Font Size",
+    "lineHeight": "Line Height",
+    "cursorStyle": "Cursor Style",
+    "preview": "Live Terminal Preview"
   }
 }

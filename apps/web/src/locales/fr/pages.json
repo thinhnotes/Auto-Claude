@@ -51,5 +51,6 @@
   },
   "cloudUpgrade": {
     "learnMore": "En savoir plus sur Auto Claude Cloud"
-  }
+  },
+  "loading": "Chargement..."
 }

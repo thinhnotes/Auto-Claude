@@ -20,7 +20,7 @@ function CloudTeams() {
     return (
       <div className="flex h-screen flex-col items-center justify-center gap-4 p-8">
         <h1 className="text-2xl font-bold">{t("pages:teams.singleTitle")}</h1>
-        <p className="text-gray-600">{t("pages:teams.description")}</p>
+        <p className="text-muted-foreground">{t("pages:teams.description")}</p>
         <a
           href="/settings"
           className="rounded-lg bg-blue-600 px-6 py-3 text-white hover:bg-blue-700"
@@ -48,14 +48,14 @@ function CloudTeams() {
       </div>
       <div className="mt-8">
         {teams.length === 0 ? (
-          <p className="text-gray-500">{t("pages:teams.empty")}</p>
+          <p className="text-muted-foreground">{t("pages:teams.empty")}</p>
         ) : (
           <ul className="space-y-2">
             {teams.map((team: any) => (
               <li key={team._id}>
                 <a
                   href={`/teams/${team._id}`}
-                  className="block rounded-lg border p-4 hover:bg-gray-50"
+                  className="block rounded-lg border border-border p-4 hover:bg-muted"
                 >
                   {team.name}
                 </a>

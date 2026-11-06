@@ -5,7 +5,7 @@
 import type { ThinkingLevel, PhaseModelConfig, PhaseThinkingConfig } from './settings';
 import type { ExecutionPhase, CompletablePhase } from './constants';
 
-export type TaskStatus = 'backlog' | 'queue' | 'in_progress' | 'ai_review' | 'human_review' | 'done' | 'pr_created' | 'error';
+export type TaskStatus = 'backlog' | 'queue' | 'in_progress' | 'ai_review' | 'human_review' | 'done' | 'pr_created' | 'error' | 'remove';
 
 // Maps task status columns to ordered task IDs for kanban board reordering
 export type TaskOrderState = Record<TaskStatus, string[]>;
@@ -175,7 +175,7 @@ export type TaskCategory =
 
 export interface TaskMetadata {
   // Origin tracking
-  sourceType?: 'ideation' | 'manual' | 'imported' | 'insights' | 'roadmap' | 'linear' | 'github' | 'gitlab';
+  sourceType?: 'ideation' | 'manual' | 'imported' | 'insights' | 'roadmap' | 'linear' | 'github' | 'gitlab' | 'azure_devops';
   ideationType?: string;  // e.g., 'code_improvements', 'security_hardening'
   ideaId?: string;  // Reference to original idea if converted
   featureId?: string;  // Reference to roadmap feature if from roadmap
@@ -188,6 +188,12 @@ export interface TaskMetadata {
   githubBatchTheme?: string;  // Theme/title of the GitHub issue batch
   gitlabIssueIid?: number;  // Reference to GitLab issue IID if from GitLab
   gitlabUrl?: string;  // GitLab issue URL
+  azureDevOpsId?: number;  // Reference to Azure DevOps Work Item ID
+  azureDevOpsType?: string;  // 'Bug' | 'User Story' | 'Task'
+  azureDevOpsState?: string;  // 'New' | 'Active' | 'Resolved' | 'Done'
+  azureDevOpsPriority?: number;  // 1 | 2 | 3 | 4
+  azureDevOpsUrl?: string;  // Azure DevOps Work Item URL
+  tags?: string[];
 
   // Classification
   category?: TaskCategory;
@@ -243,6 +249,28 @@ export interface TaskMetadata {
   archivedInVersion?: string;  // Version in which task was archived (from changelog)
 }
 
+export interface TaskReviewComment {
+  id: string;
+  comment: string;
+  filePath?: string;
+  lineNumber?: number;
+  createdAt: string;
+  status: 'pending' | 'fixing' | 'addressed';
+  aiResponse?: string;
+  modifiedFiles?: string[];
+}
+
+export interface TaskFileDiff {
+  path: string;
+  status: 'created' | 'modified' | 'deleted';
+  additions: number;
+  deletions: number;
+  oldContent: string;
+  newContent: string;
+  unifiedDiff: string;
+  updatedAt?: string;
+}
+
 export interface Task {
   id: string;
   specId: string;
@@ -256,11 +284,15 @@ export interface Task {
   logs: string[];
   metadata?: TaskMetadata;  // Rich metadata from ideation or manual entry
   executionProgress?: ExecutionProgress;  // Real-time execution progress
+  reviewComments?: TaskReviewComment[];  // Human review comments & AI fix history
+  fileDiffs?: TaskFileDiff[];  // Per-file code diffs and contents
   releasedInVersion?: string;  // Version in which this task was released
   stagedInMainProject?: boolean;  // True if changes were staged to main project (worktree merged with --no-commit)
   stagedAt?: string;  // ISO timestamp when changes were staged
   location?: 'main' | 'worktree';  // Where task was loaded from (main project or worktree)
   specsPath?: string;  // Full path to specs directory for this task
+  worktreePath?: string;  // Full path to the task's dedicated source tree / worktree directory
+  worktreeBranch?: string;  // Branch name for the task's worktree (e.g., auto-claude/<specId>)
   createdAt: Date;
   updatedAt: Date;
 }
@@ -280,6 +312,8 @@ export interface ImplementationPlan {
   status?: TaskStatus;
   planStatus?: string;
   reviewReason?: ReviewReason;
+  reviewComments?: TaskReviewComment[];
+  fileDiffs?: TaskFileDiff[];
   xstateState?: string;  // Persisted XState machine state for restoration (e.g., 'planning', 'coding')
   lastEvent?: {
     eventId: string;
@@ -493,6 +527,13 @@ export interface WorktreeListItem {
   deletions?: number;
   /** True if git commands failed on this worktree (corrupted/orphaned state) */
   isOrphaned?: boolean;
+  status?: 'active' | 'merged' | 'discarded';
+  files?: string[];
+  createdAt?: string;
+  updatedAt?: string;
+  mergedAt?: string;
+  mergeCommitSha?: string;
+  mergeCommitMessage?: string;
 }
 
 /**

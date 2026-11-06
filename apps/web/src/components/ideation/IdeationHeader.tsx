@@ -64,6 +64,7 @@ export function IdeationHeader({
           </>
         )}
         <button
+          data-testid="ideation-generate-btn"
           className={cn(
             "flex h-8 items-center gap-1.5 rounded-md bg-primary px-4 text-xs font-medium text-primary-foreground hover:bg-primary/90 transition-colors",
             isGenerating && "opacity-50 pointer-events-none",

@@ -29,14 +29,14 @@ export function TaskCard({ task, isSelected, onToggle }: TaskCardProps) {
       <div className="flex-1 min-w-0">
         <h3 className="font-medium text-sm leading-tight">{task.title}</h3>
         <div className="flex items-center gap-2 mt-2">
-          <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
+          <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
             #{task.specNumber}
           </span>
           <span
             className={cn(
-              "rounded-full px-2 py-0.5 text-[10px] font-medium",
+              "rounded-full px-2 py-0.5 text-xs font-medium",
               task.status === "done"
-                ? "bg-green-500/10 text-green-600"
+                ? "bg-green-500/15 text-green-800 dark:text-green-300"
                 : "bg-muted text-muted-foreground",
             )}
           >

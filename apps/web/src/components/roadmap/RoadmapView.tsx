@@ -12,12 +12,19 @@ import {
 } from "lucide-react";
 import { cn } from "@auto-claude/ui";
 import { useRoadmapStore } from "@/stores/roadmap-store";
-import type { RoadmapFeature } from "@/stores/roadmap-store";
+import type {
+  RoadmapFeature,
+  RoadmapFeatureStatus,
+} from "@/stores/roadmap-store";
+import { loadTasks } from "@/stores/task-store";
 import { apiClient } from "@/lib/data/api-client";
 import { RoadmapHeader } from "./RoadmapHeader";
 import { PhaseCard } from "./PhaseCard";
 import { FeatureCard } from "./FeatureCard";
-import { FeatureDetailPanel } from "./FeatureDetailPanel";
+import {
+  FeatureDetailPanel,
+  type RoadmapFeatureUpdateInput,
+} from "./FeatureDetailPanel";
 
 interface RoadmapViewProps {
   projectId: string;
@@ -37,6 +44,7 @@ export function RoadmapView({ projectId }: RoadmapViewProps) {
     generationStatus,
     setRoadmap,
     setGenerationStatus,
+    updateFeature,
     deleteFeature,
   } = useRoadmapStore();
 
@@ -95,12 +103,81 @@ export function RoadmapView({ projectId }: RoadmapViewProps) {
     }
   };
 
-  // Group features by phase
-  const featuresByPhase = (phaseId: string) =>
-    roadmap?.features.filter((f) => f.phaseId === phaseId) ?? [];
+  const handleUpdateFeature = async (
+    featureId: string,
+    updates: RoadmapFeatureUpdateInput,
+  ) => {
+    const mappedStatus = (
+      updates.status === "idea" ? "under_review" : updates.status
+    ) as RoadmapFeatureStatus | undefined;
 
-  const allFeatures = roadmap?.features ?? [];
-  const sortedPhases = [...(roadmap?.phases ?? [])].sort(
+    updateFeature(featureId, {
+      ...(updates.title ? { title: updates.title } : {}),
+      ...(updates.description !== undefined
+        ? { description: updates.description }
+        : {}),
+      ...(typeof updates.priority === "number"
+        ? { priority: updates.priority }
+        : {}),
+      ...(mappedStatus ? { status: mappedStatus } : {}),
+    });
+
+    if (selectedFeature?.id === featureId) {
+      setSelectedFeature((prev) =>
+        prev
+          ? {
+              ...prev,
+              ...(updates.title ? { title: updates.title } : {}),
+              ...(updates.description !== undefined
+                ? { description: updates.description }
+                : {}),
+              ...(typeof updates.priority === "number"
+                ? { priority: updates.priority }
+                : {}),
+              ...(mappedStatus ? { status: mappedStatus } : {}),
+            }
+          : null,
+      );
+    }
+
+    try {
+      const res = await apiClient.updateRoadmapFeature(
+        projectId,
+        featureId,
+        updates,
+      );
+      if (res.roadmap) {
+        setRoadmap(
+          res.roadmap as ReturnType<typeof useRoadmapStore.getState>["roadmap"],
+        );
+      }
+      if (res.feature && selectedFeature?.id === featureId) {
+        setSelectedFeature(res.feature as RoadmapFeature);
+      }
+      if (updates.triggerAiBuild) {
+        void loadTasks(projectId);
+      }
+    } catch {
+      // Keep optimistic update in store if offline
+    }
+  };
+
+  const handleConvertToSpec = (feature: RoadmapFeature) => {
+    void handleUpdateFeature(feature.id, {
+      title: feature.title,
+      description: feature.description,
+      priority: feature.priority,
+      status: "in_progress",
+      triggerAiBuild: true,
+    });
+  };
+
+  // Group features by phase
+  const allFeatures = Array.isArray(roadmap?.features) ? roadmap.features : [];
+  const featuresByPhase = (phaseId: string) =>
+    allFeatures.filter((f) => f && f.phaseId === phaseId);
+
+  const sortedPhases = [...(Array.isArray(roadmap?.phases) ? roadmap.phases : [])].sort(
     (a, b) => a.order - b.order,
   );
 
@@ -168,6 +245,7 @@ export function RoadmapView({ projectId }: RoadmapViewProps) {
             {t("roadmap.empty.description")}
           </p>
           <button
+            data-testid="roadmap-generate-btn"
             className="flex items-center gap-2 mx-auto rounded-lg bg-primary px-6 py-3 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
             onClick={handleGenerate}
           >
@@ -181,7 +259,7 @@ export function RoadmapView({ projectId }: RoadmapViewProps) {
 
   // Main roadmap view
   return (
-    <div className="flex h-full flex-col overflow-hidden">
+    <div data-testid="roadmap-view" className="flex h-full flex-col overflow-hidden">
       <RoadmapHeader
         activeTab={activeTab}
         onTabChange={setActiveTab}
@@ -288,7 +366,7 @@ export function RoadmapView({ projectId }: RoadmapViewProps) {
                       <td className="px-4 py-2.5">
                         <span
                           className={cn(
-                            "rounded-full px-2 py-0.5 text-[10px] font-medium",
+                            "rounded-full px-2 py-0.5 text-xs font-medium",
                             feature.priority !== undefined &&
                               feature.priority <= 1 &&
                               "bg-red-500/10 text-red-600",
@@ -312,7 +390,7 @@ export function RoadmapView({ projectId }: RoadmapViewProps) {
                       <td className="px-4 py-2.5">
                         <span
                           className={cn(
-                            "rounded-full px-2 py-0.5 text-[10px] font-medium",
+                            "rounded-full px-2 py-0.5 text-xs font-medium",
                             feature.status === "done" &&
                               "bg-green-500/10 text-green-600",
                             feature.status === "in_progress" &&
@@ -340,6 +418,8 @@ export function RoadmapView({ projectId }: RoadmapViewProps) {
         <FeatureDetailPanel
           feature={selectedFeature}
           onClose={() => setSelectedFeature(null)}
+          onUpdateFeature={handleUpdateFeature}
+          onConvertToSpec={handleConvertToSpec}
           onDelete={handleDeleteFeature}
         />
       )}

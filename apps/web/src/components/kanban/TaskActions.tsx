@@ -9,6 +9,9 @@ import {
   GitPullRequest,
   MoreVertical,
   RotateCcw,
+  Terminal,
+  ExternalLink,
+  Trash2,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -28,6 +31,7 @@ interface TaskActionsProps {
   onArchive?: (taskId: string) => void;
   onCreatePR?: (taskId: string) => void;
   onRecover?: (taskId: string) => void;
+  onOpenTerminal?: (task: Task, mode?: "modal" | "view") => void;
 }
 
 export function TaskActions({
@@ -38,6 +42,7 @@ export function TaskActions({
   onArchive,
   onCreatePR,
   onRecover,
+  onOpenTerminal,
 }: TaskActionsProps) {
   const { t } = useTranslation("kanban");
 
@@ -67,6 +72,25 @@ export function TaskActions({
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" onClick={handleClick}>
+        {onOpenTerminal && (
+          <>
+            <DropdownMenuItem
+              data-testid={`menu-open-terminal-${task.id}`}
+              onClick={() => onOpenTerminal(task, "modal")}
+            >
+              <Terminal className="mr-2 h-3.5 w-3.5 text-emerald-500" />
+              {t("card.openTerminal", "Open Terminal")}
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              data-testid={`menu-open-terminal-view-${task.id}`}
+              onClick={() => onOpenTerminal(task, "view")}
+            >
+              <ExternalLink className="mr-2 h-3.5 w-3.5 text-emerald-500" />
+              {t("card.openInTerminalsView", "Open in Terminals View")}
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+          </>
+        )}
         {canStart && onStart && (
           <DropdownMenuItem onClick={() => onStart(task.id)}>
             <Play className="mr-2 h-3.5 w-3.5" />
@@ -122,6 +146,15 @@ export function TaskActions({
                 {t("actions.markDone", "Mark as Done")}
               </DropdownMenuItem>
             )}
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              data-testid={`menu-remove-task-${task.id}`}
+              className="text-red-500 focus:text-red-500"
+              onClick={() => onStatusChange(task.id, "remove")}
+            >
+              <Trash2 className="mr-2 h-3.5 w-3.5" />
+              {t("actions.removeTask", "Move to Remove")}
+            </DropdownMenuItem>
           </>
         )}
       </DropdownMenuContent>

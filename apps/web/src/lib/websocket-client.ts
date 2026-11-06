@@ -11,7 +11,7 @@
  */
 
 import { type Manager, type Socket, io } from "socket.io-client";
-import { SOCKET_URL } from "./cloud-mode";
+import { API_TOKEN, getSocketBaseUrl } from "./cloud-mode";
 
 // ---------------------------------------------------------------------------
 // Event type definitions
@@ -119,9 +119,12 @@ const RECONNECT_MAX_ATTEMPTS = Infinity;
 // ---------------------------------------------------------------------------
 
 function createSocket(namespace: string): Socket {
-  return io(`${SOCKET_URL}${namespace}`, {
+  const baseUrl = getSocketBaseUrl();
+  return io(`${baseUrl}${namespace}`, {
     autoConnect: false,
-    transports: ["websocket"],
+    transports: ["websocket", "polling"],
+    query: { token: API_TOKEN },
+    auth: { token: API_TOKEN },
     reconnection: true,
     reconnectionDelay: RECONNECT_BASE_DELAY,
     reconnectionDelayMax: RECONNECT_MAX_DELAY,

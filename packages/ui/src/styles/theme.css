@@ -9,10 +9,12 @@
  * column status colors, UI scale system) remain in the app's globals.css.
  */
 
+@custom-variant dark (&:where(.dark, .dark *));
+
 /* Define custom theme colors for Tailwind CSS v4 */
 @theme {
   /* Font families */
-  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-sans: 'IBM Plex Sans', 'Instrument Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   --font-mono: 'JetBrains Mono', 'Fira Code', 'SF Mono', monospace;
 
   /* Colors - using CSS variables for theme switching */
@@ -124,25 +126,25 @@
   --card: #FFFFFF;
   --card-foreground: #0B0B0F;
 
-  /* Accent - Muted olive/yellow for light mode */
-  --primary: #A5A66A;
-  --primary-foreground: #0B0B0F;
+  /* Accent - Deep olive/bronze for WCAG AA >= 4.5:1 contrast in light mode */
+  --primary: #595B24;
+  --primary-foreground: #FFFFFF;
 
   --secondary: #E8E8E3;
   --secondary-foreground: #0B0B0F;
 
   --muted: #EDEDE8;
-  --muted-foreground: #5C6974;
+  --muted-foreground: #4E5A65;
 
   --accent: #EFEFE0;
-  --accent-foreground: #A5A66A;
+  --accent-foreground: #454719;
 
-  --destructive: #D84F68;
+  --destructive: #B91C1C;
   --destructive-foreground: #FFFFFF;
 
   --border: #DEDED9;
   --input: #DEDED9;
-  --ring: #A5A66A;
+  --ring: #595B24;
 
   --sidebar: #FFFFFF;
   --sidebar-foreground: #0B0B0F;
@@ -151,16 +153,16 @@
   --popover-foreground: #0B0B0F;
 
   /* Semantic colors */
-  --success: #4EBE96;
+  --success: #15803D;
   --success-foreground: #FFFFFF;
   --success-light: #E0F5ED;
-  --warning: #D2D714;
-  --warning-foreground: #0B0B0F;
+  --warning: #854D0E;
+  --warning-foreground: #FFFFFF;
   --warning-light: #F5F5D0;
-  --info: #479FFA;
+  --info: #1D4ED8;
   --info-foreground: #FFFFFF;
   --info-light: #E8F4FF;
-  --error: #D84F68;
+  --error: #B91C1C;
   --error-light: #FCE8EC;
 
   /* Shadows - soft and diffused for light mode */
@@ -168,7 +170,7 @@
   --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.07), 0 2px 4px -2px rgba(0, 0, 0, 0.05);
   --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.08), 0 4px 6px -4px rgba(0, 0, 0, 0.05);
   --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.08), 0 8px 10px -6px rgba(0, 0, 0, 0.04);
-  --shadow-focus: 0 0 0 3px rgba(165, 166, 106, 0.2);
+  --shadow-focus: 0 0 0 3px rgba(89, 91, 36, 0.25);
 
   /* Border radius */
   --radius: 12px;

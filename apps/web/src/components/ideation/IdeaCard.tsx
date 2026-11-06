@@ -34,12 +34,12 @@ const TYPE_LABELS: Record<IdeationType, string> = {
 };
 
 const TYPE_COLORS: Record<IdeationType, string> = {
-  code_improvements: "bg-blue-500/10 text-blue-600",
-  ui_ux_improvements: "bg-purple-500/10 text-purple-600",
-  documentation_gaps: "bg-amber-500/10 text-amber-600",
-  security_hardening: "bg-red-500/10 text-red-600",
-  performance_optimizations: "bg-green-500/10 text-green-600",
-  code_quality: "bg-orange-500/10 text-orange-600",
+  code_improvements: "bg-blue-500/15 text-blue-700 dark:text-blue-300",
+  ui_ux_improvements: "bg-purple-500/15 text-purple-700 dark:text-purple-300",
+  documentation_gaps: "bg-amber-500/15 text-amber-800 dark:text-amber-300",
+  security_hardening: "bg-red-500/15 text-red-700 dark:text-red-300",
+  performance_optimizations: "bg-green-500/15 text-green-800 dark:text-green-300",
+  code_quality: "bg-orange-500/15 text-orange-800 dark:text-orange-300",
 };
 
 interface IdeaCardProps {
@@ -68,6 +68,7 @@ export function IdeaCard({
 
   return (
     <div
+      data-testid={`idea-card-${idea.id}`}
       className={cn(
         "rounded-lg border border-border bg-card p-4 cursor-pointer transition-colors hover:bg-accent/50",
         isInactive && "opacity-50",
@@ -81,7 +82,7 @@ export function IdeaCard({
           <div className="mb-2 flex items-center gap-2">
             <span
               className={cn(
-                "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium",
+                "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium",
                 TYPE_COLORS[idea.type],
               )}
             >
@@ -89,26 +90,26 @@ export function IdeaCard({
               {TYPE_LABELS[idea.type]}
             </span>
             {idea.impact && (
-              <span className="rounded-full bg-secondary px-2 py-0.5 text-[11px] text-muted-foreground">
+              <span className="rounded-full bg-secondary px-2 py-0.5 text-xs text-muted-foreground">
                 {idea.impact}
               </span>
             )}
             {idea.effort && (
-              <span className="rounded-full bg-secondary px-2 py-0.5 text-[11px] text-muted-foreground">
+              <span className="rounded-full bg-secondary px-2 py-0.5 text-xs text-muted-foreground">
                 {idea.effort}
               </span>
             )}
           </div>
 
           {/* Title */}
-          <h3
+          <h2
             className={cn(
-              "text-sm font-medium leading-snug",
+              "text-sm font-medium leading-snug text-balance",
               isInactive && "line-through",
             )}
           >
             {idea.title}
-          </h3>
+          </h2>
 
           {/* Description */}
           <p className="mt-1 text-xs text-muted-foreground line-clamp-2">
@@ -121,6 +122,7 @@ export function IdeaCard({
           {!isInactive && !isConverted && (
             <>
               <button
+                data-testid={`idea-convert-btn-${idea.id}`}
                 className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:bg-primary/10 hover:text-primary transition-colors"
                 onClick={(e) => {
                   e.stopPropagation();
@@ -131,6 +133,7 @@ export function IdeaCard({
                 <Play className="h-3.5 w-3.5" />
               </button>
               <button
+                data-testid={`idea-dismiss-btn-${idea.id}`}
                 className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:bg-red-500/10 hover:text-red-500 transition-colors"
                 onClick={(e) => {
                   e.stopPropagation();

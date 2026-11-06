@@ -3,10 +3,22 @@ import { create } from "zustand";
 // Types matching Electron field names
 export interface ProjectIndex {
   projectId: string;
+  name?: string;
+  path?: string;
   files: number;
+  fileCount?: number;
+  fileList?: string[];
+  taskCount?: number;
   languages: string[];
   frameworks: string[];
-  analyzedAt: Date;
+  services?: Array<{
+    name: string;
+    path: string;
+    type: string;
+    language?: string;
+    framework?: string;
+  }>;
+  analyzedAt: Date | string;
 }
 
 export interface GraphitiMemoryStatus {

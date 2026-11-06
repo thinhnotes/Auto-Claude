@@ -17,6 +17,7 @@ import {
   GitPullRequest,
   AlertCircle,
   Archive,
+  Trash2,
 } from "lucide-react";
 import {
   cn,
@@ -46,6 +47,7 @@ const COLUMN_CONFIG: Record<
   done: { labelKey: "columns.done", icon: CheckCircle2, color: "text-green-500" },
   pr_created: { labelKey: "columns.pr_created", icon: GitPullRequest, color: "text-green-600" },
   error: { labelKey: "columns.error", icon: AlertCircle, color: "text-red-500" },
+  remove: { labelKey: "columns.remove", icon: Trash2, color: "text-red-500" },
 };
 
 export interface KanbanColumnProps {
@@ -53,6 +55,11 @@ export interface KanbanColumnProps {
   tasks: Task[];
   onTaskClick: (task: Task) => void;
   onStatusChange?: (taskId: string, newStatus: TaskStatus) => void;
+  onStart?: (taskId: string) => void;
+  onStop?: (taskId: string) => void;
+  onApprove?: (taskId: string, feedback?: string) => void;
+  onReject?: (taskId: string, feedback: string) => void;
+  onOpenTerminal?: (task: Task, mode?: "modal" | "view") => void;
   /** Whether this column is currently being dragged over */
   isOver?: boolean;
   /** Column width in pixels */
@@ -76,6 +83,11 @@ export function KanbanColumn({
   tasks,
   onTaskClick,
   onStatusChange,
+  onStart,
+  onStop,
+  onApprove,
+  onReject,
+  onOpenTerminal,
   isOver = false,
   columnWidth = DEFAULT_COLUMN_WIDTH,
   isCollapsed = false,
@@ -121,7 +133,7 @@ export function KanbanColumn({
         <span className="text-xs font-medium text-muted-foreground [writing-mode:vertical-lr] rotate-180">
           {t(config.labelKey)}
         </span>
-        <span className="mt-2 rounded-full bg-secondary px-1.5 py-0.5 text-[10px] text-muted-foreground">
+        <span className="mt-2 rounded-full bg-secondary px-1.5 py-0.5 text-xs text-muted-foreground">
           {tasks.length}
         </span>
       </div>
@@ -131,6 +143,7 @@ export function KanbanColumn({
   return (
     <div
       ref={setNodeRef}
+      data-testid={`kanban-column-${status}`}
       className={cn(
         "flex flex-col rounded-lg bg-card/50 border border-border transition-colors relative",
         highlighted && "border-primary/50 bg-primary/5",
@@ -151,7 +164,7 @@ export function KanbanColumn({
           <TooltipContent side="top">{t("board.collapseColumn", "Collapse")}</TooltipContent>
         </Tooltip>
         <Icon className={cn("h-4 w-4", config.color)} />
-        <span className="text-sm font-medium truncate">{t(config.labelKey)}</span>
+        <h2 className="text-sm font-medium truncate">{t(config.labelKey)}</h2>
         <span className="ml-auto rounded-full bg-secondary px-2 py-0.5 text-xs text-muted-foreground">
           {tasks.length}
         </span>
@@ -193,6 +206,11 @@ export function KanbanColumn({
                   task={task}
                   onClick={() => onTaskClick(task)}
                   onStatusChange={onStatusChange}
+                  onStart={onStart}
+                  onStop={onStop}
+                  onApprove={onApprove}
+                  onReject={onReject}
+                  onOpenTerminal={onOpenTerminal}
                 />
               ))
             )}

@@ -7,9 +7,11 @@ import { useTranslation } from "react-i18next";
 
 export function WelcomeScreen() {
   const { t } = useTranslation("layout");
-  const projects = useProjectStore((s) => s.projects);
+  const rawProjects = useProjectStore((s) => s.projects);
+  const projects = Array.isArray(rawProjects) ? rawProjects : [];
   const openProjectTab = useProjectStore((s) => s.openProjectTab);
   const setActiveView = useUIStore((s) => s.setActiveView);
+  const setOpenProjectDialogOpen = useUIStore((s) => s.setOpenProjectDialogOpen);
 
   // Sort by most recent
   const recentProjects = [...projects]
@@ -40,8 +42,7 @@ export function WelcomeScreen() {
   };
 
   const handleNewProject = () => {
-    // For web, new project creation is handled via the settings/project management
-    setActiveView("settings");
+    setOpenProjectDialogOpen(true);
   };
 
   return (

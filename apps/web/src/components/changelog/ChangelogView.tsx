@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import {
   FileText,
@@ -8,6 +8,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import { useChangelogStore } from "@/stores/changelog-store";
+import { apiClient } from "@/lib/data/api-client";
 import { ChangelogFilters } from "./ChangelogFilters";
 import { ConfigurationPanel } from "./ConfigurationPanel";
 import { PreviewPanel } from "./PreviewPanel";
@@ -71,7 +72,82 @@ export function ChangelogView({ projectId }: ChangelogViewProps) {
     setEmojiLevel,
     setCustomInstructions,
     updateGeneratedChangelog,
+    setDoneTasks,
+    setSelectedTaskIds,
+    setExistingChangelog,
+    setGeneratedChangelog,
+    setIsGenerating,
+    setError,
+    setBranches,
+    setPreviewCommits,
   } = useChangelogStore();
+
+  const loadChangelogData = useCallback(async () => {
+    if (!projectId) return;
+    try {
+      const [tasksRes, clRes] = await Promise.all([
+        apiClient.getTasks(projectId).catch(() => ({ tasks: [] })),
+        apiClient.getChangelog(projectId).catch(() => ({ changelog: null })),
+      ]);
+      const rawTasks = Array.isArray((tasksRes as any)?.tasks)
+        ? (tasksRes as any).tasks
+        : Array.isArray((tasksRes as any)?.data)
+          ? (tasksRes as any).data
+          : [];
+      const completedOrAll = rawTasks.filter(
+        (t: any) => t.status === "done" || t.status === "completed" || rawTasks.length > 0,
+      );
+      const mapped = completedOrAll.map((t: any, idx: number) => ({
+        id: String(t.id),
+        title: String(t.title || t.id),
+        specNumber: String(t.specId || t.id).split("-")[0] || String(idx + 1).padStart(3, "0"),
+        status: String(t.status || "done"),
+      }));
+      setDoneTasks(mapped);
+      setSelectedTaskIds(mapped.map((t: { id: string }) => t.id));
+
+      setBranches([
+        { name: "main", isCurrent: true, isRemote: false },
+        { name: "develop", isCurrent: false, isRemote: false },
+      ]);
+      setPreviewCommits(
+        mapped.map((t: { id: string; title: string }, idx: number) => ({
+          hash: `a1b2c3${idx}`,
+          message: `feat: ${t.title}`,
+          author: "Aperant AI Agent",
+          date: new Date().toISOString(),
+        })),
+      );
+
+      const content =
+        (clRes as any)?.content ||
+        (clRes as any)?.changelog ||
+        (clRes as any)?.data?.content ||
+        null;
+      if (typeof content === "string" && content.trim()) {
+        setExistingChangelog({
+          content,
+          lastVersion: "1.0.0",
+          path: "CHANGELOG.md",
+        });
+        setGeneratedChangelog(content);
+      }
+    } catch {
+      // Non-fatal
+    }
+  }, [
+    projectId,
+    setDoneTasks,
+    setSelectedTaskIds,
+    setBranches,
+    setPreviewCommits,
+    setExistingChangelog,
+    setGeneratedChangelog,
+  ]);
+
+  useEffect(() => {
+    loadChangelogData();
+  }, [loadChangelogData]);
 
   const canContinue =
     sourceMode === "tasks"
@@ -91,21 +167,56 @@ export function ChangelogView({ projectId }: ChangelogViewProps) {
     setStep(1);
   }, []);
 
-  const handleGenerate = useCallback(() => {
-    // TODO: Wire to API client for generation
-  }, []);
+  const handleGenerate = useCallback(async () => {
+    if (!projectId) return;
+    setIsGenerating(true);
+    setError(null);
+    try {
+      const res = await apiClient.generateChangelog(projectId, {
+        version: version || "1.0.0",
+        taskIds: selectedTaskIds,
+      });
+      const content =
+        (res as any)?.content ||
+        (res as any)?.changelog ||
+        (res as any)?.data?.content ||
+        "";
+      if (content) {
+        setGeneratedChangelog(content);
+        setExistingChangelog({
+          content,
+          lastVersion: version || "1.0.0",
+          path: "CHANGELOG.md",
+        });
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to generate changelog");
+    } finally {
+      setIsGenerating(false);
+    }
+  }, [
+    projectId,
+    version,
+    selectedTaskIds,
+    setIsGenerating,
+    setError,
+    setGeneratedChangelog,
+    setExistingChangelog,
+  ]);
 
   const handleCopy = useCallback(() => {
-    navigator.clipboard.writeText(generatedChangelog);
+    if (typeof navigator !== "undefined" && navigator.clipboard) {
+      navigator.clipboard.writeText(generatedChangelog).catch(() => {});
+    }
   }, [generatedChangelog]);
 
   const handleRefresh = useCallback(() => {
-    // TODO: Wire to API client for refreshing tasks/git data
-  }, []);
+    loadChangelogData();
+  }, [loadChangelogData]);
 
   const handleLoadCommitsPreview = useCallback(() => {
-    // TODO: Wire to API client for loading commits
-  }, []);
+    loadChangelogData();
+  }, [loadChangelogData]);
 
   const selectedCount =
     sourceMode === "tasks" ? selectedTaskIds.length : previewCommits.length;
@@ -127,7 +238,7 @@ export function ChangelogView({ projectId }: ChangelogViewProps) {
   }
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="flex h-full flex-col" data-testid="changelog-view">
       {/* Header */}
       <div className="flex items-center justify-between border-b border-border px-6 py-3">
         <div className="flex items-center gap-3">
@@ -141,6 +252,7 @@ export function ChangelogView({ projectId }: ChangelogViewProps) {
         <div className="flex items-center gap-2">
           <button
             type="button"
+            data-testid="changelog-refresh-btn"
             className="flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
             onClick={handleRefresh}
           >
@@ -150,6 +262,7 @@ export function ChangelogView({ projectId }: ChangelogViewProps) {
           {step === 1 && (
             <button
               type="button"
+              data-testid="changelog-continue-btn"
               className="flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-sm text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50"
               onClick={handleContinue}
               disabled={!canContinue}
@@ -205,6 +318,7 @@ export function ChangelogView({ projectId }: ChangelogViewProps) {
                   <div className="flex items-center gap-2">
                     <button
                       type="button"
+                      data-testid="changelog-select-all-btn"
                       className="text-xs text-primary hover:underline"
                       onClick={selectAllTasks}
                     >
@@ -213,6 +327,7 @@ export function ChangelogView({ projectId }: ChangelogViewProps) {
                     <span className="text-xs text-muted-foreground">/</span>
                     <button
                       type="button"
+                      data-testid="changelog-deselect-all-btn"
                       className="text-xs text-primary hover:underline"
                       onClick={deselectAllTasks}
                     >

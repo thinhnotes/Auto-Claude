@@ -20,6 +20,7 @@ from pydantic import BaseModel
 
 from ..shared import (
     _AUTO_CLAUDE_DIRS,
+    _STORE_DIR,
     _find_project,
     _load_store,
     _now_iso,
@@ -68,7 +69,7 @@ class UpdateStatusRequest(BaseModel):
 
 
 def _specs_dir(project: dict[str, Any]) -> Path:
-    """Return the specs directory for a project."""
+    """Return the specs directory for a project, falling back to _STORE_DIR."""
     project_path = project["path"]
     auto_build = project.get("autoBuildPath", "")
     if not auto_build:
@@ -77,12 +78,11 @@ def _specs_dir(project: dict[str, Any]) -> Path:
             if os.path.isdir(candidate):
                 auto_build = dirname
                 break
-    if not auto_build:
-        raise HTTPException(
-            status_code=400,
-            detail="Project has no .auto-claude directory",
-        )
-    return Path(project_path) / auto_build / "specs"
+    if auto_build:
+        p = Path(project_path) / auto_build / "specs"
+        if p.exists():
+            return p
+    return _STORE_DIR / "specs" / project["id"]
 
 
 def _slugify(text: str) -> str:
@@ -212,7 +212,7 @@ async def list_tasks(project_id: str) -> dict[str, Any]:
 
     tasks: list[dict[str, Any]] = []
     if not specs_path.exists():
-        return {"success": True, "data": tasks}
+        return {"success": True, "data": tasks, "tasks": tasks}
 
     for spec_folder in sorted(specs_path.iterdir()):
         if not spec_folder.is_dir():
@@ -225,7 +225,7 @@ async def list_tasks(project_id: str) -> dict[str, Any]:
             continue
         tasks.append(_build_task(spec_folder, project_id))
 
-    return {"success": True, "data": tasks}
+    return {"success": True, "data": tasks, "tasks": tasks}
 
 
 @router.post("/projects/{project_id}/tasks")

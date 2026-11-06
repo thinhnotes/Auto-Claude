@@ -178,7 +178,7 @@ export function GitHubIssuesView({ projectId }: GitHubIssuesViewProps) {
                 {repoFullName}
               </span>
             )}
-            <span className="rounded-full bg-secondary px-2 py-0.5 text-[10px] text-muted-foreground">
+            <span className="rounded-full bg-secondary px-2 py-0.5 text-xs text-muted-foreground">
               {getOpenIssuesCount()} open
             </span>
           </div>

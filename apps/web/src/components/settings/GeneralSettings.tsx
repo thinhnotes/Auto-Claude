@@ -5,9 +5,14 @@ import { cn } from "@auto-claude/ui";
 import { useSettingsStore, saveSettings } from "@/stores/settings-store";
 
 const MODELS = [
-  { value: "sonnet", label: "Claude Sonnet" },
-  { value: "opus", label: "Claude Opus" },
-  { value: "haiku", label: "Claude Haiku" },
+  { value: "gemma-4", label: "Local MI50 GPU — Gemma 4 (26B MoE)" },
+  { value: "qwen3.8-moe", label: "Local MI50 GPU — Qwen 3.8 MoE" },
+  { value: "qwen2.5-coder:14b", label: "Local Ollama — Qwen 2.5 Coder 14B" },
+  { value: "gpt-6-luna", label: "Local CLIProxy — GPT-6 Luna" },
+  { value: "gpt-5.6-luna", label: "Local CLIProxy — GPT-5.6 Luna" },
+  { value: "sonnet", label: "Claude Sonnet (Bridged to Local AI)" },
+  { value: "opus", label: "Claude Opus (Bridged to Local AI)" },
+  { value: "haiku", label: "Claude Haiku (Bridged to Local AI)" },
 ] as const;
 
 /**
@@ -15,7 +20,7 @@ const MODELS = [
  */
 export function GeneralSettings() {
   const settings = useSettingsStore((s) => s.settings);
-  const { t } = useTranslation("settings");
+  const { t, i18n } = useTranslation("settings");
 
   return (
     <div className="space-y-6">
@@ -36,9 +41,14 @@ export function GeneralSettings() {
             </p>
           </div>
           <select
+            data-testid="settings-language-select"
             className="rounded-md border border-border bg-background px-3 py-1.5 text-sm"
             value={settings.language ?? "en"}
-            onChange={(e) => saveSettings({ language: e.target.value })}
+            onChange={(e) => {
+              const lang = e.target.value;
+              void i18n.changeLanguage(lang);
+              void saveSettings({ language: lang });
+            }}
           >
             <option value="en">{t("languages.en")}</option>
             <option value="fr">{t("languages.fr")}</option>

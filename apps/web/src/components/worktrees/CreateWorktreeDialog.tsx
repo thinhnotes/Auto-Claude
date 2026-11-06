@@ -58,6 +58,7 @@ export function CreateWorktreeDialog({
               {t("worktrees.create.specName")}
             </label>
             <input
+              data-testid="worktree-spec-name-input"
               className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm outline-none focus:border-primary"
               value={specName}
               onChange={(e) => setSpecName(e.target.value)}
@@ -69,6 +70,7 @@ export function CreateWorktreeDialog({
               {t("worktrees.create.baseBranch")}
             </label>
             <input
+              data-testid="worktree-base-branch-input"
               className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm outline-none focus:border-primary"
               value={baseBranch}
               onChange={(e) => setBaseBranch(e.target.value)}
@@ -87,6 +89,7 @@ export function CreateWorktreeDialog({
             {t("worktrees.create.cancel")}
           </button>
           <button
+            data-testid="worktree-submit-create-btn"
             className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
             onClick={handleCreate}
             disabled={!specName.trim() || isCreating}

@@ -102,13 +102,16 @@ export function IdeationView({ projectId }: IdeationViewProps) {
     try {
       const response = await apiClient.generateIdeas(projectId);
       if (response.ideas && Array.isArray(response.ideas)) {
+        const returnedIdeas = response.ideas as Idea[];
+        setSession({
+          id: `session-${projectId}`,
+          projectId,
+          ideas: returnedIdeas,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        });
         for (const type of types) {
-          const typeIdeas = (response.ideas as Idea[]).filter(
-            (i) => i.type === type,
-          );
-          if (typeIdeas.length > 0) {
-            addIdeasForType(type, typeIdeas);
-          }
+          const typeIdeas = returnedIdeas.filter((i) => i.type === type);
           setTypeState(type, typeIdeas.length > 0 ? "completed" : "failed");
         }
       }
@@ -128,22 +131,65 @@ export function IdeationView({ projectId }: IdeationViewProps) {
     }
   };
 
-  const handleConvert = (idea: Idea) => {
-    // TODO: integrate with task creation flow
+  const handleConvert = async (idea: Idea) => {
     addLog(`Converting idea "${idea.title}" to task...`);
+    try {
+      const res = await apiClient.updateIdeas(projectId, {
+        operation: "convert",
+        ideaId: idea.id,
+      });
+      if (res.ideas && Array.isArray(res.ideas)) {
+        setSession({
+          id: `session-${projectId}`,
+          projectId,
+          ideas: res.ideas as Idea[],
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        });
+      }
+    } catch {
+      // Fallback to local state if needed
+    }
   };
 
-  const handleDismiss = (idea: Idea) => {
+  const handleDismiss = async (idea: Idea) => {
     dismissIdea(idea.id);
     if (selectedIdea?.id === idea.id) {
       setSelectedIdea(null);
     }
+    try {
+      await apiClient.updateIdeas(projectId, {
+        operation: "dismiss",
+        ideaId: idea.id,
+      });
+    } catch {
+      // Ignore network error
+    }
   };
 
-  const handleDelete = (ideaId: string) => {
+  const handleDismissAll = async () => {
+    dismissAllIdeas();
+    try {
+      await apiClient.updateIdeas(projectId, {
+        operation: "dismissAll",
+      });
+    } catch {
+      // Ignore network error
+    }
+  };
+
+  const handleDelete = async (ideaId: string) => {
     deleteIdea(ideaId);
     if (selectedIdea?.id === ideaId) {
       setSelectedIdea(null);
+    }
+    try {
+      await apiClient.updateIdeas(projectId, {
+        operation: "delete",
+        ideaId,
+      });
+    } catch {
+      // Ignore network error
     }
   };
 
@@ -207,6 +253,7 @@ export function IdeationView({ projectId }: IdeationViewProps) {
             {t("ideation.empty.description")}
           </p>
           <button
+            data-testid="ideation-generate-btn"
             className="flex items-center gap-2 mx-auto rounded-lg bg-primary px-6 py-3 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
             onClick={handleGenerate}
           >
@@ -220,13 +267,13 @@ export function IdeationView({ projectId }: IdeationViewProps) {
 
   // Main view
   return (
-    <div className="flex h-full flex-col overflow-hidden">
+    <div data-testid="ideation-view" className="flex h-full flex-col overflow-hidden">
       <IdeationHeader
         ideaCount={ideas.length}
         isGenerating={isGenerating}
         onGenerate={handleGenerate}
         onRefresh={fetchIdeas}
-        onDismissAll={dismissAllIdeas}
+        onDismissAll={handleDismissAll}
         hasIdeas={ideas.length > 0}
       />
 

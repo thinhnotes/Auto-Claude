@@ -93,10 +93,18 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
 // Hook
 // ---------------------------------------------------------------------------
 
+const DEFAULT_WEBSOCKET_CONTEXT: WebSocketContextValue = {
+  state: getSocketState(),
+  terminal: terminalSocket,
+  agent: agentSocket,
+  events: eventsSocket,
+  isConnected: false,
+};
+
 export function useWebSocket(): WebSocketContextValue {
   const ctx = useContext(WebSocketContext);
   if (!ctx) {
-    throw new Error("useWebSocket must be used within a WebSocketProvider");
+    return DEFAULT_WEBSOCKET_CONTEXT;
   }
   return ctx;
 }

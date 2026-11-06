@@ -105,7 +105,7 @@ export function GitLabIssuesView({ projectId }: GitLabIssuesViewProps) {
       {/* Issue List */}
       <div className={cn("flex flex-col border-r border-border", selectedIssue ? "w-96" : "flex-1")}>
         <div className="flex items-center justify-between border-b border-border px-4 py-3">
-          <h1 className="text-sm font-semibold flex items-center gap-2">
+          <h1 className="text-lg font-semibold flex items-center gap-2">
             <GitLabIcon className="h-4 w-4" />
             {t("gitlab.issues.title")}
           </h1>
@@ -145,13 +145,13 @@ export function GitLabIssuesView({ projectId }: GitLabIssuesViewProps) {
                   {issue.labels.map((label) => (
                     <span
                       key={label}
-                      className="rounded-full bg-secondary px-2 py-0.5 text-[10px] text-muted-foreground"
+                      className="rounded-full bg-secondary px-2 py-0.5 text-xs text-muted-foreground"
                     >
                       {label}
                     </span>
                   ))}
                 </div>
-                <div className="mt-1 flex items-center gap-3 text-[10px] text-muted-foreground">
+                <div className="mt-1 flex items-center gap-3 text-xs text-muted-foreground">
                   <span>{issue.author}</span>
                   <span>{issue.createdAt}</span>
                   {issue.comments > 0 && (

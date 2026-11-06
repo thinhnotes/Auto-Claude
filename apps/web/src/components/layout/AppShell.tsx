@@ -1,13 +1,15 @@
 "use client";
 
 import { useEffect } from "react";
+import { TooltipProvider } from "@auto-claude/ui";
+import { WebSocketProvider } from "@/providers/WebSocketProvider";
 import { Sidebar } from "./Sidebar";
 import { ProjectTabBar } from "./ProjectTabBar";
+import { OpenProjectDialog } from "./OpenProjectDialog";
 import { useUIStore } from "@/stores/ui-store";
-import { useProjectStore } from "@/stores/project-store";
-import { useTaskStore } from "@/stores/task-store";
-import { loadTasks } from "@/stores/task-store";
-import { useSettingsStore } from "@/stores/settings-store";
+import { useProjectStore, loadProjects } from "@/stores/project-store";
+import { useTaskStore, loadTasks, startTask, stopTask, approveTask, rejectTask } from "@/stores/task-store";
+import { useSettingsStore, hydrateSettings, loadSettings } from "@/stores/settings-store";
 import { useProjectEnvStore, loadProjectEnvConfig, clearProjectEnvConfig } from "@/stores/project-env-store";
 import { KanbanBoard } from "@/components/kanban/KanbanBoard";
 import { TaskCreationWizard } from "@/components/kanban/TaskCreationWizard";
@@ -24,30 +26,51 @@ import { GitLabMRsView } from "@/components/gitlab/GitLabMRsView";
 import { SettingsView } from "@/components/settings/SettingsView";
 import { WorktreesView } from "@/components/worktrees/WorktreesView";
 import { AgentToolsView } from "@/components/agent-tools/AgentToolsView";
+import { TerminalGrid } from "@/components/terminal/TerminalGrid";
 import { OnboardingWizard } from "@/components/onboarding/OnboardingWizard";
 import { WelcomeScreen } from "./WelcomeScreen";
 import type { SidebarView } from "@/stores/ui-store";
 
-/** UI scale boundaries matching the Electron app */
-const UI_SCALE_MIN = 0.7;
-const UI_SCALE_MAX = 1.3;
-const UI_SCALE_DEFAULT = 1.0;
+/** UI scale boundaries matching the Electron app (percentage: 75% - 200%) */
+const UI_SCALE_MIN = 75;
+const UI_SCALE_MAX = 200;
+const UI_SCALE_DEFAULT = 100;
 
 export function AppShell() {
   const activeView = useUIStore((s) => s.activeView);
   const isNewTaskDialogOpen = useUIStore((s) => s.isNewTaskDialogOpen);
   const setNewTaskDialogOpen = useUIStore((s) => s.setNewTaskDialogOpen);
+  const isOpenProjectDialogOpen = useUIStore((s) => s.isOpenProjectDialogOpen);
+  const setOpenProjectDialogOpen = useUIStore((s) => s.setOpenProjectDialogOpen);
   const isOnboardingOpen = useUIStore((s) => s.isOnboardingOpen);
   const setOnboardingOpen = useUIStore((s) => s.setOnboardingOpen);
   const selectedTask = useUIStore((s) => s.selectedTask);
   const setSelectedTask = useUIStore((s) => s.setSelectedTask);
   const activeProjectId = useProjectStore((s) => s.activeProjectId);
   const selectedProjectId = useProjectStore((s) => s.selectedProjectId);
-  const projects = useProjectStore((s) => s.projects);
-  const settings = useSettingsStore((s) => s.settings);
+  const rawProjects = useProjectStore((s) => s.projects);
+  const projects = Array.isArray(rawProjects) ? rawProjects : [];
+  const rawTasks = useTaskStore((s) => s.tasks);
+  const tasks = Array.isArray(rawTasks) ? rawTasks : [];
+  const settings = useSettingsStore((s) => s.settings) ?? {};
 
   const currentProjectId = activeProjectId || selectedProjectId;
-  const selectedProject = projects.find((p) => p.id === currentProjectId);
+  const selectedProject = projects.find((p) => p && p.id === currentProjectId);
+
+  // Initialize settings and projects on mount
+  useEffect(() => {
+    hydrateSettings();
+    loadSettings();
+    loadProjects();
+  }, []);
+
+  // Self-heal if stale HMR state ever left projects undefined
+  useEffect(() => {
+    if (!Array.isArray(rawProjects)) {
+      useProjectStore.setState({ projects: [], openProjectIds: [], tabOrder: [] });
+      loadProjects();
+    }
+  }, [rawProjects]);
 
   // Load tasks when project changes
   useEffect(() => {
@@ -103,13 +126,19 @@ export function AppShell() {
 
   // Apply UI scale
   useEffect(() => {
-    const scale = Math.min(
+    const root = document.documentElement;
+    const rawScale = settings.uiScale ?? UI_SCALE_DEFAULT;
+    const normalizedScale =
+      rawScale > 0 && rawScale <= 2 ? Math.round(rawScale * 100) : rawScale;
+    const clampedScale = Math.min(
       UI_SCALE_MAX,
-      Math.max(UI_SCALE_MIN, settings.uiScale ?? UI_SCALE_DEFAULT)
+      Math.max(UI_SCALE_MIN, normalizedScale)
     );
-    document.documentElement.style.fontSize = `${scale * 16}px`;
+    root.setAttribute("data-ui-scale", String(clampedScale));
+    root.style.fontSize = `${(clampedScale / 100) * 16}px`;
     return () => {
-      document.documentElement.style.fontSize = "";
+      root.removeAttribute("data-ui-scale");
+      root.style.fontSize = "";
     };
   }, [settings.uiScale]);
 
@@ -156,6 +185,23 @@ export function AppShell() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [currentProjectId]);
 
+  // Listen for custom event to jump directly to Terminals view for a specific Task
+  useEffect(() => {
+    const handleOpenTaskTerminalView = () => {
+      useUIStore.getState().setActiveView("terminals");
+    };
+    window.addEventListener(
+      "auto-claude:open-task-terminal-view",
+      handleOpenTaskTerminalView,
+    );
+    return () => {
+      window.removeEventListener(
+        "auto-claude:open-task-terminal-view",
+        handleOpenTaskTerminalView,
+      );
+    };
+  }, []);
+
   const renderContent = () => {
     // Settings is always accessible, even without a project
     if (activeView === "settings") {
@@ -171,9 +217,12 @@ export function AppShell() {
         return <KanbanBoard />;
       case "terminals":
         return (
-          <div className="flex h-full items-center justify-center text-muted-foreground">
-            Terminals (coming soon)
-          </div>
+          <TerminalGrid
+            projectId={currentProjectId!}
+            projectPath={selectedProject.path}
+            tasks={tasks}
+            onNewTaskClick={() => setNewTaskDialogOpen(true)}
+          />
         );
       case "roadmap":
         return <RoadmapView projectId={currentProjectId!} />;
@@ -203,41 +252,71 @@ export function AppShell() {
   };
 
   return (
-    <div className="flex h-screen bg-background text-foreground">
-      {/* Sidebar */}
-      <Sidebar />
+    <TooltipProvider delayDuration={200}>
+      <WebSocketProvider>
+      <div className="flex h-screen bg-background text-foreground" suppressHydrationWarning>
+        {/* Sidebar */}
+        <Sidebar />
 
-      {/* Main content */}
-      <div className="flex flex-1 flex-col overflow-hidden">
-        {/* Project Tabs */}
-        <ProjectTabBar />
+        {/* Main content */}
+        <div className="flex flex-1 flex-col overflow-hidden" suppressHydrationWarning>
+          {/* Project Tabs */}
+          <ProjectTabBar />
 
-        {/* Main content area */}
-        <main className="flex-1 overflow-hidden">{renderContent()}</main>
+          {/* Main content area */}
+          <main className="flex-1 overflow-hidden" suppressHydrationWarning>{renderContent()}</main>
+        </div>
+
+        {/* Open / Connect Project Dialog */}
+        <OpenProjectDialog
+          open={isOpenProjectDialogOpen}
+          onClose={() => setOpenProjectDialogOpen(false)}
+        />
+
+        {/* Task Creation Wizard */}
+        {currentProjectId && (
+          <TaskCreationWizard
+            open={isNewTaskDialogOpen}
+            onClose={() => setNewTaskDialogOpen(false)}
+            projectId={currentProjectId}
+          />
+        )}
+
+        {/* Task Detail Modal */}
+        {selectedTask && (
+          <TaskDetailModal
+            task={selectedTask}
+            onClose={() => setSelectedTask(null)}
+            onStart={
+              currentProjectId
+                ? (taskId) => startTask(currentProjectId, taskId)
+                : undefined
+            }
+            onStop={
+              currentProjectId
+                ? (taskId) => stopTask(currentProjectId, taskId)
+                : undefined
+            }
+            onApprove={
+              currentProjectId
+                ? (taskId, feedback) => void approveTask(currentProjectId, taskId, feedback)
+                : undefined
+            }
+            onReject={
+              currentProjectId
+                ? (taskId, feedback) => void rejectTask(currentProjectId, taskId, feedback)
+                : undefined
+            }
+          />
+        )}
+
+        {/* Onboarding Wizard */}
+        <OnboardingWizard
+          open={isOnboardingOpen}
+          onClose={() => setOnboardingOpen(false)}
+        />
       </div>
-
-      {/* Task Creation Wizard */}
-      {currentProjectId && (
-        <TaskCreationWizard
-          open={isNewTaskDialogOpen}
-          onClose={() => setNewTaskDialogOpen(false)}
-          projectId={currentProjectId}
-        />
-      )}
-
-      {/* Task Detail Modal */}
-      {selectedTask && (
-        <TaskDetailModal
-          task={selectedTask}
-          onClose={() => setSelectedTask(null)}
-        />
-      )}
-
-      {/* Onboarding Wizard */}
-      <OnboardingWizard
-        open={isOnboardingOpen}
-        onClose={() => setOnboardingOpen(false)}
-      />
-    </div>
+      </WebSocketProvider>
+    </TooltipProvider>
   );
 }
