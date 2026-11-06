@@ -78,6 +78,7 @@ apps/desktop/node_modules
 # Build output
 dist/
 out/
+.next
 *.tsbuildinfo
 
 # Cache

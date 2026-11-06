@@ -1,0 +1,133 @@
+{
+  "context": {
+    "title": "Project Context",
+    "reindex": "Re-index",
+    "tabs": {
+      "overview": "Overview",
+      "services": "Services",
+      "memories": "Memories"
+    },
+    "fields": {
+      "projectStructure": "Project Structure",
+      "type": "Type",
+      "monorepo": "Monorepo",
+      "services": "Services",
+      "memorySystem": "Memory System",
+      "status": "Status",
+      "active": "Active",
+      "episodes": "Episodes",
+      "database": "Database",
+      "ladybugDB": "LadybugDB",
+      "language": "Language",
+      "framework": "Framework",
+      "path": "Path",
+      "files": "Files",
+      "languages": "Languages",
+      "frameworks": "Frameworks",
+      "lastAnalyzed": "Last analyzed"
+    },
+    "empty": {
+      "noMemories": "No Memories Yet",
+      "noMemoriesDescription": "As the AI works on tasks, it builds up memories about your codebase - patterns, gotchas, and discoveries that improve future work.",
+      "noResults": "No results found",
+      "noResultsDescription": "Try a different search query.",
+      "noIndex": "No Project Index Found",
+      "noIndexDescription": "Click Refresh to analyze your project structure and create an index."
+    },
+    "search": {
+      "memories": "Search memories..."
+    },
+    "projectIndex": {
+      "description": "AI-discovered knowledge about your codebase"
+    },
+    "errors": {
+      "indexFailed": "Failed to load project index"
+    }
+  },
+  "github": {
+    "issues": {
+      "title": "GitHub Issues",
+      "notConnected": "GitHub Not Connected",
+      "notConnectedDescription": "Connect your GitHub repository to sync issues and create tasks from them.",
+      "configure": "Configure GitHub",
+      "search": "Search issues...",
+      "createTask": "Create Task from Issue"
+    },
+    "prs": {
+      "title": "Pull Requests",
+      "search": "Search PRs...",
+      "stats": {
+        "additions": "Additions",
+        "deletions": "Deletions",
+        "files": "Files",
+        "filesCount": "{{count}} files"
+      },
+      "status": "Status",
+      "reviewStatus": "Review Status",
+      "aiReview": "AI Review",
+      "startAiReview": "Start AI Code Review",
+      "reviews": {
+        "pending": "Pending Review",
+        "approved": "Approved",
+        "changesRequested": "Changes Requested",
+        "inReview": "In Review"
+      },
+      "filters": {
+        "all": "All",
+        "open": "Open",
+        "merged": "Merged",
+        "closed": "Closed"
+      },
+      "aiReviewResult": "AI Review Result",
+      "reviewing": "Reviewing...",
+      "noPRs": "No pull requests found",
+      "draft": "Draft",
+      "reviewActions": "Review Actions",
+      "approve": "Approve",
+      "requestChanges": "Request Changes",
+      "addComment": "Add a comment..."
+    }
+  },
+  "gitlab": {
+    "issues": {
+      "title": "GitLab Issues",
+      "notConnected": "GitLab Not Connected",
+      "notConnectedDescription": "Connect your GitLab project to sync issues and create tasks.",
+      "configure": "Configure GitLab",
+      "search": "Search issues...",
+      "createTask": "Create Task from Issue",
+      "noIssues": "No issues found",
+      "investigate": "Investigate"
+    },
+    "mrs": {
+      "title": "Merge Requests",
+      "search": "Search merge requests...",
+      "stats": {
+        "additions": "Additions",
+        "deletions": "Deletions",
+        "files": "Files",
+        "filesCount": "{{count}} files"
+      },
+      "status": "Status",
+      "approvals": "Approvals",
+      "approvalsCount": "{{current}}/{{required}} approvals",
+      "aiReview": "AI Review",
+      "startAiReview": "Start AI Code Review",
+      "draft": "Draft",
+      "filters": {
+        "all": "All",
+        "opened": "Opened",
+        "merged": "Merged",
+        "closed": "Closed"
+      },
+      "reviewing": "Reviewing...",
+      "noMRs": "No merge requests found",
+      "reviewActions": "Review Actions",
+      "approved": "Approved",
+      "changesRequested": "Changes Requested",
+      "approve": "Approve",
+      "requestChanges": "Request Changes",
+      "addComment": "Add a comment..."
+    }
+  }
+}

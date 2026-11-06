@@ -1,0 +1,286 @@
+{
+  "roadmap": {
+    "title": "Roadmap",
+    "refresh": "Refresh",
+    "addFeature": "Add Feature",
+    "tabs": {
+      "board": "Board",
+      "timeline": "Timeline",
+      "list": "List"
+    },
+    "empty": {
+      "title": "No Roadmap Yet",
+      "description": "Generate an AI-powered roadmap based on your project's codebase, architecture, and goals.",
+      "generate": "Generate Roadmap"
+    },
+    "detail": {
+      "title": "Feature Details",
+      "editFeature": "Edit Feature",
+      "featureTitle": "Feature Title",
+      "featureDescription": "Description",
+      "priority": "Priority",
+      "effort": "Effort",
+      "phase": "Phase",
+      "status": "Status",
+      "saveChanges": "Save Changes",
+      "saveAndAiBuild": "Save & AI Fix / Build Feature",
+      "convertToTask": "Convert to Task",
+      "goToTask": "Go to Task",
+      "linkedTask": "Linked Task",
+      "source": "Source",
+      "deleteConfirmTitle": "Delete Feature?",
+      "deleteConfirmDescription": "Are you sure you want to delete {{title}}?",
+      "cancel": "Cancel",
+      "delete": "Delete"
+    },
+    "table": {
+      "feature": "Feature",
+      "phase": "Phase",
+      "priority": "Priority",
+      "status": "Status",
+      "effort": "Effort"
+    },
+    "status": {
+      "inProgress": "In Progress",
+      "completed": "Completed",
+      "planned": "Planned",
+      "underReview": "Under Review"
+    },
+    "priority": {
+      "high": "high",
+      "medium": "medium",
+      "low": "low"
+    },
+    "effort": {
+      "large": "Large",
+      "medium": "Medium",
+      "small": "Small"
+    },
+    "phases": {
+      "phase1": "Phase 1: Foundation",
+      "phase2": "Phase 2: Core Features",
+      "phase3": "Phase 3: Integration"
+    },
+    "viewTask": "View Task",
+    "build": "Build",
+    "completedLabel": "completed",
+    "featureLabel": "features",
+    "phaseLabel": "phases",
+    "regenerate": "Regenerate",
+    "generating": "Generating roadmap...",
+    "generateComplete": "Roadmap generated successfully",
+    "generateError": "Failed to generate roadmap",
+    "loading": "Loading roadmap...",
+    "generatingTitle": "Generating Roadmap"
+  },
+  "ideation": {
+    "title": "Ideation",
+    "ideaCount": "{{count}} ideas generated",
+    "noIdeas": "No ideas generated yet",
+    "refresh": "Refresh",
+    "dismissAll": "Dismiss All",
+    "generate": "Generate Ideas",
+    "generating": "Generating...",
+    "regenerate": "Regenerate",
+    "loading": "Loading ideas...",
+    "analyzingProject": "Analyzing project codebase...",
+    "generateComplete": "Ideas generated successfully",
+    "generateError": "Failed to generate ideas",
+    "noMatchingIdeas": "No matching ideas found",
+    "generatingTitle": "Generating Ideas",
+    "generatingDescription": "Analyzing your project across 6 categories...",
+    "progress": "Progress",
+    "convertToTask": "Convert to Task",
+    "dismiss": "Dismiss",
+    "goToTask": "Go to Task",
+    "analyzeCodebase": "Analyze Codebase",
+    "allFilter": "All ({{count}})",
+    "categoryCount": "{{label}} ({{count}})",
+    "filters": {
+      "all": "All",
+      "codeImprovements": "Code",
+      "uiUx": "UI/UX",
+      "documentation": "Docs",
+      "security": "Security",
+      "performance": "Performance",
+      "codeQuality": "Quality",
+      "allStatuses": "All Statuses",
+      "new": "New",
+      "reviewed": "Reviewed",
+      "converted": "Converted",
+      "dismissed": "Dismissed"
+    },
+    "detail": {
+      "title": "Idea Details",
+      "impact": "Impact",
+      "effort": "Effort",
+      "priority": "Priority",
+      "linkedTask": "Linked Task",
+      "deleteConfirmTitle": "Delete Idea?",
+      "deleteConfirmDescription": "Are you sure you want to delete this idea?",
+      "cancel": "Cancel",
+      "delete": "Delete"
+    },
+    "empty": {
+      "title": "No Ideas Yet",
+      "description": "Let AI analyze your codebase and suggest improvements, features, and optimizations.",
+      "generate": "Generate Ideas"
+    },
+    "categories": {
+      "codeImprovements": {
+        "label": "Code Quality",
+        "description": "Refactoring and code improvements"
+      },
+      "securityHardening": {
+        "label": "Security",
+        "description": "Security vulnerabilities and fixes"
+      },
+      "performanceOptimization": {
+        "label": "Performance",
+        "description": "Speed and resource optimization"
+      },
+      "uiUxImprovements": {
+        "label": "UI/UX",
+        "description": "User experience improvements"
+      },
+      "bugPredictions": {
+        "label": "Bug Predictions",
+        "description": "Potential bugs and edge cases"
+      },
+      "newFeatures": {
+        "label": "Features",
+        "description": "New feature suggestions"
+      }
+    },
+    "impact": "Impact: {{level}}",
+    "effort": "Effort: {{level}}"
+  },
+  "insights": {
+    "title": "AI Insights",
+    "chatHistory": "Chat History",
+    "welcomeTitle": "AI Insights",
+    "welcomeDescription": "Ask questions about your codebase. I can analyze code quality, find bugs, suggest improvements, and more.",
+    "placeholder": "Ask about your codebase...",
+    "you": "You",
+    "aiAssistant": "AI Assistant",
+    "suggestions": {
+      "complexity": "What are the most complex parts of this codebase?",
+      "security": "Find potential security vulnerabilities",
+      "performance": "Suggest performance optimizations",
+      "tests": "What tests are missing?",
+      "architecture": "Analyze the architecture and suggest improvements"
+    },
+    "noConversations": "No conversations yet",
+    "inputHint": "Press Enter to send, Shift+Enter for new line",
+    "newChat": "New Chat"
+  },
+  "changelog": {
+    "title": "Changelog",
+    "refresh": "Refresh",
+    "continue": "Continue",
+    "stepConfigure": "Configure & Generate",
+    "newRelease": "New Release",
+    "empty": {
+      "title": "No Changelog",
+      "description": "Generate a changelog from your completed tasks and merged pull requests.",
+      "generate": "Generate Changelog"
+    },
+    "filters": {
+      "source": "Changelog Source",
+      "gitHistory": "Git History",
+      "branchComparison": "Branch Comparison"
+    },
+    "tasks": {
+      "title": "Completed Tasks",
+      "selectAll": "Select All",
+      "deselectAll": "Deselect All",
+      "empty": "No completed tasks found"
+    },
+    "commits": {
+      "title": "Commits Preview",
+      "empty": "No commits loaded"
+    },
+    "config": {
+      "backToSelection": "Back to selection",
+      "including": "Including {{count}} items",
+      "releaseInfo": "Release Information",
+      "outputStyle": "Output Style",
+      "generate": "Generate Changelog"
+    },
+    "preview": {
+      "title": "Changelog Preview",
+      "copy": "Copy",
+      "copied": "Copied!",
+      "createRelease": "Create Release",
+      "empty": "Click 'Generate Changelog' to preview the release notes."
+    },
+    "changeTypes": {
+      "added": "Added",
+      "changed": "Changed",
+      "fixed": "Fixed",
+      "removed": "Removed"
+    }
+  },
+  "worktrees": {
+    "title": "Worktrees",
+    "refresh": "Refresh",
+    "retry": "Try again",
+    "empty": {
+      "title": "No Worktrees",
+      "description": "Worktrees are created automatically when tasks are built."
+    },
+    "actions": {
+      "diff": "Check Diff",
+      "checkDiff": "Check Diff",
+      "hideDiff": "Hide Diff",
+      "merge": "Merge",
+      "createPR": "Create PR",
+      "discard": "Discard",
+      "confirmDelete": "Confirm Delete"
+    },
+    "diff": {
+      "previewTitle": "Diff Preview: {{branch}} → {{baseBranch}}",
+      "changedFilesCount": "{{count}} changed file(s)",
+      "changedFilesHeader": "Changed Files ({{count}})",
+      "filterPlaceholder": "Filter files...",
+      "unifiedDiff": "Unified Diff",
+      "splitDiff": "Split Diff",
+      "fullCode": "Full Code",
+      "copy": "Copy",
+      "copied": "Copied",
+      "refresh": "Refresh Diff",
+      "expand": "Expand",
+      "collapse": "Collapse",
+      "loading": "Loading diff...",
+      "noChanges": "No code changes detected in this worktree.",
+      "baseHeader": "Base ({{branch}})",
+      "worktreeHeader": "Worktree ({{branch}})"
+    },
+    "create": {
+      "button": "New Worktree",
+      "title": "Create Worktree",
+      "description": "Create a new isolated worktree for development.",
+      "specName": "Spec Name",
+      "baseBranch": "Base Branch (optional)",
+      "cancel": "Cancel",
+      "submit": "Create"
+    },
+    "gitLog": {
+      "title": "main Branch Commit Log"
+    },
+    "tabs": {
+      "active": "Active Worktrees",
+      "merged": "Merged & main Git Log"
+    },
+    "mergedSection": {
+      "title": "Recently Merged into main"
+    }
+  },
+  "agentTools": {
+    "title": "MCP Overview",
+    "refresh": "Refresh",
+    "mcpServers": "MCP Servers",
+    "tools": "tools",
+    "availableTools": "Available Tools"
+  }
+}

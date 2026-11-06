@@ -1,0 +1,286 @@
+{
+  "roadmap": {
+    "title": "Feuille de route",
+    "refresh": "Actualiser",
+    "addFeature": "Ajouter une fonctionnalité",
+    "tabs": {
+      "board": "Tableau",
+      "timeline": "Chronologie",
+      "list": "Liste"
+    },
+    "empty": {
+      "title": "Aucune feuille de route",
+      "description": "Générez une feuille de route alimentée par l'IA basée sur le codebase, l'architecture et les objectifs de votre projet.",
+      "generate": "Générer la feuille de route"
+    },
+    "detail": {
+      "title": "Détails de la fonctionnalité",
+      "editFeature": "Modifier la fonctionnalité",
+      "featureTitle": "Titre de la fonctionnalité",
+      "featureDescription": "Description",
+      "priority": "Priorité",
+      "effort": "Effort",
+      "phase": "Phase",
+      "status": "Statut",
+      "saveChanges": "Enregistrer les modifications",
+      "saveAndAiBuild": "Enregistrer & Construire / Corriger par IA",
+      "convertToTask": "Convertir en tâche",
+      "goToTask": "Aller à la tâche",
+      "linkedTask": "Tâche liée",
+      "source": "Source",
+      "deleteConfirmTitle": "Supprimer la fonctionnalité ?",
+      "deleteConfirmDescription": "Voulez-vous vraiment supprimer {{title}} ?",
+      "cancel": "Annuler",
+      "delete": "Supprimer"
+    },
+    "table": {
+      "feature": "Fonctionnalité",
+      "phase": "Phase",
+      "priority": "Priorité",
+      "status": "Statut",
+      "effort": "Effort"
+    },
+    "status": {
+      "inProgress": "En cours",
+      "completed": "Terminé",
+      "planned": "Planifié",
+      "underReview": "En cours de revue"
+    },
+    "priority": {
+      "high": "élevée",
+      "medium": "moyenne",
+      "low": "faible"
+    },
+    "effort": {
+      "large": "Important",
+      "medium": "Moyen",
+      "small": "Faible"
+    },
+    "phases": {
+      "phase1": "Phase 1 : Fondation",
+      "phase2": "Phase 2 : Fonctionnalités principales",
+      "phase3": "Phase 3 : Intégration"
+    },
+    "viewTask": "Voir la tâche",
+    "build": "Construire",
+    "completedLabel": "terminé",
+    "featureLabel": "fonctionnalités",
+    "phaseLabel": "phases",
+    "regenerate": "Régénérer",
+    "generating": "Génération de la feuille de route...",
+    "generateComplete": "Feuille de route générée avec succès",
+    "generateError": "Échec de la génération de la feuille de route",
+    "loading": "Chargement de la feuille de route...",
+    "generatingTitle": "Génération de la feuille de route"
+  },
+  "ideation": {
+    "title": "Idéation",
+    "regenerate": "Régénérer",
+    "analyzeCodebase": "Analyser le codebase",
+    "allFilter": "Tout ({{count}})",
+    "categoryCount": "{{label}} ({{count}})",
+    "empty": {
+      "title": "Aucune idée",
+      "description": "Laissez l'IA analyser votre codebase et suggérer des améliorations, des fonctionnalités et des optimisations.",
+      "generate": "Générer des idées"
+    },
+    "categories": {
+      "codeImprovements": {
+        "label": "Qualité du code",
+        "description": "Refactoring et améliorations du code"
+      },
+      "securityHardening": {
+        "label": "Sécurité",
+        "description": "Vulnérabilités de sécurité et correctifs"
+      },
+      "performanceOptimization": {
+        "label": "Performance",
+        "description": "Optimisation de la vitesse et des ressources"
+      },
+      "uiUxImprovements": {
+        "label": "UI/UX",
+        "description": "Améliorations de l'expérience utilisateur"
+      },
+      "bugPredictions": {
+        "label": "Prédictions de bugs",
+        "description": "Bugs potentiels et cas limites"
+      },
+      "newFeatures": {
+        "label": "Fonctionnalités",
+        "description": "Suggestions de nouvelles fonctionnalités"
+      }
+    },
+    "impact": "Impact : {{level}}",
+    "effort": "Effort : {{level}}",
+    "generatingTitle": "Génération d'idées",
+    "generatingDescription": "Analyse de votre projet dans 6 catégories...",
+    "progress": "Progression",
+    "convertToTask": "Convertir en tâche",
+    "dismiss": "Ignorer",
+    "goToTask": "Aller à la tâche",
+    "detail": {
+      "title": "Détails de l'idée",
+      "impact": "Impact",
+      "effort": "Effort",
+      "priority": "Priorité",
+      "linkedTask": "Tâche liée",
+      "deleteConfirmTitle": "Supprimer l'idée ?",
+      "deleteConfirmDescription": "Êtes-vous sûr de vouloir supprimer cette idée ?",
+      "cancel": "Annuler",
+      "delete": "Supprimer"
+    },
+    "filters": {
+      "all": "Toutes",
+      "codeImprovements": "Code",
+      "uiUx": "UI/UX",
+      "documentation": "Docs",
+      "security": "Sécurité",
+      "performance": "Performance",
+      "codeQuality": "Qualité",
+      "allStatuses": "Tous les statuts",
+      "new": "Nouveau",
+      "reviewed": "Examiné",
+      "converted": "Converti",
+      "dismissed": "Ignoré"
+    },
+    "ideaCount": "{{count}} idées générées",
+    "noIdeas": "Aucune idée générée pour le moment",
+    "refresh": "Actualiser",
+    "dismissAll": "Tout ignorer",
+    "generating": "Génération...",
+    "generate": "Générer des idées",
+    "analyzingProject": "Analyse du code du projet...",
+    "generateComplete": "Idées générées avec succès",
+    "generateError": "Échec de la génération d'idées",
+    "loading": "Chargement des idées...",
+    "noMatchingIdeas": "Aucune idée correspondante trouvée"
+  },
+  "insights": {
+    "title": "Analyses IA",
+    "chatHistory": "Historique des conversations",
+    "welcomeTitle": "Analyses IA",
+    "welcomeDescription": "Posez des questions sur votre codebase. Je peux analyser la qualité du code, trouver des bugs, suggérer des améliorations, et plus encore.",
+    "placeholder": "Posez une question sur votre codebase...",
+    "you": "Vous",
+    "aiAssistant": "Assistant IA",
+    "suggestions": {
+      "complexity": "Quelles sont les parties les plus complexes de ce codebase ?",
+      "security": "Trouver les vulnérabilités de sécurité potentielles",
+      "performance": "Suggérer des optimisations de performance",
+      "tests": "Quels tests manquent ?",
+      "architecture": "Analyser l'architecture et suggérer des améliorations"
+    },
+    "noConversations": "Aucune conversation pour le moment",
+    "inputHint": "Entrée pour envoyer, Maj+Entrée pour une nouvelle ligne",
+    "newChat": "Nouvelle discussion"
+  },
+  "changelog": {
+    "title": "Journal des modifications",
+    "refresh": "Actualiser",
+    "newRelease": "Nouvelle version",
+    "empty": {
+      "title": "Aucun journal",
+      "description": "Générez un journal des modifications à partir de vos tâches terminées et de vos pull requests fusionnées.",
+      "generate": "Générer le journal"
+    },
+    "changeTypes": {
+      "added": "Ajouté",
+      "changed": "Modifié",
+      "fixed": "Corrigé",
+      "removed": "Supprimé"
+    },
+    "filters": {
+      "source": "Source du journal",
+      "gitHistory": "Historique Git",
+      "branchComparison": "Comparaison de branches"
+    },
+    "stepConfigure": "Configurer et générer",
+    "continue": "Continuer",
+    "tasks": {
+      "title": "Tâches terminées",
+      "selectAll": "Tout sélectionner",
+      "deselectAll": "Tout désélectionner",
+      "empty": "Aucune tâche terminée trouvée"
+    },
+    "commits": {
+      "title": "Aperçu des commits",
+      "empty": "Aucun commit chargé"
+    },
+    "config": {
+      "backToSelection": "Retour à la sélection",
+      "including": "Incluant {{count}} éléments",
+      "releaseInfo": "Informations de version",
+      "outputStyle": "Style de sortie",
+      "generate": "Générer le changelog"
+    },
+    "preview": {
+      "title": "Aperçu du changelog",
+      "copied": "Copié !",
+      "copy": "Copier",
+      "createRelease": "Créer une version",
+      "empty": "Cliquez sur « Générer le changelog » pour prévisualiser les notes de version."
+    }
+  },
+  "worktrees": {
+    "title": "Worktrees",
+    "refresh": "Actualiser",
+    "retry": "Réessayer",
+    "empty": {
+      "title": "Aucun Worktree",
+      "description": "Les worktrees sont créés automatiquement lors de la construction des tâches."
+    },
+    "actions": {
+      "diff": "Voir Diff",
+      "checkDiff": "Voir Diff",
+      "hideDiff": "Masquer Diff",
+      "merge": "Fusionner",
+      "createPR": "Créer PR",
+      "discard": "Supprimer",
+      "confirmDelete": "Confirmer"
+    },
+    "diff": {
+      "previewTitle": "Aperçu Diff : {{branch}} → {{baseBranch}}",
+      "changedFilesCount": "{{count}} fichier(s) modifié(s)",
+      "changedFilesHeader": "Fichiers modifiés ({{count}})",
+      "filterPlaceholder": "Filtrer les fichiers...",
+      "unifiedDiff": "Diff Unifié",
+      "splitDiff": "Diff Côte à Côte",
+      "fullCode": "Code Complet",
+      "copy": "Copier",
+      "copied": "Copié",
+      "refresh": "Actualiser Diff",
+      "expand": "Agrandir",
+      "collapse": "Réduire",
+      "loading": "Chargement du diff...",
+      "noChanges": "Aucun changement détecté dans ce worktree.",
+      "baseHeader": "Base ({{branch}})",
+      "worktreeHeader": "Worktree ({{branch}})"
+    },
+    "create": {
+      "button": "Nouveau Worktree",
+      "title": "Créer un Worktree",
+      "description": "Créer un nouveau worktree isolé pour le développement.",
+      "specName": "Nom du spec",
+      "baseBranch": "Branche de base (optionnel)",
+      "cancel": "Annuler",
+      "submit": "Créer"
+    },
+    "gitLog": {
+      "title": "Journal des commits de la branche main"
+    },
+    "tabs": {
+      "active": "Worktrees actifs",
+      "merged": "Fusionnés et journal Git main"
+    },
+    "mergedSection": {
+      "title": "Récemment fusionnés dans main"
+    }
+  },
+  "agentTools": {
+    "title": "Aperçu MCP",
+    "refresh": "Actualiser",
+    "mcpServers": "Serveurs MCP",
+    "tools": "outils",
+    "availableTools": "Outils disponibles"
+  }
+}
