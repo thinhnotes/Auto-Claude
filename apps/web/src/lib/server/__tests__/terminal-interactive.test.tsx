@@ -448,6 +448,98 @@ describe("Interactive Terminal Engine & Direct Terminal Actions", () => {
 
     openSpy.mockRestore();
   });
+
+  it("maintains interactive AGY mode across subsequent turns when user types 'agy', then 'hi', then asks a question, and exits via '/exit'", async () => {
+    const { TerminalPanel } = await import(
+      "@/components/terminal/TerminalPanel"
+    );
+    const { apiClient } = await import("@/lib/data/api-client");
+
+    const autocompleteSpy = vi
+      .spyOn(apiClient, "autocompleteTerminal")
+      .mockImplementation(async (_projId, sessId, input, cwd) => {
+        return autocompleteTerminalForProject(projectId, sessId, input, cwd);
+      });
+    const execTerminalSpy = vi
+      .spyOn(apiClient, "execTerminalCommand")
+      .mockImplementation(async (_projId, sessId, cmd, cwd) => {
+        return await execTerminalCommandForProject(projectId, sessId, cmd, cwd);
+      });
+    const execAgySpy = vi
+      .spyOn(apiClient, "execAgyCommand")
+      .mockImplementation(async (_projId, sessId, prompt, cwd) => {
+        return await execAgyCommandForProject(projectId, sessId, prompt, cwd);
+      });
+
+    // Render TerminalPanel WITHOUT passing isAgyMode prop (just like TaskTerminal)
+    render(
+      <TerminalPanel
+        sessionId="term-task-agy-repl"
+        projectId={projectId}
+        cwd={tmpDir}
+      />,
+    );
+
+    const outputPre = screen.getByTestId(
+      "terminal-output-log-term-task-agy-repl",
+    );
+    const cmdInput = screen.getByTestId(
+      "terminal-command-input-term-task-agy-repl",
+    ) as HTMLInputElement;
+
+    // 1. User types "agy" and presses Enter
+    fireEvent.change(cmdInput, { target: { value: "agy" } });
+    fireEvent.keyDown(cmdInput, { key: "Enter" });
+
+    await waitFor(() => {
+      expect(outputPre.textContent).toContain(
+        "Google Antigravity CLI",
+      );
+      expect(
+        screen.getByTestId("terminal-agy-badge-term-task-agy-repl"),
+      ).toBeTruthy();
+    });
+
+    // 2. User types "hi" and presses Enter -> must interact with AGY, NOT PowerShell!
+    fireEvent.change(cmdInput, { target: { value: "hi" } });
+    fireEvent.keyDown(cmdInput, { key: "Enter" });
+
+    await waitFor(() => {
+      expect(outputPre.textContent).toContain("Hello! 👋 I'm Google Antigravity CLI");
+      expect(outputPre.textContent).not.toContain(
+        "is not recognized as a name of a cmdlet",
+      );
+    });
+
+    // 3. Also verify that even if execTerminalCommandForProject is called directly while session.isAgyMode is true,
+    // it delegates to AGY instead of running PowerShell!
+    const directRes = await execTerminalCommandForProject(
+      projectId,
+      "term-task-agy-repl",
+      "Summarize Program.cs",
+      tmpDir,
+    );
+    expect(directRes.isAgyMode).toBe(true);
+    expect(directRes.output).toContain("🤖 AGY:");
+    expect(directRes.output).not.toContain("is not recognized as a name of a cmdlet");
+
+    // 4. User types "/exit" to leave AGY Interactive Session and return to PowerShell
+    fireEvent.change(cmdInput, { target: { value: "/exit" } });
+    fireEvent.keyDown(cmdInput, { key: "Enter" });
+
+    await waitFor(() => {
+      expect(outputPre.textContent).toContain(
+        "Exited AGY Interactive Session",
+      );
+      expect(
+        screen.queryByTestId("terminal-agy-badge-term-task-agy-repl"),
+      ).toBeNull();
+    });
+
+    autocompleteSpy.mockRestore();
+    execTerminalSpy.mockRestore();
+    execAgySpy.mockRestore();
+  });
 });
 
 

@@ -111,10 +111,19 @@ export function TerminalPanel({
   sessionId,
   projectId,
   cwd,
-  isAgyMode = false,
+  isAgyMode: isAgyModeProp = false,
   onResize,
   onOpenVSCodeWeb,
 }: TerminalPanelProps) {
+  const storeAgyMode = useTerminalStore(
+    (s) => s.terminals.find((t) => t.id === sessionId)?.isAgyMode,
+  );
+  const [localAgyMode, setLocalAgyMode] = useState<boolean>(
+    Boolean(isAgyModeProp || storeAgyMode),
+  );
+  const isAgyMode =
+    localAgyMode || Boolean(isAgyModeProp) || Boolean(storeAgyMode);
+
   const containerRef = useRef<HTMLDivElement>(null);
   const transcriptRef = useRef<HTMLPreElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -123,6 +132,18 @@ export function TerminalPanel({
   const isDisposedRef = useRef(false);
   const prevCwdRef = useRef<string | undefined>(cwd);
   const prevAgyModeRef = useRef<boolean>(isAgyMode);
+  const activeAgyModeRef = useRef<boolean>(isAgyMode);
+
+  // Keep activeAgyModeRef and localAgyMode synced when external prop or store updates
+  useEffect(() => {
+    if (isAgyModeProp || storeAgyMode) {
+      activeAgyModeRef.current = true;
+      setLocalAgyMode(true);
+    } else if (storeAgyMode === false && !isAgyModeProp) {
+      activeAgyModeRef.current = false;
+      setLocalAgyMode(false);
+    }
+  }, [isAgyModeProp, storeAgyMode]);
 
   const [currentCwd, setCurrentCwd] = useState<string>(cwd || "~");
   const [activeShell, setActiveShell] = useState<"pwsh" | "bash">("pwsh");
@@ -226,7 +247,7 @@ export function TerminalPanel({
     focusCommandInput();
   }, [focusCommandInput]);
 
-  // Load real PowerShell ConsoleHost_history.txt suggestions from backend on mount
+  // Load real PowerShell ConsoleHost_history.txt suggestions and session state from backend on mount
   useEffect(() => {
     if (!projectId) return;
     let cancelled = false;
@@ -234,6 +255,21 @@ export function TerminalPanel({
       .autocompleteTerminal(projectId, sessionId, "", currentCwd)
       .then((res) => {
         if (cancelled) return;
+        if (typeof (res as any)?.isAgyMode === "boolean") {
+          const serverAgy = Boolean((res as any).isAgyMode);
+          if (serverAgy) {
+            prevAgyModeRef.current = true;
+            activeAgyModeRef.current = true;
+            setLocalAgyMode(true);
+            useTerminalStore.getState().setAgyMode(sessionId, true);
+            useTerminalStore
+              .getState()
+              .setTerminalStatus(sessionId, "agy-active");
+          }
+        }
+        if ((res as any)?.shell === "bash" || (res as any)?.shell === "pwsh") {
+          setActiveShell((res as any).shell);
+        }
         if (
           Array.isArray(res?.historySuggestions) &&
           res.historySuggestions.length > 0
@@ -287,6 +323,21 @@ export function TerminalPanel({
       }
       if (res?.shell === "pwsh" || res?.shell === "bash") {
         setActiveShell(res.shell);
+      }
+      const nextAgy =
+        typeof res?.isAgyMode === "boolean"
+          ? res.isAgyMode
+          : typeof res?.session?.isAgyMode === "boolean"
+            ? res.session.isAgyMode
+            : undefined;
+      if (typeof nextAgy === "boolean") {
+        prevAgyModeRef.current = nextAgy;
+        activeAgyModeRef.current = nextAgy;
+        setLocalAgyMode(nextAgy);
+        useTerminalStore.getState().setAgyMode(sessionId, nextAgy);
+        useTerminalStore
+          .getState()
+          .setTerminalStatus(sessionId, nextAgy ? "agy-active" : "running");
       }
       if (
         Array.isArray(res?.historySuggestions) &&
@@ -368,12 +419,12 @@ export function TerminalPanel({
           syncInteractiveStateFromResponse(res);
           const block =
             res.formattedOutput ||
-            `⚡ agy> ${promptText}\r\n${res.output || ""}⚡ agy@${nextCwd.split("/").pop()}> `;
-          appendToTerminalAndLog(`\r\n${block}`);
+            `${promptText}\r\n${res.output || ""}⚡ agy@${nextCwd.split("/").pop()}> `;
+          appendToTerminalAndLog(block);
         } else {
           const cmd = `/home/thinhnguyen/.local/bin/agy --dangerously-skip-permissions --mode auto -p "${promptText}"\n`;
           terminalSocket.emit("input", { sessionId, data: cmd });
-          appendToTerminalAndLog(`\r\n${cmd}⚡ agy> `);
+          appendToTerminalAndLog(`${cmd}⚡ agy> `);
         }
       } catch (err) {
         const msg =
@@ -408,7 +459,11 @@ export function TerminalPanel({
         trimmed.toLowerCase() === "cls"
       ) {
         setInteractiveState(null);
-        const prompt = formatShellPrompt(currentCwd, isAgyMode, activeShell);
+        const prompt = formatShellPrompt(
+          currentCwd,
+          activeAgyModeRef.current || isAgyMode,
+          activeShell,
+        );
         setOutputLog(prompt);
         if (xtermRef.current && !isDisposedRef.current) {
           try {
@@ -445,16 +500,13 @@ export function TerminalPanel({
           setActiveShell(nextShell);
           useTerminalStore.getState().updateTerminal(sessionId, { cwd: nextCwd });
           syncInteractiveStateFromResponse(res);
-          if ((res as any)?.isAgyMode) {
-            prevAgyModeRef.current = true;
-            useTerminalStore.getState().setAgyMode(sessionId, true);
-            useTerminalStore
-              .getState()
-              .setTerminalStatus(sessionId, "agy-active");
-          }
           const fallbackPrompt = formatShellPrompt(
             nextCwd,
-            Boolean((res as any)?.isAgyMode),
+            Boolean(
+              typeof (res as any)?.isAgyMode === "boolean"
+                ? (res as any).isAgyMode
+                : activeAgyModeRef.current,
+            ),
             nextShell,
           );
           const block =
@@ -466,7 +518,7 @@ export function TerminalPanel({
           terminalSocket.emit("input", { sessionId, data: `${trimmed}\n` });
           const fallbackPrompt = formatShellPrompt(
             currentCwd,
-            isAgyMode,
+            activeAgyModeRef.current || isAgyMode,
             activeShell,
           );
           appendToTerminalAndLog(`${trimmed}\r\n${fallbackPrompt}`);
@@ -476,7 +528,7 @@ export function TerminalPanel({
           err instanceof Error ? err.message : "Failed to execute command";
         const fallbackPrompt = formatShellPrompt(
           currentCwd,
-          isAgyMode,
+          activeAgyModeRef.current || isAgyMode,
           activeShell,
         );
         appendToTerminalAndLog(`${trimmed}\r\nError: ${msg}\r\n${fallbackPrompt}`);
@@ -501,24 +553,32 @@ export function TerminalPanel({
   useEffect(() => {
     if (isAgyMode && !prevAgyModeRef.current) {
       prevAgyModeRef.current = true;
+      activeAgyModeRef.current = true;
       executeAgyPrompt("__enter_agy_session__");
       focusCommandInput();
     } else if (!isAgyMode && prevAgyModeRef.current) {
       prevAgyModeRef.current = false;
+      activeAgyModeRef.current = false;
       setInteractiveState(null);
-      const prompt = formatShellPrompt(currentCwd, false, activeShell);
-      appendToTerminalAndLog(
-        `\r\n[Exited AGY Interactive Session — ${activeShell === "pwsh" ? "PowerShell 7.6" : "bash"} active]\r\n${prompt}`,
-      );
+      if (projectId) {
+        void executeShellCommand("/exit");
+      } else {
+        const prompt = formatShellPrompt(currentCwd, false, activeShell);
+        appendToTerminalAndLog(
+          `\r\n[Exited AGY Interactive Session — ${activeShell === "pwsh" ? "PowerShell 7.6" : "bash"} active]\r\n${prompt}`,
+        );
+      }
       focusCommandInput();
     }
   }, [
     activeShell,
     isAgyMode,
     executeAgyPrompt,
+    executeShellCommand,
     appendToTerminalAndLog,
     currentCwd,
     focusCommandInput,
+    projectId,
   ]);
 
   // Sync external cwd changes (e.g. WorktreeSelector switch)
@@ -698,17 +758,22 @@ export function TerminalPanel({
       focusCommandInput();
 
       const lower = trimmed.toLowerCase();
+      const currentlyInAgyMode = activeAgyModeRef.current || isAgyMode;
 
       // Allow exiting AGY mode via `exit`, `/exit`, `quit`, `/quit`
       if (
-        isAgyMode &&
+        currentlyInAgyMode &&
         (lower === "exit" ||
           lower === "/exit" ||
           lower === "quit" ||
           lower === "/quit")
       ) {
+        prevAgyModeRef.current = false;
+        activeAgyModeRef.current = false;
+        setLocalAgyMode(false);
         useTerminalStore.getState().setAgyMode(sessionId, false);
         useTerminalStore.getState().setTerminalStatus(sessionId, "running");
+        await executeShellCommand("/exit");
         return;
       }
 
@@ -720,7 +785,7 @@ export function TerminalPanel({
 
       // Allow running raw shell command inside AGY mode with `!` prefix
       if (trimmed.startsWith("!")) {
-        await executeShellCommand(trimmed.slice(1).trim());
+        await executeShellCommand(trimmed);
         return;
       }
 
@@ -753,8 +818,10 @@ export function TerminalPanel({
         lower.startsWith("agy ") ||
         lower.startsWith("ayg ");
 
-      if (!isAgyMode && isAgyLaunchCmd) {
+      if (!currentlyInAgyMode && isAgyLaunchCmd) {
         prevAgyModeRef.current = true;
+        activeAgyModeRef.current = true;
+        setLocalAgyMode(true);
         useTerminalStore.getState().setAgyMode(sessionId, true);
         useTerminalStore.getState().setTerminalStatus(sessionId, "agy-active");
         const subPrompt = trimmed.replace(/^(agy|ayg)\s*/i, "").trim();
@@ -763,7 +830,7 @@ export function TerminalPanel({
       }
 
       // When in Interactive AGY Mode, EVERY message ("HI", questions, instructions) goes directly to AGY!
-      if (isAgyMode) {
+      if (currentlyInAgyMode) {
         await executeAgyPrompt(trimmed);
       } else {
         await executeShellCommand(trimmed);
@@ -1249,6 +1316,8 @@ export function TerminalPanel({
               e.stopPropagation();
               if (!isAgyMode) {
                 prevAgyModeRef.current = true;
+                activeAgyModeRef.current = true;
+                setLocalAgyMode(true);
                 useTerminalStore.getState().setAgyMode(sessionId, true);
                 useTerminalStore
                   .getState()
@@ -1271,6 +1340,8 @@ export function TerminalPanel({
               e.stopPropagation();
               if (!isAgyMode) {
                 prevAgyModeRef.current = true;
+                activeAgyModeRef.current = true;
+                setLocalAgyMode(true);
                 useTerminalStore.getState().setAgyMode(sessionId, true);
                 useTerminalStore
                   .getState()
